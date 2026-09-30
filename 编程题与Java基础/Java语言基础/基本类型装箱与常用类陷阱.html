@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基本类型装箱与常用类陷阱 · 编程题与Java基础/Java语言基础</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / Java语言基础</div>
+<h1>基本类型、装箱与常用类陷阱</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开 ｜ 形态：概念 + 输出判断（== 陷阱重灾区） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：自动装箱走 <code>valueOf</code>，<b>Integer 缓存 -128~127</b>——范围内 <code>==</code> 同对象、范围外各自新建，包装类型比较一律 equals；包装类型与基本类型混算会拆箱，<b>null 拆箱即 NPE</b>（三元两边类型不一致是隐藏触发点）；StringBuilder 不安全快、StringBuffer synchronized 安全慢；<b>BigDecimal 只用字符串构造或 valueOf</b>，divide 除不尽必须指定精度与 RoundingMode。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>8 大基本类型</b>（成员变量有默认值，局部变量没有、必须先赋值）</p>
+<table>
+<tr><th>类型</th><th>字节数</th><th>包装类</th><th>成员默认值</th></tr>
+<tr><td>byte</td><td>1</td><td>Byte</td><td>0</td></tr>
+<tr><td>short</td><td>2</td><td>Short</td><td>0</td></tr>
+<tr><td>int</td><td>4</td><td>Integer</td><td>0</td></tr>
+<tr><td>long</td><td>8</td><td>Long</td><td>0L</td></tr>
+<tr><td>float</td><td>4</td><td>Float</td><td>0.0f</td></tr>
+<tr><td>double</td><td>8</td><td>Double</td><td>0.0d</td></tr>
+<tr><td>char</td><td>2</td><td>Character</td><td>'\u0000'</td></tr>
+<tr><td>boolean</td><td>JVM 未严格规定</td><td>Boolean</td><td>false</td></tr>
+</table>
+<blockquote>boolean 的存储未在规范中定义：HotSpot 里数组元素按 1 字节、其余场合按 int 处理，面试报"规范未规定、实现通常当 1 字节/int"即可。</blockquote>
+
+<p><b>自动装箱与缓存</b>：装箱 = <code>Integer.valueOf(int)</code>，拆箱 = <code>intValue()</code>（JDK5 起支持）。Integer 对 <b>-128~127</b> 返回 IntegerCache 预建对象（上界可用 <code>-XX:AutoBoxCacheMax</code> 调整，下界固定）；Long 同为 -128~127，Character 缓存 0~127，Boolean 缓存 true/false；<code>new Integer()</code> 每次新对象，JDK9 起该构造器已 @Deprecated。</p>
+
+<p><b>== 与 equals</b>：<code>==</code> 对基本类型比值、对引用比地址；Integer 与 int 混合比较时 Integer 自动拆箱成 int 再比值（不受缓存影响）；两个 Integer 用 == 在缓存范围内 true、范围外 false——<b>包装类型比较一律 equals</b>。</p>
+
+<p><b>拆箱 NPE</b>：包装类型为 null 时，任何触发拆箱的操作都抛 NPE——算术运算、赋给基本类型、三元运算符两边类型不一致导致的类型提升、HashMap.get 结果直接赋给 int、两个 Long 对象相减等。</p>
+
+<p><b>String 三兄弟</b>：String 不可变（详见同目录 <a href="String不可变与常量池.html">String 不可变与常量池</a> 一页）；StringBuilder 可变、非线程安全、单线程首选；StringBuffer 的方法带 synchronized、线程安全但慢。循环拼接必须用 StringBuilder。</p>
+
+<p><b>BigDecimal 三坑</b>：① double 是二进制浮点，0.1 本来就存不准；<code>new BigDecimal(0.1)</code> 把这个不精确的 double 原样放大成超长小数，必须用<b>字符串构造</b> <code>new BigDecimal("0.1")</code> 或 <code>BigDecimal.valueOf(0.1)</code>（内部走 Double.toString）；② <code>divide</code> 除不尽且未指定精度时抛 ArithmeticException，必须写 <code>divide(b, scale, RoundingMode)</code>；③ 比较大小用 <code>compareTo</code>——<code>equals</code> 连 scale 一起比（2.0 与 2.00 不 equals）。</p>
+<span class="lang">Java</span>
+<pre><code>public class IntegerCacheDemo {
+    public static void main(String[] args) {
+        Integer a = 127, b = 127;
+        Integer c = 128, d = 128;
+        int e = 128;
+
+        System.out.println(a == b);      // true ：valueOf 命中缓存，同一个对象
+        System.out.println(c == d);      // false：128 超出缓存，各自新对象
+        System.out.println(c.equals(d)); // true ：内容比较，不受缓存影响
+        System.out.println(c == e);      // true ：c 自动拆箱成 int 再比值
+    }
+}</code></pre>
+<span class="lang">Java</span>
+<pre><code>import java.math.BigDecimal;
+import java.math.RoundingMode;
+
+public class BigDecimalDemo {
+    public static void main(String[] args) {
+        BigDecimal x = new BigDecimal(0.1);    // 坑：double 的 0.1 本身不精确
+        System.out.println(x);
+        // 0.1000000000000000055511151231257827021181583404541015625
+
+        BigDecimal y = new BigDecimal("0.1");  // 对：字符串构造
+        System.out.println(y);                 // 0.1
+        System.out.println(BigDecimal.valueOf(0.1)); // 0.1（内部 Double.toString）
+
+        BigDecimal one = new BigDecimal("1");
+        BigDecimal three = new BigDecimal("3");
+        // System.out.println(one.divide(three));
+        // 运行抛 ArithmeticException：Non-terminating decimal expansion（除不尽且未指定精度）
+        System.out.println(one.divide(three, 2, RoundingMode.HALF_UP)); // 0.33
+
+        System.out.println(new BigDecimal("2.0").equals(new BigDecimal("2.00")));    // false（scale 不同）
+        System.out.println(new BigDecimal("2.0").compareTo(new BigDecimal("2.00"))); // 0（数值相等）
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>from decimal import Decimal
+
+print(0.1 + 0.2 == 0.3)   # False：二进制浮点不精确，Java double 同病
+print(Decimal("0.1") + Decimal("0.2"))  # 0.3，字符串构造与 BigDecimal 同思路
+# 小整数缓存：CPython 缓存 -5~256，超出范围每次新建对象，比较用 == 别用 is</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">输出判断</span><span class="tag">笔试选择</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断：Integer 127/128 的 == 是考频之王；再往上是拆箱 NPE 与 BigDecimal 输出。</li>
+<li>概念选择：缓存边界与原理、三元运算符类型提升、不可变类设计要点、StringBuffer/StringBuilder 差异。</li>
+<li>面试口述：int vs Integer、缓存为什么存在、BigDecimal 处理金额的正确姿势。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>Integer a = 127, b = 127;
+Integer c = 128, d = 128;
+System.out.println(a == b);
+System.out.println(c == d);</code></pre>
+<div class="opt" data-k="A">A. true / false</div>
+<div class="opt" data-k="B">B. true / true</div>
+<div class="opt" data-k="C">C. false / true</div>
+<div class="opt" data-k="D">D. false / false</div>
+<div class="exp" hidden><b>答案 A。</b>装箱走 Integer.valueOf，-128~127 命中缓存返回同一对象，127 相等；128 超出缓存各自新建对象，== 比地址为 false。包装类型一律用 equals 比内容。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 以下代码的运行结果是（&nbsp;&nbsp;）</p>
+<pre><code>Integer cnt = null;
+int flag = 1;
+int r = flag &gt; 0 ? cnt : 0;
+System.out.println(r);</code></pre>
+<div class="opt" data-k="A">A. 输出 null</div>
+<div class="opt" data-k="B">B. 输出 0</div>
+<div class="opt" data-k="C">C. 抛 NullPointerException</div>
+<div class="opt" data-k="D">D. 编译错误</div>
+<div class="exp" hidden><b>答案 C。</b>三元一边 Integer 一边 int，表达式类型被提升为 int，被选中的 cnt 分支必须自动拆箱（调 intValue()），null 拆箱即 NPE。若两边都是包装类型，表达式类型是 Integer，能赋出 null 而不报错——真正稳妥的做法是先判空。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 关于 <code>new BigDecimal(0.1)</code>，说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 得到精确的 0.1，与字符串构造等价</div>
+<div class="opt" data-k="B">B. 得到 0.1000000000000000055511151231257827…；应改用 new BigDecimal("0.1") 或 BigDecimal.valueOf(0.1)，且 divide 除不尽时必须指定 scale 与 RoundingMode</div>
+<div class="opt" data-k="C">C. 得到 0.1；运算有误差时换成 double 就能解决</div>
+<div class="opt" data-k="D">D. 编译错误，BigDecimal 的构造器不接受 double</div>
+<div class="exp" hidden><b>答案 B。</b>double 是二进制浮点，0.1 存不准，构造器把它原样放大成超长小数；字符串构造与 valueOf 才精确。金额计算口诀：字符串构造、divide 给 RoundingMode、比较用 compareTo（equals 连 scale 一起比）。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 设计一个不可变类（如 String），需要做到（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 类声明为 final，防止子类破坏不可变性</div>
+<div class="opt" data-k="B">B. 所有字段 private final，只在构造时赋值</div>
+<div class="opt" data-k="C">C. 为每个字段提供 setter，方便按需修改副本</div>
+<div class="opt" data-k="D">D. 持有可变对象（数组、集合）时不暴露引用：getter 返回拷贝或做防御性复制</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ABD。</b>C 反了——不可变类不允许任何修改入口，setter 一加就破功。不可变的好处回看 String 页：常量池共享、hashCode 可缓存、安全、天然线程安全。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 口述 int 与 Integer 的区别，以及 Integer 缓存的边界和注意事项。</p>
+<details><summary>参考回答</summary>int 是基本类型、默认 0、存栈上值本身；Integer 是包装类、是对象、默认 null，可入集合可判空，比较用 equals。自动装箱走 valueOf：Integer 对 -128~127 返回 IntegerCache 预建对象（JDK5 起提供，上界可用 -XX:AutoBoxCacheMax 调整，下界固定），超出范围每次新建对象——所以 == 在缓存内碰巧为 true、缓存外为 false，包装类型比较必须 equals。包装类型与基本类型混算会自动拆箱，null 拆箱抛 NPE。加分点：Long 缓存同范围、Character 缓存 0~127、Boolean 缓存 true/false；new Integer JDK9 起 @Deprecated。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 包装类型 == 一律换成 equals，除非题目刻意考缓存；② 缓存范围 -128~127（JDK5 起），上界可调下界固定，Long/Short/Byte 同范围；③ 三元或算术里混入 null 包装类型就是 NPE 定时炸弹，先判空；④ BigDecimal 只走字符串构造或 valueOf，divide 必给 scale 与 RoundingMode，比较用 compareTo；⑤ 局部变量没有默认值，成员变量才有——"int 默认 0"只对字段成立。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

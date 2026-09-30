@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """扫描四大类目录树，生成进度清单数据 checklist.js / checklist.json。
 
-用法：python build_checklist.py
+用法：python tools/build_checklist.py （在仓库根目录执行）
 新增/删除知识点页后重跑一次即可；进度存浏览器 localStorage，不受本脚本影响。
 """
 import datetime
@@ -10,7 +10,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 PREFERRED = ["408基础", "编程题与Java基础", "深度学习与Python进阶", "前端"]
 EXCLUDE_FILES = {"index.html"}
 OUT_JS = ROOT / "checklist.js"

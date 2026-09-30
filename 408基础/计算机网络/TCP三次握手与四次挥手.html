@@ -25,15 +25,17 @@ td.l,th.l{text-align:left}
 code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
 pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
 pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
 blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
 .q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
 .q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
 .opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
 .opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
 .opt.right{border-color:var(--ok);background:#e6f6ec}
 .opt.wrong{border-color:var(--bad);background:#fdecec}
 .opt.miss{border-color:#e3b341;background:#fff8e1}
-.opt.picked{border-color:var(--acc);background:#eaf3fb}
 .exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
 .exp b:first-child{color:var(--ok)}
 details{margin-top:8px}
@@ -54,7 +56,7 @@ summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
 <section class="card k">
 <h2>一、知识点梳理</h2>
 <p><b>报文关键标志位</b>：SYN（请求建立/同步序号）、ACK（确认位，置 1 后 ack 字段有效）、FIN（请求关闭）、RST（重置）、PSH（尽快交付）。确认号 ack = 期望收到的下一个字节序号。</p>
-<pre><code>三次握手（SYN 泛洪发生在半连接队列）          四次挥手（主动方 TIME_WAIT 等 2MSL）
+<pre class="ascii-fallback"><code>三次握手（SYN 泛洪发生在半连接队列）          四次挥手（主动方 TIME_WAIT 等 2MSL）
 客户端                    服务端              主动方                     被动方
   │ ① SYN=1, seq=x            │               │ ① FIN=1, seq=u           │
   │ ————————————————————————→ │               │ ————————————————————————→│
@@ -68,6 +70,33 @@ summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
   │                            │               │ ————————————————————————→│
   │                            │               │ TIME_WAIT ──2MSL──→ CLOSE │
   │                            │               │                 LAST_ACK→CLOSE</code></pre>
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant C as 客户端
+    participant S as 服务端
+    C->>S: SYN=1, seq=x
+    Note over C: SYN_SENT
+    S-->>C: SYN=1, ACK=1, seq=y, ack=x+1
+    Note over S: SYN_RCVD（半连接队列）
+    C->>S: ACK=1, seq=x+1, ack=y+1
+    Note over C,S: 双方进入 ESTABLISHED
+</pre>
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant A as 主动方
+    participant B as 被动方
+    A->>B: FIN=1, seq=u
+    Note over A: FIN_WAIT_1
+    B-->>A: ACK=1, ack=u+1
+    Note over B: CLOSE_WAIT（仍可发数据）
+    Note over A: FIN_WAIT_2
+    B-->>A: FIN=1, ACK=1, seq=w, ack=u+1
+    Note over B: LAST_ACK
+    A-->>B: ACK=1, ack=w+1
+    Note over A: TIME_WAIT 等 2MSL → CLOSED
+</pre>
 <ul>
 <li><b>为什么不是两次握手</b>：① 无法确认"客户端能收"（A 的确认没送到 B，B 不知 A 收到自己的 SYN+ACK）；② 已失效的旧连接请求（网络中滞留的 SYN）突然到达服务端，两次握手会直接建立无效连接浪费资源。三次=双方各确认一次"我发你收"与"你发我收"。</li>
 <li><b>为什么挥手四次</b>：TCP 全双工，两个方向的数据流分别关闭。收到 FIN 后被动方可能还有数据要发（半关闭），所以 ACK 与自己的 FIN 分开发送。</li>
@@ -99,7 +128,7 @@ summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
 <div class="exp" hidden><b>答案 C。</b>客户端 SYN 消耗一个序号 x，服务端确认号 ack=x+1（期望的下一个字节），自己的初始序号 seq=y 也消耗一个序号。记住规则：<b>SYN 和 FIN 各消耗一个序号，纯 ACK 不消耗</b>。来源：408 统考高频题型。</div>
 </div>
 
-<div class="quiz" data-answer="ABC">
+<div class="quiz" data-answer="ABC" data-multi>
 <p><span class="tg">多选</span><b>2.</b> 关于 TIME_WAIT 状态（等待 2MSL），正确的有（&nbsp;&nbsp;）</p>
 <div class="opt" data-k="A">A. 出现在主动关闭连接的一方</div>
 <div class="opt" data-k="B">B. 保证最后一个 ACK 若丢失可响应对方重传的 FIN</div>
@@ -135,6 +164,16 @@ summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
 </section>
 
 </div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
 <script>
 document.querySelectorAll('.quiz').forEach(function(q){
   var ans=(q.dataset.answer||'').split('').sort().join('');

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConcurrentHashMap 与线程安全集合 · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>ConcurrentHashMap 与线程安全集合</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（承接 HashMap 的固定第二问） ｜ 形态：原理 + 对比表 + 手写 LRU ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：HashMap 并发不安全（1.7 头插扩容成环 / 1.8 覆盖丢数据）→ <b>JDK7 分段锁 Segment（默认并发度 16）</b>、<b>JDK8 CAS + synchronized 锁桶头节点（粒度到单个桶）</b>；key/value 都<b>不允许 null</b>（并发 get 二义性）；size 用 baseCount + CounterCell 分散热点（LongAdder 思想）；读多写极少用 <b>CopyOnWriteArrayList</b>；LRU = LinkedHashMap(accessOrder=true) + removeEldestEntry，或手写<b>哈希表 + 双向链表</b>（get/put O(1)）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>为什么 HashMap 不能用于并发</b>（细节见 <a href="HashMap全解.html">HashMap 全解</a>）：JDK7 头插法在两线程同时扩容迁移时指针交错形成环，get 死循环 CPU 100%；JDK8 改尾插不成环，但并发 put 仍会覆盖丢失数据。所以并发场景必须换 ConcurrentHashMap（下称 CHM）。</p>
+<p><b>JDK7：分段锁 Segment</b>：整个表被拆成多个 Segment（每段继承 ReentrantLock，锁原理见 <a href="CAS原子类与AQS.html">CAS、原子类与 AQS</a>），每段管一小片桶数组；<b>默认并发度 16</b>（即默认 16 段，指定值会向上取 2 的幂），不同 Segment 的写操作互不阻塞——并发度就是"最多多少线程同时写"。</p>
+<p><b>JDK8：CAS + synchronized 锁桶头节点</b>：放弃分段，回到大数组 + 单桶粒度：<b>锁的粒度细到单个桶的头节点</b>，冲突概率极低；读操作完全无锁（Node 的 val/next 是 volatile，保证可见性）。</p>
+<p><b>JDK8 put 流程（面试背诵版）</b>：①计算 hash（<code>(h ^ (h &gt;&gt;&gt; 16))</code> 扰动，与 HashMap 同源）→ ②table 未初始化则 <code>initTable()</code>（CAS 把 sizeCtl 置 -1 抢初始化权，其他线程自旋让步）→ ③目标桶为空：<b>CAS 插入</b>新节点，失败说明有竞争，进入下一轮循环 → ④桶头是 ForwardingNode（hash = MOVED = -1，标记"该桶已迁移"）：说明正在扩容，<b>helpTransfer 协助迁移</b>后重试 → ⑤否则 <b>synchronized 锁住头节点</b>，链表尾插或红黑树插入 → ⑥链表长度 ≥ 8 且容量 ≥ 64 树化（与 HashMap 同规则）→ ⑦addCount 更新计数并检查是否触发扩容。</p>
+<p><b>sizeCtl 一句话</b>：多用途控制字——<b>-1 表示正在初始化</b>；其他负数表示有线程正在扩容（编码了参与线程数）；正数表示下次扩容阈值（容量×0.75）。</p>
+<p><b>size 怎么计数</b>：没有一把大锁保护单个计数器，而是 <b>baseCount + CounterCell[]</b>：无竞争时 CAS 更新 baseCount；CAS 失败（有热点）就分散到各自的 CounterCell 累加——正是 <b>LongAdder 的思想</b>；size() 汇总 base + 所有 Cell，返回的是近似精确值。</p>
+<p><b>为什么 key/value 都不允许 null</b>：并发下 <code>get(key)</code> 返回 null 有<b>二义性</b>——"键不存在"还是"值就是 null"？单线程 HashMap 可以"先 containsKey 再 get"区分，但并发下这两步之间状态可能被其他线程改掉，区分失效。索性禁止 null，把二义性扼杀在 API 层面。HashMap 允许一个 null 键、CHM 直接抛 NPE，是两者最常考的差异点。</p>
+<p><b>Collections.synchronizedMap vs CHM</b>：</p>
+<table>
+<tr><th>维度</th><th>Collections.synchronizedMap</th><th>ConcurrentHashMap</th></tr>
+<tr><td>实现方式</td><td class="l">包装器，每个方法 synchronized(包装器自身)——<b>全表一把锁</b></td><td class="l">JDK8 锁到单个桶头 + CAS</td></tr>
+<tr><td>读性能</td><td class="l">读也要抢锁</td><td class="l">读完全无锁（volatile）</td></tr>
+<tr><td>迭代器</td><td class="l">仍需手动包锁，否则 fail-fast 抛 CME</td><td class="l">弱一致迭代器，不抛 CME</td></tr>
+<tr><td>适用</td><td class="l">低频小数据顺手一包</td><td class="l">并发主力</td></tr>
+</table>
+<p><b>CopyOnWriteArrayList（写时复制）</b>：写操作（add/set/remove）先复制一份新数组，在新数组上改，再 volatile 引用替换——<b>读完全无锁</b>；代价：写要整份拷贝、开销大；<b>一致性弱</b>：迭代器持有旧数组快照，遍历时读不到别人的新写（也因此不抛 CME）。定位：<b>读极多、写极少</b>的场景（白名单、监听器列表、配置缓存）。</p>
+<p><b>LinkedHashMap 做 LRU</b>：构造参数 <code>new LinkedHashMap&lt;&gt;(16, 0.75f, true)</code> 第三个参数 true = <b>开启访问序</b>（get 也会把节点挪到链表尾）；再重写 <code>removeEldestEntry(eldest)</code> 返回 <code>size() &gt; capacity</code>，即可自动淘汰链表头（最久未使用）。</p>
+<p><b>TreeMap / Hashtable 一句话</b>：TreeMap 红黑树按 key 排序、非线程安全（键需可比较）；Hashtable 全表 synchronized、key/value 不许 null、被 CHM 完全取代，如今只剩笔试"线程安全归类"价值。</p>
+<span class="lang">Java</span>
+<pre><code>// LRU 缓存第一版：LinkedHashMap 三行核心（面试先给这个，再问手写）
+class LruCache&lt;K, V&gt; extends LinkedHashMap&lt;K, V&gt; {
+    private final int capacity;
+    LruCache(int capacity) {
+        super(16, 0.75f, true);        // true = 按访问序：get 也把节点挪到尾部
+        this.capacity = capacity;
+    }
+    @Override
+    protected boolean removeEldestEntry(Map.Entry&lt;K, V&gt; eldest) {
+        return size() &gt; capacity;      // 超容量淘汰链表头（最久未使用）
+    }
+}</code></pre>
+<span class="lang">Java</span>
+<pre><code>// LRU 缓存第二版：手写哈希表 + 双向链表（哨兵头尾），get/put 均 O(1)——LeetCode 146 标准写法
+class LRUCache {
+    private final int cap;
+    private final Map&lt;Integer, Node&gt; map = new HashMap&lt;&gt;();
+    private final Node head = new Node(0, 0), tail = new Node(0, 0);  // 哨兵
+
+    private static class Node {
+        int key, val; Node prev, next;
+        Node(int k, int v) { key = k; val = v; }
+    }
+
+    LRUCache(int capacity) { cap = capacity; head.next = tail; tail.prev = head; }
+
+    public int get(int key) {
+        Node n = map.get(key);          // 哈希表 O(1) 定位链表节点
+        if (n == null) return -1;
+        unlink(n); addToTail(n);        // 挪到尾部 = 最近使用
+        return n.val;
+    }
+    public void put(int key, int value) {
+        Node n = map.get(key);
+        if (n != null) { n.val = value; unlink(n); addToTail(n); return; }
+        if (map.size() == cap) {        // 淘汰链表头部 = 最久未使用
+            Node oldest = head.next;
+            unlink(oldest); map.remove(oldest.key);
+        }
+        Node fresh = new Node(key, value);
+        map.put(key, fresh); addToTail(fresh);
+    }
+    private void unlink(Node n) { n.prev.next = n.next; n.next.prev = n.prev; }
+    private void addToTail(Node n) {    // 挂到 tail 哨兵之前
+        n.prev = tail.prev; n.next = tail;
+        tail.prev.next = n; tail.prev = n;
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code># 对照：dict 同样非线程安全，多线程写要用 threading.Lock 保护（≈ synchronizedMap 的全表锁思路）
+import threading
+lock = threading.Lock()
+d = {}
+with lock:
+    d["k"] = 1           # 整个临界区串行化 —— 吞吐低于"锁到桶"的分段思路
+
+# LRU 在 Python 有现成轮子：functools.lru_cache 装饰器（底层同为哈希表+双向链表）
+from functools import lru_cache
+@lru_cache(maxsize=128)
+def get_data(key):
+    return key * 2</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试口述</span><span class="tag">机试手写</span></p>
+<ul>
+<li>笔试：null 禁令（二义性）、锁粒度演进、size 的实现、CopyOnWriteArrayList 适用场景。</li>
+<li>面试：JDK8 put 流程（承接 HashMap 页的追问链）、1.7→1.8 演进原因、为什么放弃分段锁、LRU 手写思路（追问到 Redis 的近似 LRU）。</li>
+<li>机试：LeetCode 146 LRU 缓存出现频率极高，双向链表版必须能默写。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="AB" data-multi>
+<p><span class="tg">多选</span><b>1.</b> 关于 ConcurrentHashMap 的锁设计，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. JDK7 以 Segment 为锁单位（默认 16 段，继承 ReentrantLock），不同段可同时写</div>
+<div class="opt" data-k="B">B. JDK8 改用 CAS + synchronized，锁的是桶的头节点，粒度细到单个桶</div>
+<div class="opt" data-k="C">C. JDK8 对整个 Node 数组加一把大锁，读操作也要排队</div>
+<div class="opt" data-k="D">D. JDK8 完全无锁化，任何写操作都不需要任何同步手段</div>
+<div class="exp" hidden><b>答案 AB。</b>演进主线就是锁粒度不断变细：全表锁（Hashtable）→ 段锁（1.7）→ 桶头锁（1.8）。C 错——锁到桶头且读无锁；D 错——写仍需 CAS 或 synchronized 保证原子，只是冲突概率极低。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> ConcurrentHashMap 的 key 和 value 都不允许为 null，最主要的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. null 键无法计算 hashCode，会抛空指针异常</div>
+<div class="opt" data-k="B">B. 并发下 get 返回 null 存在二义性：无法区分"键不存在"与"值就是 null"，而 containsKey+get 两步在并发下不具原子性</div>
+<div class="opt" data-k="C">C. 为了与 Hashtable 的 API 保持完全兼容</div>
+<div class="opt" data-k="D">D. 为了减少内部节点的内存占用</div>
+<div class="exp" hidden><b>答案 B。</b>这是官方设计取舍：单线程 HashMap 靠"先 containsKey 再 get"能区分二义性，并发下两步之间状态可能被改，区分失效，索性禁止。A 是表象不是原因——HashMap 就对 null 键做了特判（hash 恒为 0），特判同样可行。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>3.</b> 场景：一份白名单/监听器列表，读取极其频繁，修改偶尔发生，要求读操作不被阻塞。最合适的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Vector</div>
+<div class="opt" data-k="B">B. Collections.synchronizedList 包装的 ArrayList</div>
+<div class="opt" data-k="C">C. CopyOnWriteArrayList</div>
+<div class="opt" data-k="D">D. LinkedList</div>
+<div class="exp" hidden><b>答案 C。</b>写时复制 + volatile 引用替换，读完全无锁且不被写阻塞，正是"读极多写极少"的标准答案。代价：写要整份拷贝、迭代器是旧数组快照（读不到最新写，但不会抛 CME）。A/B 读也要抢锁；D 线程不安全。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> JDK8 中 ConcurrentHashMap 统计元素个数（size）的实现方式是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 维护一个 volatile int size，每次 put 直接自增</div>
+<div class="opt" data-k="B">B. baseCount + CounterCell 数组分散计数热点（LongAdder 思想），size() 时汇总</div>
+<div class="opt" data-k="C">C. 每次调用 size() 时遍历所有桶逐个数</div>
+<div class="opt" data-k="D">D. 用一把全局锁保护一个计数器，计数时必须持锁</div>
+<div class="exp" hidden><b>答案 B。</b>无竞争时 CAS 更新 baseCount；CAS 失败说明有热点，改写各自绑定的 CounterCell；size() = base + 所有 Cell 求和。这与 LongAdder 的设计一模一样——分散写热点，代价是结果为近似精确的快照。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 手写一个 LRU 缓存：选什么数据结构？为什么？get/put 复杂度是多少？</p>
+<details><summary>参考回答</summary>数据结构：<b>哈希表 + 双向链表</b>。哈希表负责 O(1) 定位到链表节点；双向链表维护"最近使用"顺序，尾部是最新、头部是最久未用。<b>为什么必须双向</b>：淘汰/挪位要 O(1) 摘除任意节点，单链表删节点得先找前驱，是 O(n)。操作：get 命中就把节点挪到尾并返回值；put 已存在则更新并挪尾，不存在且满了就摘掉头节点再插尾。两者整体 <b>O(1)</b>。加分点：哨兵头尾节点简化边界；LinkedHashMap(accessOrder=true) + removeEldestEntry 三行库法版；Java 里还可以说"链表节点存 key 是为了淘汰时反查哈希表删除"。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 锁粒度演进一句话背：Hashtable 全表 → JDK7 段（默认 16）→ JDK8 桶头；② CHM 的"线程安全"只保证单个操作原子，"先 get 判断再 put"这类复合操作要用 putIfAbsent / computeIfAbsent；③ CopyOnWriteArrayList 一致性弱：迭代器是快照，读不到新写；④ LRU 的双向链表不是装饰——单链表删节点要 O(n) 找前驱；⑤ key/value 禁 null 是 CHM 与 HashMap 最常考差异，题眼就是"二义性"。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TopK 与堆（ACM 模式） · 编程题与Java基础/算法编程题/栈队列堆</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 栈队列堆</div>
+<h1>TopK 与堆（ACM 模式）</h1>
+<div class="meta">原型：LeetCode 215 / 347 ｜ 适用岗位：全部 ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：TopK 两板斧——<b>size-k 小顶堆</b>：只维护当前最大的 k 个，堆顶就是第 k 大，O(n log k)，数据流也能跑（面试首选）；<b>快速选择</b>：partition 均摊 O(n)，但必须一次读入全部。Java 的 <code>PriorityQueue</code> 默认小顶堆；求第 k 大用小顶堆、第 k 小用大顶堆，方向别背反。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>主打题（LC215 数组中第 K 个最大元素）</b>：n 个整数，输出第 k 大的数（从小到大排第 k 个位置，即降序第 k 个）。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>6 2                     # n k
+3 2 1 5 6 4             # n 个整数</code></pre>
+<b>输出格式</b>（1 行）：
+<pre><code>5</code></pre></div>
+<div class="tip">变体提前看：① 数据规模写 10⁷ 且强调「不能全排序」→ 指定考堆或快速选择；② 数据是流式给出（先给 n、k 再逐个给数）→ 只能 size-k 堆；③ 要求输出前 k 个 → LC347 / 多路归并。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<ul>
+<li><b>全排序</b>：O(n log n)，最省事，n ≤ 10⁶ 且不卡排序时直接用。</li>
+<li><b>size-k 小顶堆（主打）</b>：堆里始终只装「目前见过的最大的 k 个」——新数比堆顶大才替换入堆。堆顶即第 k 大。时间 O(n log k)，空间 O(k)，n 很大或流式输入都稳。为什么是小顶堆：堆顶是 k 个里的最小值，充当「入选门槛」，新数得过门槛才进得来。</li>
+<li><b>快速选择</b>：partition 后看基准落点与目标位置的相对关系，只递归一侧，均摊 O(n)、最坏 O(n²)（随机选 pivot 防退化；笔试口头提一句即可）。</li>
+<li><b>前 K 个高频元素（LC347）</b>：哈希计数 → 按（频次降序、数值升序）取前 k。堆解法：size-k 小顶堆按频次比较；数据范围小时桶排序可到 O(n)。</li>
+<li><b>堆的本质</b>：完全二叉树 + 数组存储（0 起始时 i 的孩子在 2i+1、2i+2）。push 上浮、pop 下沉，均 O(log n)；自底向上建堆（heapify）是 O(n) 不是 O(n log n)。</li>
+</ul>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 求数组第 k 大，为什么常用「size 为 k 的小顶堆」而不是大顶堆？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 小顶堆的 push 比 offer 快</div>
+<div class="opt" data-k="B">B. 大顶堆不能存重复元素</div>
+<div class="opt" data-k="C">C. 小顶堆只保留最大的 k 个，堆顶是入选门槛，复杂度 O(n log k)，且支持流式数据</div>
+<div class="opt" data-k="D">D. 大顶堆在小数据量上反而更慢</div>
+<div class="exp" hidden><b>答案 C。</b>大顶堆全量入堆再弹 k 次是 O(n log n) 且要一次拿全数据；size-k 小顶堆空间 O(k)、时间 O(n log k)，来一个比一个即可。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于堆与 Java 的 PriorityQueue，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. PriorityQueue 默认是小顶堆，大顶堆要传 Comparator.reverseOrder() 或自定义比较器</div>
+<div class="opt" data-k="B">B. 堆是完全二叉树，用数组存，0 起始时下标 i 的孩子是 2i+1 与 2i+2</div>
+<div class="opt" data-k="C">C. 自底向上 heapify 建堆的复杂度是 O(n log n)</div>
+<div class="opt" data-k="D">D. 一大一小两个堆（对顶堆）可以动态维护中位数，插入 O(log n)、查询 O(1)</div>
+<div class="exp" hidden><b>答案 ABD。</b>heapify 自底向下逐个下沉，总代价是 O(n)——各层节点数乘下沉高度的求和收敛，C 错。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<span class="lang">Java · 主打 LC215（size-k 小顶堆）</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        in.nextToken(); int k = (int) in.nval;
+        PriorityQueue&lt;Integer&gt; pq = new PriorityQueue&lt;&gt;();   // 小顶堆：只装最大的 k 个
+        for (int i = 0; i &lt; n; i++) {
+            in.nextToken(); int v = (int) in.nval;
+            if (pq.size() &lt; k) {
+                pq.add(v);
+            } else if (v &gt; pq.peek()) {          // 过得了门槛才进来
+                pq.poll();
+                pq.add(v);
+            }
+        }
+        System.out.println(pq.peek());
+    }
+}</code></pre>
+<span class="lang">Python · 主打 LC215</span>
+<pre><code>import sys, heapq
+
+def main():
+    data = sys.stdin.read().split()
+    n, k = int(data[0]), int(data[1])
+    a = list(map(int, data[2:2 + n]))
+    heap = a[:k]
+    heapq.heapify(heap)
+    for v in a[k:]:
+        if v > heap[0]:
+            heapq.heapreplace(heap, v)
+    print(heap[0])
+
+main()</code></pre>
+<span class="lang">Java · 第二题 LC347（前 K 个高频元素，频次降序、同频数值升序）</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        in.nextToken(); int k = (int) in.nval;
+        Map&lt;Integer, Integer&gt; cnt = new HashMap&lt;&gt;();
+        for (int i = 0; i &lt; n; i++) {
+            in.nextToken(); int v = (int) in.nval;
+            cnt.merge(v, 1, Integer::sum);
+        }
+        // 小顶堆：频次小者先被淘汰；同频时数值大者先被淘汰（保小的）
+        PriorityQueue&lt;int[]&gt; pq = new PriorityQueue&lt;&gt;(
+                (x, y) -&gt; x[1] != y[1] ? Integer.compare(x[1], y[1])
+                                       : Integer.compare(y[0], x[0]));
+        for (Map.Entry&lt;Integer, Integer&gt; e : cnt.entrySet()) {
+            pq.add(new int[]{e.getKey(), e.getValue()});
+            if (pq.size() &gt; k) pq.poll();
+        }
+        int[][] keep = pq.toArray(new int[0][]);
+        Arrays.sort(keep, (x, y) -&gt; x[1] != y[1] ? Integer.compare(y[1], x[1])
+                                                 : Integer.compare(x[0], y[0]));
+        StringBuilder sb = new StringBuilder();
+        for (int[] p : keep) sb.append(p[0]).append(' ');
+        System.out.println(sb.toString().trim());
+    }
+}</code></pre>
+<span class="lang">Python · 第二题 LC347</span>
+<pre><code>import sys
+from collections import Counter
+
+def main():
+    data = sys.stdin.read().split()
+    n, k = int(data[0]), int(data[1])
+    a = list(map(int, data[2:2 + n]))
+    cnt = Counter(a)
+    keep = sorted(cnt.items(), key=lambda x: (-x[1], x[0]))[:k]
+    print(' '.join(str(v) for v, _ in keep))
+
+main()</code></pre>
+<span class="lang">Java · 核心函数：手写最小堆（push 上浮 / pop 下沉）</span>
+<pre><code>static class MinHeap {
+    int[] h = new int[16];
+    int size = 0;
+
+    void push(int v) {
+        if (size == h.length) h = Arrays.copyOf(h, size * 2);
+        h[size] = v;
+        int i = size++;
+        while (i &gt; 0 &amp;&amp; h[(i - 1) / 2] &gt; h[i]) {        // 比父节点小就上浮
+            int p = (i - 1) / 2;
+            int t = h[p]; h[p] = h[i]; h[i] = t;
+            i = p;
+        }
+    }
+
+    int pop() {                                          // 调用前保证 size &gt; 0
+        int top = h[0];
+        h[0] = h[--size];
+        int i = 0;
+        while (true) {                                   // 与较小的孩子交换，下沉
+            int l = 2 * i + 1, r = l + 1, m = i;
+            if (l &lt; size &amp;&amp; h[l] &lt; h[m]) m = l;
+            if (r &lt; size &amp;&amp; h[r] &lt; h[m]) m = r;
+            if (m == i) break;
+            int t = h[i]; h[i] = h[m]; h[m] = t;
+            i = m;
+        }
+        return top;
+    }
+}</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 「第 k 大」= 降序第 k 个 = 升序倒数第 k 个，方向别反；② 堆比较器写 <code>(a, b) -&gt; a[1] - b[1]</code> 在数值跨度大时整型溢出，一律 <code>Integer.compare</code>；③ 流式输入只能用 size-k 堆，快速选择要全量数据；④ Python 手写堆优先 <code>heapq</code>（它的堆是小顶），大顶堆技巧是存负数；⑤ LC347 输出顺序题目会规定（本页约定频次降序、同频数值升序），实际笔试以题面为准。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>背包与线性 DP（ACM 模式） · 编程题与Java基础/算法编程题/动态规划</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 动态规划</div>
+<h1>背包与线性 DP（ACM 模式）</h1>
+<div class="meta">适用岗位：全部（小中厂 Java/Python 笔试高频） ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：DP 五步曲——状态定义→转移方程→初始化→遍历顺序→<b>手动模拟验证</b>；线性 DP（爬楼梯/打家劫舍/LCS）是转移方程题；0-1 背包一维滚动数组<b>容量倒序</b>（防同一件重复选），完全背包正序——笔试最爱考的坑。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题 1（主打）0-1 背包</b>：n 件物品（每件至多选一次），背包容量 W；输入 n、W 与每件重量/价值，输出能装下的最大价值。来源：牛客经典题。</p>
+<div class="io"><b>输入格式</b>（1 + n 行）：
+<pre><code>4 5                     # n 容量W
+1 2                     # 重量 价值
+2 4
+3 4
+4 5</code></pre>
+<b>输出格式</b>：
+<pre><code>8</code></pre></div>
+<p><b>题 2 打家劫舍（LC198）</b>：第一行 n，第二行 n 个非负整数金额；不能偷相邻两家，输出能偷到的最大金额。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>5                       # n
+2 7 9 3 1               # n 个金额</code></pre>
+<b>输出格式</b>：
+<pre><code>12</code></pre></div>
+<p><b>题 3 爬楼梯（LC70，核心函数）</b>：每次爬 1 或 2 阶，n 阶的爬法数（n=3 → 3：1+1+1、1+2、2+1）。来源：LeetCode 经典题（ACM 改编）。</p>
+<p><b>题 4 最长公共子序列（LC1143，核心函数）</b>：两行字符串，输出 LCS 长度；如 abcde 与 ace → 3。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="tip">DP 题先看数据范围定复杂度：n ≤ 10² 随便写；n ≤ 10³~10⁴ 上 O(n²)/O(nW)；10⁵ 以上想线性或贪心。价值累加可能超 int 时换 long。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<p><b>DP 五步曲</b>：① 状态定义（dp[i] / dp[i][j] 的确切含义，一句话说清）；② 转移方程（当前状态由哪些更小的状态推来）；③ 初始化（边界与"不可达"状态）；④ 遍历顺序（保证算 dp[i] 时依赖的状态已算好）；⑤ <b>手动模拟验证</b>——拿小样例人肉填表（下表就是题 1 样例的手算结果，答案 8 与程序输出一致才算过）。</p>
+<table>
+<tr><th class="l">逐件处理后的 dp[0..5]</th><th>j=0</th><th>j=1</th><th>j=2</th><th>j=3</th><th>j=4</th><th>j=5</th></tr>
+<tr><td class="l">只看 (w=1,v=2)</td><td>0</td><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+<tr><td class="l">+ (2,4)</td><td>0</td><td>2</td><td>4</td><td>6</td><td>6</td><td>6</td></tr>
+<tr><td class="l">+ (3,4)</td><td>0</td><td>2</td><td>4</td><td>6</td><td>6</td><td>8</td></tr>
+<tr><td class="l">+ (4,5)</td><td>0</td><td>2</td><td>4</td><td>6</td><td>6</td><td><b>8</b></td></tr>
+</table>
+<p><b>1. 爬楼梯（LC70）</b>：f(i) = f(i-1) + f(i-2)（最后一步跨 1 或 2 阶），就是斐波那契。f(0)=f(1)=1。时间 O(n)、空间 O(1)。</p>
+<p><b>2. 打家劫舍（LC198）</b>：两个状态——f = 偷当前家的最大收益 = g_prev + a[i]（前一家必须不偷）；g = 不偷当前家 = max(f_prev, g_prev)。答案 max(f, g)。两个滚动变量即可，时间 O(n)、空间 O(1)。变体：环形版拆两条线性。</p>
+<p><b>3. 最长公共子序列（LC1143）</b>：dp[i][j] = a 前 i 个字符与 b 前 j 个字符的 LCS 长度。a[i-1] == b[j-1] 时 dp[i][j] = dp[i-1][j-1] + 1；否则 max(dp[i-1][j], dp[i][j-1])。时间 O(mn)、空间 O(mn)（可滚动优化）。</p>
+<p><b>4. 0-1 背包（一维滚动）</b>：二维 dp[i][j] = max(dp[i-1][j], dp[i-1][j-w] + v) 压成一维后，<b>容量必须倒序遍历</b>。为什么倒序：dp[j] 要用的 dp[j-w] 必须还是"还没考虑第 i 件"的旧值——倒序时 dp[j-w] 本轮尚未更新，正是旧值，每件物品至多选一次；若正序，dp[j-w] 可能已被本轮更新过（已含第 i 件），等于同一件被选两次——<b>那恰好是完全背包的写法</b>。反例：一件 (w=1, v=2)、容量 2，正序算出 dp[2]=4（一件变两件），倒序正确得 2。时间 O(nW)、空间 O(W)。初始化："至多装"全 0；"恰好装满" dp[0]=0 其余 −∞。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 0-1 背包一维滚动数组必须容量倒序遍历，原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 倒序能减少循环次数、跑得更快</div>
+<div class="opt" data-k="B">B. 倒序保证 dp[j-w] 还是上一轮（未考虑本件物品）的旧值，防止同一件被重复选取</div>
+<div class="opt" data-k="C">C. 倒序是为了处理容量为 0 的边界</div>
+<div class="opt" data-k="D">D. 正序会数组越界</div>
+<div class="exp" hidden><b>答案 B。</b>反例：一件 (w=1, v=2)、容量 2，正序得 dp[2]=4（同一件选了两次），倒序正确得 2；正序写法恰恰是完全背包。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于背包的初始化与遍历方向，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 求"至多能装的最大价值"：dp 全 0 初始化即可</div>
+<div class="opt" data-k="B">B. 求"恰好装满的最大价值"：dp[0]=0，其余设为负无穷表示不可达</div>
+<div class="opt" data-k="C">C. "恰好装满"也可以全 0 初始化，结果一样</div>
+<div class="opt" data-k="D">D. 一维 0-1 背包容量倒序，完全背包容量正序</div>
+<div class="exp" hidden><b>答案 ABD。</b>全 0 初始化下"恰好装满"题会把没装满的状态当合法价值混进来，C 错。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<p><b>题 1 0-1 背包（完整程序）</b>：Java 用 StreamTokenizer 快读（<b>Scanner 在 10⁵+ 数据量会被卡 TLE</b>）；Python 一维滚动。</p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        in.nextToken(); int w = (int) in.nval;
+        int[] wt = new int[n], val = new int[n];
+        for (int i = 0; i &lt; n; i++) {
+            in.nextToken(); wt[i] = (int) in.nval;
+            in.nextToken(); val[i] = (int) in.nval;
+        }
+
+        int[] dp = new int[w + 1];               // dp[j]：容量 j 能装的最大价值
+        for (int i = 0; i &lt; n; i++) {
+            for (int j = w; j &gt;= wt[i]; j--) {   // 容量倒序！防同一件被选两次
+                dp[j] = Math.max(dp[j], dp[j - wt[i]] + val[i]);
+            }
+        }
+        System.out.println(dp[w]);
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    n, w = int(data[0]), int(data[1])
+    wt, val = [], []
+    idx = 2
+    for _ in range(n):
+        wt.append(int(data[idx])); val.append(int(data[idx + 1]))
+        idx += 2
+
+    dp = [0] * (w + 1)
+    for i in range(n):
+        for j in range(w, wt[i] - 1, -1):   # 容量倒序，防重复选取
+            dp[j] = max(dp[j], dp[j - wt[i]] + val[i])
+    print(dp[w])
+
+main()</code></pre>
+
+<p><b>题 2 打家劫舍（完整程序）</b>：双状态滚动变量版。</p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        int[] a = new int[n];
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); a[i] = (int) in.nval; }
+
+        // f=偷当前家的最大收益，g=不偷当前家的最大收益；long 防累加溢出
+        long f = 0, g = 0;
+        for (int x : a) {
+            long nf = g + x;            // 偷当前 → 前一家必须不偷
+            long ng = Math.max(f, g);   // 不偷当前 → 前一家偷不偷都行
+            f = nf; g = ng;
+        }
+        System.out.println(Math.max(f, g));
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    n = int(data[0])
+    a = list(map(int, data[1:1 + n]))
+    f = g = 0                  # f=偷当前家，g=不偷当前家
+    for x in a:
+        f, g = g + x, max(f, g)   # 元组赋值，右侧先算，天然"滚动"
+    print(max(f, g))
+
+main()</code></pre>
+
+<p><b>题 3 爬楼梯 / 题 4 最长公共子序列（核心函数）</b></p>
+<span class="lang">Java</span>
+<pre><code>// LC70：f(i)=f(i-1)+f(i-2)，斐波那契
+int climb(int n) {
+    int a = 1, b = 1;              // f(0)=f(1)=1
+    for (int i = 2; i &lt;= n; i++) {
+        int c = a + b; a = b; b = c;
+    }
+    return b;                      // n=0/1 直接返回 1
+}
+
+// LC1143：dp[i][j] = a 前 i 个与 b 前 j 个字符的 LCS 长度
+int lcs(char[] a, char[] b) {
+    int m = a.length, n = b.length;
+    int[][] dp = new int[m + 1][n + 1];
+    for (int i = 1; i &lt;= m; i++)           // i 从 1 起，对应字符下标 i-1
+        for (int j = 1; j &lt;= n; j++)
+            if (a[i - 1] == b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+            else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+    return dp[m][n];
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>def climb(n):
+    a, b = 1, 1                    # f(0)=f(1)=1
+    for _ in range(n - 1):
+        a, b = b, a + b
+    return b                       # n=0/1 返回 1
+
+def lcs(a, b):
+    m, n = len(a), len(b)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    for i in range(1, m + 1):      # i 从 1 起，对应字符下标 i-1
+        for j in range(1, n + 1):
+            if a[i - 1] == b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+    return dp[m][n]</code></pre>
+<div class="tip">完全背包只改一处：容量改<b>正序</b>（dp[j-w] 用的是"已考虑本件"的新值，允许重复选）。多重背包先按二进制拆分转 0-1 背包，面试口述思路即可。</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① <b>倒序原因</b>（正序=完全背包）——最高频考点，要能现场说出反例 (w=1,v=2) 容量 2；② "恰好装满" dp[0]=0 其余 −∞，"至多装"全 0，两问别混；③ 字符串/物品编号 i 从 1 起，对应原数组下标 i-1，别错位；④ n、W 到 10⁴~10⁵ 且价值大时换 long；⑤ 第五步手算验证别省——考场上先填 3×3 小表再写代码，写完用样例对答案；⑥ 打家劫舍环形版（首尾相连）拆成"去掉首"与"去掉尾"两条线性做 max；⑦ LCS 注意"子序列可不连续、子串必须连续"，转移方程不同。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

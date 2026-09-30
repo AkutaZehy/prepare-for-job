@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThreadLocal 与并发工具类 · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>ThreadLocal 与并发工具类</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（泄漏链路与三大工具是固定考点） ｜ 形态：原理 + 对比表 + 模板代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：ThreadLocal = <b>线程隔离的变量副本</b>（每线程一份，不是共享）；每个 Thread 里有一张 ThreadLocalMap，Entry 的 <b>key 是 ThreadLocal 的弱引用、value 是强引用</b>；线程池线程长活 → key 被回收变 null 后，value 被强引用链（Thread→Map→Entry→value）拽住不释放 → <b>泄漏，根治 = finally 里 remove()</b>；<b>CountDownLatch 一次性倒计数、CyclicBarrier 可重用等齐、Semaphore 限流</b>；volatile 管可见性、ThreadLocal 管隔离，方向相反。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>ThreadLocal 定位</b>：提供线程<b>隔离</b>的变量副本——不是"多个线程共享一个值"，而是<b>每个线程访问各自的独立一份</b>，改自己的不影响别人，天然线程安全。典型场景：SimpleDateFormat（非线程安全类）的每线程实例、用户上下文/traceId 链路追踪、数据库连接绑定、Spring 的事务上下文。</p>
+<p><b>原理结构</b>：</p>
+<pre><code>Thread 对象
+  └─ ThreadLocalMap threadLocals   （每个线程一张 Map，线程私有）
+       └─ Entry[] table            （开放寻址解决冲突，没有链表）
+            └─ Entry extends WeakReference&lt;ThreadLocal&lt;?&gt;&gt;
+                 key   = ThreadLocal 实例   【弱引用，可能被回收 → null】
+                 value = 副本值             【强引用，泄漏源头】</code></pre>
+<p><b>内存泄漏全链路（背诵版）</b>：外部强引用断开（<code>tl = null</code>）→ ThreadLocal 对象只剩 Entry 里的弱引用 key，下次 GC 被回收 → Entry 变成 key=null 的"脏条目"，但 <b>value 仍被 Thread → ThreadLocalMap → Entry 这条强引用链拽住</b> → 线程池里的线程长期存活不销毁 → value 永远不可达也永远不回收 → 泄漏。注意两个方向：<b>key 用弱引用是"自清理"设计</b>（至少 key 能回收、Map 的 get/set 有探测清理兜底），<b>value 强引用才是泄漏根源</b>；兜底清理不保证及时，<b>根治手段：用完在 finally 里 remove()</b>。</p>
+<p><b>哈希冲突解决一句</b>：HashMap 用拉链，ThreadLocalMap 用<b>开放寻址（线性探测）</b>；增量用魔数 <b>0x61c88647</b>（黄金分割数，斐波那契散列）——每往下一个 ThreadLocal 实例，hash 增量固定加它，使元素在 2 的幂容量上均匀分布。</p>
+<p><b>InheritableThreadLocal 一句</b>：让子线程在<b>创建那一刻</b>拷贝父线程的值；但线程池的线程是复用的，"创建时继承"只发生一次，后续任务拿到的可能是旧值甚至别人的值——线程池传上下文用阿里开源的 TransmittableThreadLocal（TTL）解决。</p>
+<p><b>三大并发工具对比</b>（底层都基于 AQS，见 <a href="CAS原子类与AQS.html">CAS、原子类与 AQS</a>）：</p>
+<table>
+<tr><th>工具</th><th>机制</th><th>可复用?</th><th>核心方法</th><th>典型场景</th></tr>
+<tr><td class="l">CountDownLatch</td><td class="l">倒计数到 0，放行所有 await</td><td>否（一次性）</td><td class="l">countDown() / await()</td><td class="l">主线程等 N 个子任务全部完成再汇总</td></tr>
+<tr><td class="l">CyclicBarrier</td><td class="l">parties 个线程互相等齐再一起走</td><td>是（自动重置）</td><td class="l">await()</td><td class="l">分批任务汇合（多轮并行计算）</td></tr>
+<tr><td class="l">Semaphore</td><td class="l">permits 许可证，拿不到就阻塞</td><td>是</td><td class="l">acquire() / release()</td><td class="l">限流、资源池（连接池）</td></tr>
+</table>
+<p><b>volatile vs ThreadLocal 辨析</b>：volatile——多个线程共享<b>同一个</b>变量，写立即刷主存、禁止指令重排，解决"<b>可见性</b>"；ThreadLocal——每个线程一份副本，彼此根本看不到，解决"<b>隔离</b>"。一个让所有人看到同一份最新值，一个让各人只看各人的——方向相反，不互斥也不互相替代。</p>
+<span class="lang">Java</span>
+<pre><code>// ThreadLocal 标准模板：withInitial 给初值 + 用完 finally remove（线程池场景必做）
+static final ThreadLocal&lt;SimpleDateFormat&gt; DF =
+        ThreadLocal.withInitial(() -&gt; new SimpleDateFormat("yyyy-MM-dd"));
+
+public static String fmt(Date d) {
+    try {
+        return DF.get().format(d);   // get()：取本线程自己的实例，天然线程安全
+    } finally {
+        DF.remove();                 // 防泄漏：清掉本线程的 value（池化线程必做）
+    }
+}</code></pre>
+<span class="lang">Java</span>
+<pre><code>// CountDownLatch：主线程等 3 个子任务全部完成
+CountDownLatch latch = new CountDownLatch(3);    // 计数 = 子任务数
+for (int i = 0; i &lt; 3; i++) {
+    new Thread(() -&gt; {
+        try {
+            // ... 子任务逻辑 ...
+        } finally {
+            latch.countDown();                   // 完成一个减一（必须放 finally）
+        }
+    }).start();
+}
+latch.await();                                   // 阻塞到计数为 0 才放行
+System.out.println("全部子任务完成，开始汇总");</code></pre>
+<span class="lang">Java</span>
+<pre><code>// Semaphore：限流，同时最多 5 个任务访问受限资源
+Semaphore slots = new Semaphore(5);
+Runnable task = () -&gt; {
+    try {
+        slots.acquire();                     // 拿许可，拿不到就阻塞
+        // ... 访问受限资源 ...
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+    } finally {
+        slots.release();                     // 用完必须归还
+    }
+};</code></pre>
+<span class="lang">Python</span>
+<pre><code># ThreadLocal 对照：threading.local，语义同 Java（每线程一份副本）
+import threading
+tl = threading.local()
+tl.data = "per-thread"       # 各线程写各的，互不可见
+
+# 三大工具对照：threading.Barrier ≈ CyclicBarrier（可复用等齐）；Semaphore 同名；
+# CountDownLatch 没有直接对应物（常用 Event / queue 组合模拟）
+barrier = threading.Barrier(3)   # 3 方到齐再一起走
+sem = threading.Semaphore(5)     # 同 Java 语义</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试口述</span></p>
+<ul>
+<li>笔试：Entry 的强弱引用方向、泄漏根因、三大工具的机制与可复用性、ThreadLocalMap 的冲突解决方式。</li>
+<li>面试：ThreadLocal 原理与泄漏全链路（几乎必问）、为什么用完必须 remove、InheritableThreadLocal 在线程池失效的原因、volatile 与 ThreadLocal 的区别。</li>
+<li>追问链：ThreadLocal 原理 → 弱引用为什么这样设计 → 泄漏怎么根治 → 线程池传上下文怎么解决（TTL）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 线程池场景下 ThreadLocal 发生内存泄漏的<b>直接根因</b>是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. ThreadLocalMap 用链表解决冲突，链太长导致内存堆积</div>
+<div class="opt" data-k="B">B. Entry 的 key 是弱引用，外部引用断开后被回收成 null；value 是强引用，被 Thread→ThreadLocalMap→Entry 强引用链拽住，而长活线程让这条链一直存在</div>
+<div class="opt" data-k="C">C. value 是弱引用，导致缓存值被提前回收</div>
+<div class="opt" data-k="D">D. ThreadLocal 不是线程安全的，内部状态损坏</div>
+<div class="exp" hidden><b>答案 B。</b>两个引用方向一起背：key 弱引用是"自清理"设计（key 至少能回收），value 强引用 + 线程池线程长活不销毁才是泄漏根源。A 错——ThreadLocalMap 用开放寻址，没有链表；C 反了——value 恰恰是强引用。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 场景：主线程把大文件切成 10 块交给 10 个线程分别校验，<b>全部校验完成后</b>主线程合并结果。最合适的工具是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Semaphore</div>
+<div class="opt" data-k="B">B. CyclicBarrier</div>
+<div class="opt" data-k="C">C. CountDownLatch</div>
+<div class="opt" data-k="D">D. synchronized</div>
+<div class="exp" hidden><b>答案 C。</b>"等 N 个子任务全部完成"= 一次性倒计数：计数 10，每个子任务完成 countDown，主线程 await 等到 0。若是"10 个线程互相等齐再一起进入下一轮"才是 CyclicBarrier；Semaphore 管的是"同时最多几个"，不表达完成时序。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于三大并发工具，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. CountDownLatch 计数到 0 后不能重置，是一次性的</div>
+<div class="opt" data-k="B">B. CyclicBarrier 支持 parties 个线程互相等待，等齐后自动重置、可复用</div>
+<div class="opt" data-k="C">C. Semaphore 用许可数控制并发访问量，acquire/release 必须配对</div>
+<div class="opt" data-k="D">D. CountDownLatch 的 await() 负责把计数减一</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 反了——减一的是 <b>countDown()</b>，await() 只负责阻塞等待计数归零。可复用性是两者最常考的分界：Latch 一次性、Barrier 循环用。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> JDK8 中 ThreadLocalMap 的 Entry，正确的引用关系是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. key 强引用、value 弱引用</div>
+<div class="opt" data-k="B">B. key 弱引用（Entry 继承 WeakReference&lt;ThreadLocal&lt;?&gt;&gt;）、value 强引用</div>
+<div class="opt" data-k="C">C. key 与 value 都是弱引用</div>
+<div class="opt" data-k="D">D. 两者都强引用，靠 finalize 释放</div>
+<div class="exp" hidden><b>答案 B。</b>Entry 继承 WeakReference，key（ThreadLocal 实例）挂在弱引用上可被 GC；value 是普通强引用字段。这个不对称设计正好对应两道题：为什么 key 弱（自清理兜底）、为什么 value 泄漏（强引用链 + 长活线程）。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 为什么 ThreadLocal 用完要调用 remove()？正确的理由有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 线程池的线程长期存活，不 remove 则 value 永远被强引用链拽住无法回收</div>
+<div class="opt" data-k="B">B. key 被 GC 后 Entry 变成脏条目，Map 自身的探测清理只是兜底，不保证及时</div>
+<div class="opt" data-k="C">C. remove() 是应用层的根治手段，放在 finally 里最稳</div>
+<div class="opt" data-k="D">D. 不 remove 会导致其他线程读到本线程写入的值</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错——副本是线程隔离的，其他线程本来就读不到，remove 防的是内存泄漏不是数据串读。A+B+C 正是泄漏链路三段：长活线程 → 脏条目清理不及时 → 应用层 finally remove 根治。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>6.</b> 讲一遍 ThreadLocal 的原理，以及内存泄漏的完整链路和根治办法。</p>
+<details><summary>参考回答</summary>①定位：线程隔离的变量副本，每个线程访问自己那份，不是共享。②结构：每个 Thread 对象里有一张 ThreadLocalMap，key 是 ThreadLocal 实例（弱引用）、value 是副本值（强引用）；开放寻址解决冲突，魔数 0x61c88647 斐波那契散列让元素均匀分布。③泄漏链路：ThreadLocal 的外部强引用没了 → 弱引用 key 被回收，Entry 变成 key=null 的脏条目 → value 仍被 Thread→ThreadLocalMap→Entry 强引用链拽住 → 线程池里线程长活不销毁 → value 永远不释放。④根治：用完在 finally 里 remove()；Map 的 get/set 自带探测清理只是兜底、不保证及时。⑤加分点：key 设计成弱引用至少让 key 可回收、给自清理留了机会；线程池跨任务传上下文的正确姿势是 TransmittableThreadLocal。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 一句话背引用：key 弱、value 强、线程池线程长活 → 泄漏，finally remove 根治；② 三大工具题眼：一次性 vs 可复用（Latch/Barrier）、"等完成" vs "互相等齐"（Latch/Barrier）、限个数（Semaphore）；③ volatile 与 ThreadLocal 不互斥也不替代——一个共享可见、一个隔离；④ CountDownLatch 的 countDown 必须放 finally，否则子任务一异常主线程 await 永久挂起；⑤ InheritableThreadLocal 在线程池失效的根因：继承只发生在线程创建那一刻，而池化线程不重新创建。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

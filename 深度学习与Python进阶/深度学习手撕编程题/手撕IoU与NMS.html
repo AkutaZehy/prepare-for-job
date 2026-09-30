@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手撕IoU与NMS（ACM 模式） · 深度学习与Python进阶/深度学习手撕编程题</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习手撕编程题</div>
+<h1>手撕 IoU 与 NMS（ACM 模式）</h1>
+<div class="meta">适用岗位：AI/Agent 开发（检测方向笔试必会） ｜ 形态：ACM 判题题×2 + 概念自测 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：$\text{IoU}=\dfrac{\text{交}}{\text{并}}=\dfrac{\text{交}}{S_A+S_B-\text{交}}$，负的交宽/交高取 0；NMS = <b>按分数降序</b>贪心保留，候选与任一已保留框 IoU <b>大于</b>阈值才抑制（恰等于阈值保留是本页约定）。两个必踩边界：负交集、恰等阈值。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题 A（IoU）</b>：输入两行，每行 x1 y1 x2 y2，求交并比，4 位小数。约定坐标满足 x1&lt;x2、y1&lt;y2；两框不重叠 IoU=0；并集面积为 0（两框均退化成零面积）也输出 0.0000。</p>
+<div class="io"><b>输入</b>：
+<pre><code>0 0 2 2
+1 1 3 3</code></pre>
+<b>输出</b>：
+<pre><code>0.1429</code></pre></div>
+<p>核算：交集 $[1,2]\times[1,2]$ 面积 1，并集 = 4+4−1 = 7，IoU = 1/7 ≈ 0.1429。（题 B 要用的对照：(0,0,2,2) 与 (0,0,2,1)：交 2、并 4+2−2=4 → 0.5000。）</p>
+<p><b>题 B（NMS）</b>：第一行 n thr；随后 n 行 x1 y1 x2 y2 score。约定：按<b>分数降序</b>处理（同分按输入序号升序）；候选框与任一已保留框 IoU <b>&gt; thr 才被抑制</b>（恰等于 thr 保留）；输出保留框的<b>原始输入序号</b>（按分数降序排列）。</p>
+<div class="io"><b>输入</b>：
+<pre><code>4 0.5
+0 0 2 2 0.60
+0 0 2 2 0.90
+2 2 4 4 0.80
+0 0 2 1 0.70</code></pre>
+<b>输出</b>：
+<pre><code>1 2 3</code></pre></div>
+<p>核算（两个边界全踩到）：按分数排序 1(0.90)→2(0.80)→3(0.70)→0(0.60)。保留 1；框 2 与 1 不相交（IoU=0）保留；框 3 与 1 的 IoU = 2/4 = <b>0.5 恰等于阈值 → 按约定保留</b>；框 0 与 1 完全重合 IoU=1&gt;0.5 被抑制——注意 0 号框在输入里<b>最先出现但分数最低</b>，NMS 按分数处理、不按输入顺序。另一组对照（实测）：`3 0.3` 加 (0,0,10,10,0.5)/(1,1,11,11,0.9)/(20,20,30,30,0.8) → 框 0 与 1 的 IoU = 81/119 ≈ 0.6807 &gt; 0.3 被抑制，输出 `1 2`。</p>
+</section>
+
+<section class="card p">
+<h2>二、思路与伪代码</h2>
+<pre><code># 题 A: IoU
+iw = min(x2a, x2b) - max(x1a, x1b);  ih 同理
+inter = max(0, iw) * max(0, ih)          # 负交集取 0
+union = Sa + Sb - inter                  # 并 = A + B - 交
+IoU = inter / union                      # union==0 特判输出 0
+
+# 题 B: NMS
+按 score 降序排序(同分输入序号小者先)
+keep = []
+for 框 in 排序结果:
+    若 与 keep 中所有框的 IoU <= thr: keep.append(该框)
+输出 keep(原始序号)</code></pre>
+<p><b>思路</b>：NMS 贪心的直觉——分数最高的框最可信，先占位；任何与它重叠超阈值的框大概率是同一目标的重复检测，压掉不亏。复杂度 O(n²) 次 IoU，工程上可先按坐标粗筛（桶/网格）加速；密集目标误删可用 <b>soft-NMS</b>（不硬删，按 IoU 给分数降权）缓解。面试常接着问"IoU 为 0 的两个框一定不相交吗"——按本题交宽/交高取 0 的定义，边界相接（如 [0,2] 与 [2,4]）交面积也是 0，故"IoU=0"包含"仅边界相接"。</p>
+<div class="q">
+<p><b>概念自测（点击选项判分）</b></p>
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 框 A=(0,0,2,2) 与 B=(1,1,3,3) 的 IoU 是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 1/4</div>
+<div class="opt" data-k="B">B. 1/7</div>
+<div class="opt" data-k="C">C. 1/8</div>
+<div class="opt" data-k="D">D. 1/3</div>
+<div class="exp" hidden><b>答案 B。</b>交集 [1,2]×[1,2] 面积 1，并集 = 4+4−1 = 7，IoU = 1/7 ≈ 0.1429。牢记"并 = A + B − 交"，直接把两面积相加会错选 C 的 1/8。来源：AI 岗笔试高频。</div>
+</div>
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于 NMS，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 按分数从高到低处理，与框在输入中出现的先后顺序无关</div>
+<div class="opt" data-k="B">B. 与已保留框 IoU 恰等于阈值时是否抑制取决于约定，常见约定是大于才抑制</div>
+<div class="opt" data-k="C">C. IoU = 交面积 / (A 面积 + B 面积 − 交面积)</div>
+<div class="opt" data-k="D">D. NMS 保留的框数一定等于目标类别数</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：保留数由"有多少个互不重叠超过阈值的高分框"决定，与类别数无关（多类场景通常每类各自做 NMS）。B 即本页题 B 的约定；A 对应"分数低但先出现"的陷阱用例。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit" type="button">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码</h2>
+<span class="lang">题 A · Python（ACM 完整程序）</span>
+<pre><code>import sys
+
+def iou(a, b):
+    iw = min(a[2], b[2]) - max(a[0], b[0])   # 交的宽
+    ih = min(a[3], b[3]) - max(a[1], b[1])   # 交的高
+    inter = max(0, iw) * max(0, ih)          # 不重叠时取 0
+    union = (a[2]-a[0]) * (a[3]-a[1]) + (b[2]-b[0]) * (b[3]-b[1]) - inter
+    return inter / union if union &gt; 0 else 0.0   # 特判: 并集为 0
+
+def main():
+    data = sys.stdin.read().split()
+    a = [float(v) for v in data[:4]]
+    b = [float(v) for v in data[4:8]]
+    print(f"{iou(a, b):.4f}")
+
+main()</code></pre>
+<span class="lang">题 B · Python（ACM 完整程序）</span>
+<pre><code>import sys
+
+def iou(a, b):
+    iw = min(a[2], b[2]) - max(a[0], b[0])
+    ih = min(a[3], b[3]) - max(a[1], b[1])
+    inter = max(0, iw) * max(0, ih)
+    union = (a[2]-a[0]) * (a[3]-a[1]) + (b[2]-b[0]) * (b[3]-b[1]) - inter
+    return inter / union if union &gt; 0 else 0.0
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n, thr = int(next(it)), float(next(it))
+    boxes = [[float(next(it)) for _ in range(5)] for _ in range(n)]
+    # 按分数降序, 同分按输入序号升序
+    order = sorted(range(n), key=lambda i: (-boxes[i][4], i))
+    keep = []
+    for i in order:
+        if all(iou(boxes[i], boxes[j]) &lt;= thr for j in keep):  # &gt; 阈值才抑制
+            keep.append(i)
+    print(" ".join(map(str, keep)))
+
+main()</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 交集的 max(0,·) 忘写，会把不相交框算出负交集；② "并 = A+B−交"别写成 A+B；③ NMS 排序键是分数不是输入序号（同分才看序号，约定要写清）；④ 抑制条件是 <b>&gt; 阈值还是 ≥ 阈值</b>各题面不同，自己另立约定必挂对拍——本题面明确"&gt; 才抑制、恰等保留"；⑤ 输出的是原始输入序号（按分数降序排列），不是排序后的位置。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

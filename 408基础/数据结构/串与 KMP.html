@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>串与 KMP · 408基础/数据结构</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>串与 KMP</h1>
+<div class="meta">适用岗位：全部（408 选择 + 手算 next 大题高频） ｜ 形态：手算表格 + 算法对比 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：朴素匹配失配时<b>主串指针 i 回退</b>，最坏 (n−m+1)×m ≈ O(nm)；KMP 失配时 <b>i 不动，j 跳到 next[j]</b>，整体 O(n+m)；<b>next 只由模式串决定</b>，手算口诀：next[1]=0、next[2]=1，next[j] = 模式串前 j−1 个字符的<b>最长相等前后缀长度 + 1</b>；nextval 一句话：若 p[j] == p[next[j]]，则 nextval[j] = nextval[next[j]]，把无效跳转改得更彻底。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>串的存储</b>（一句带过，考得少）：定长顺序存储（静态数组，超长截断）、<b>堆分配存储</b>（运行时按实际长度申请，主流）、块链存储（每结点存 1 个或若干个字符，指针开销大、存储密度低）。</p>
+<p><b>朴素模式匹配（BF）</b>：主串指针 i、模式串指针 j 从头逐位比；失配则 <b>i 回退到本趟起点的下一位</b>（i = i−j+2，按 1 起编），j 回到 1，重比。最坏情形：模式串形如"aa…ab"、主串全 a，每趟都比较到第 m 个字符才失败，共 (n−m+1)×m 次，时间 O(n×m)。</p>
+<p><b>next 数组（408 教材约定）</b>：next[j] 描述"在 p[j] 处失配后 j 该跳到哪"。定义：next[1] = 0、next[2] = 1；对 j 大于 2，<b>next[j] = 模式串前 j−1 个字符构成子串的"最长相等前后缀"长度 + 1</b>。"相等前后缀"指：存在 k，使前 k 个字符与后 k 个字符完全相同（k 可为 0，即不存在）。手算就用"逐位看前串"的表格法，见本页例题 1。注意工程实现里常直接存"最长相等前后缀长度"（即教材值减 1），两种约定差 1，做题先认约定。</p>
+<p><b>KMP 匹配过程</b>：失配时 i 永不回退，j = next[j]；j = 0 是特殊信号——i、j 同步加 1（主串当前位作废，从下一位重新开始）。预处理求 next 花 O(m)，匹配最多 O(n)，总时间 <b>O(n+m)</b>。</p>
+<pre class="ascii-fallback"><code>j = 6 失配 ──(next=3)──→ j = 3 ──(next=1)──→ j = 1 ──(next=0)──→ j = 0
+                                                  j = 0 时 i 前进一格, j 从 1 重开
+主串 i 全程不回退: 已匹配信息被 next 完整复用</code></pre>
+<pre class="mermaid">
+flowchart LR
+    s6["j=6 失配"] -->|"j 跳到 next=3"| s3["j=3"] -->|"j 跳到 next=1"| s1["j=1"] -->|"j 变 0"| s0["i 前进一格，j 从 1 重新比"]
+</pre>
+<p><b>nextval（一句带过）</b>：在 next 基础上修正"跳过去要比的字符还是同一个"的浪费——若 p[j] == p[next[j]]，则 nextval[j] = nextval[next[j]]，否则 nextval[j] = next[j]。失配时 j 直接跳到 nextval[j]，一次到位。</p>
+<pre><code>// 朴素匹配 BF：失配整体回退，i 回到本趟起点的下一位
+static int bf(String s, String p) {
+    int i = 1, j = 1;                          // 按 1 起编的思想, charAt 里减 1
+    while (i &lt;= s.length() &amp;&amp; j &lt;= p.length()) {
+        if (s.charAt(i - 1) == p.charAt(j - 1)) { i++; j++; }
+        else { i = i - j + 2; j = 1; }         // 关键: 主串指针回退
+    }
+    return j &gt; p.length() ? i - p.length() : -1;
+}
+
+// KMP：求 next（408 约定 next[1]=0），再主串只进不退
+static int[] getNext(String p) {
+    int m = p.length();
+    int[] next = new int[m + 1];   // 下标 0 弃用
+    next[1] = 0;
+    int i = 1, j = 0;              // i: 算到第几位, j: 当前最长相等前后缀长度
+    while (i &lt; m) {
+        if (j == 0 || p.charAt(i - 1) == p.charAt(j - 1)) {
+            i++; j++;
+            next[i] = j;           // 前后缀延长一位, next 加 1
+        } else {
+            j = next[j];           // 前缀自己跟自己匹配, 回退 j
+        }
+    }
+    return next;                   // getNext("abaabc") = [_,0,1,1,2,2,3]
+}
+
+static int kmp(String s, String p) {
+    int[] next = getNext(p);
+    int i = 1, j = 1;
+    while (i &lt;= s.length() &amp;&amp; j &lt;= p.length()) {
+        if (j == 0 || s.charAt(i - 1) == p.charAt(j - 1)) { i++; j++; }
+        else j = next[j];          // 主串指针不回退
+    }
+    return j &gt; p.length() ? i - p.length() : -1;   // 首次出现位置(1 起)
+}</code></pre>
+<pre><code>def get_next(p):
+    m = len(p)
+    nxt = [0] * (m + 1)            # 下标 0 弃用, nxt[1] = 0
+    i, j = 1, 0
+    while i &lt; m:
+        if j == 0 or p[i - 1] == p[j - 1]:
+            i, j = i + 1, j + 1
+            nxt[i] = j
+        else:
+            j = nxt[j]
+    return nxt                     # "abaabc" -&gt; [0,0,1,1,2,2,3]</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">手算大题</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：失配后 i、j 的行为、next/nextval 的性质与依赖关系、KMP 与 BF 的时间复杂度对比。</li>
+<li>手算：给模式串求 next 数组（要求写步骤表，408 大题常客）、朴素匹配比较次数。</li>
+<li>面试口述：next[j] 的含义、KMP 为什么快（用"已匹配信息复用"来讲，别背定义）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 求模式串 p = "abaabc" 的 next 数组（408 约定），要求写出完整的手算步骤表。</p>
+<details><summary>先自己算，再展开对答案</summary>逐位填表：对每个 j，看前 j−1 个字符构成的子串，找它的"最长相等前后缀"长度 L，则 next[j] = L + 1（j=1、2 直接按规定写 0、1）。<br>
+<table>
+<tr><th>j</th><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td></tr>
+<tr><th>p[j]</th><td>a</td><td>b</td><td>a</td><td>a</td><td>b</td><td>c</td></tr>
+<tr><th>前串 p[1..j−1]</th><td>—</td><td>a</td><td>ab</td><td>aba</td><td>abaa</td><td>abaab</td></tr>
+<tr><th>最长相等前后缀</th><td>—</td><td>无</td><td>无</td><td>a</td><td>a</td><td>ab</td></tr>
+<tr><th>长度 L</th><td>—</td><td>0</td><td>0</td><td>1</td><td>1</td><td>2</td></tr>
+<tr><th>next[j] = L+1</th><td><b>0</b></td><td><b>1</b></td><td><b>1</b></td><td><b>2</b></td><td><b>2</b></td><td><b>3</b></td></tr>
+</table>
+即 next = 0 1 1 2 2 3。易错点：j=5 时前串是 abaa，只有前后缀 "a" 相等（"ab" 与 "aa" 不等），别顺手写成 3。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 用朴素匹配在主串 S = "aaaaab"（n=6）中找模式串 T = "aab"（m=3），共进行多少次字符比较？归纳出最坏情况的比较次数公式。</p>
+<details><summary>先自己算，再展开对答案</summary>逐趟数：<br>趟 1：从 S[1] 起，a=a、a=a、a≠b → 3 次失败；<br>趟 2：从 S[2] 起，a=a、a=a、a≠b → 3 次失败；<br>趟 3：从 S[3] 起，a=a、a=a、a≠b → 3 次失败；<br>趟 4：从 S[4] 起，a=a、a=a、b=b → 3 次成功。<br>合计 <b>4 × 3 = 12</b> 次。规律：最坏时每趟都比较满 m 次，共 n−m+1 趟，公式 <b>(n−m+1) × m</b>，验证 (6−3+1)×3 = 12 ✓。来源：牛客经典题。</details>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>3.</b> KMP 匹配过程中，若在模式串第 j 个字符处失配，接下来算法的行为是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 主串指针 i 回退到本趟比较的起点</div>
+<div class="opt" data-k="B">B. 模式串指针 j 直接回到 1，从头重新比较</div>
+<div class="opt" data-k="C">C. i 和 j 同时回退一格</div>
+<div class="opt" data-k="D">D. i 不动，j 回退到 next[j]（j 为 0 时 i、j 同步加 1）</div>
+<div class="exp" hidden><b>答案 D。</b>"主串指针不回退"是 KMP 的全部意义所在：已匹配的那段主串信息由 next 数组完整复用，失配后模式串滑到能对齐的最长前缀处继续比。j=0 表示模式串第一位就对不上，i、j 一起前进一位重开。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于 KMP 算法，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 匹配阶段主串指针不回退，一遍扫完，总时间 O(n+m)</div>
+<div class="opt" data-k="B">B. 任何输入下，KMP 的字符比较次数都一定比朴素匹配少</div>
+<div class="opt" data-k="C">C. next 数组只由模式串本身决定，与主串无关</div>
+<div class="opt" data-k="D">D. nextval 是对 next 的改进：消除"跳过去仍遇到相同字符"的无效比较</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ACD。</b>B 错：KMP 要先花 O(m) 预处理 next，模式串很短或运气好时朴素匹配可能更少；KMP 的优势是<b>保证最坏 O(n+m)</b>，而非"每一次都更少"。C 是常考性质：求 next 的过程是模式串前缀自己匹配自己，主串换一万次 next 都不变。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 用两三句话讲清 next[j] 的含义，以及失配时为什么 j 跳到 next[j] 是安全的。</p>
+<details><summary>参考回答</summary>next[j] 的含义：模式串前 j−1 个字符中"最长相等前后缀"的长度加 1（next[1]=0、next[2]=1 是规定）。失配发生在 p[j] 时，说明前 j−1 个字符已经和主串对上；这段串的长度为 next[j]−1 的前缀与它自己的后缀相等，于是主串里已匹配部分的后缀天然等于模式串同长的前缀，<b>直接把模式串滑到这个前缀对齐，从 p[next[j]] 继续比即可</b>——i 不用动，也不会漏解，因为更长的对齐方式都被"最长相等前后缀"排除掉了。加分点：提 nextval 进一步修正、KMP 最坏 O(n+m)。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① next 有两套约定（教材"长度+1"版 vs 工程存长度版），值差 1，做题先看清题目用哪种；② next[1]=0、next[2]=1 是规定不是推的；③ 手算 next 只看模式串，主串再长也无关；④ KMP 失配 i 不动、j 跳 next[j]，j=0 时 i、j 同步 +1；⑤ 朴素匹配最坏 (n−m+1)×m 趟内比较，别记成 n×m 就完事，具体次数要会逐趟数；⑥ nextval 修正规则只在 p[j] == p[next[j]] 时才改。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

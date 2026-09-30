@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVM 速览 · 深度学习与Python进阶/机器学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 机器学习</div>
+<h1>SVM 速览</h1>
+<div class="meta">适用岗位：AI/算法笔试 ｜ 关联页：<a href="线性回归与逻辑回归.html">LR 与正则化</a> ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：SVM 找<b>间隔最大</b>的分隔超平面，只有落在间隔边界上的<b>支持向量</b>决定它（解稀疏）。线性不可分 → 软间隔（松弛 $\xi$ + 惩罚 C）→ 核技巧把样本映到高维。C 大=更看重训练正确（易过拟合），C 小=间隔更宽（易欠拟合）。常与 LR 对比：hinge loss vs 交叉熵、无概率输出、对归一化与核更敏感。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>间隔最大化</b>。超平面 $w^\top x+b=0$，样本到它的函数间隔为 $y(w^\top x+b)$。SVM 的目标是最大化「最近的点离平面」的距离：$\max \dfrac{2}{\|w\|}$（几何间隔），等价于 $\min \dfrac{1}{2}\|w\|^2$ s.t. $y_i(w^\top x_i+b)\ge 1$——一个凸二次规划。距离超平面最近、恰好卡在 $y(w^\top x+b)=1$ 边界上的样本就是<b>支持向量</b>；最终解只由它们决定，其余样本删掉不影响模型（<b>解的稀疏性</b>，来自 hinge 损失在间隔外为 0）。</p>
+<p><b>软间隔</b>。线性不可分/有噪声时引入松弛变量 $\xi_i\ge 0$ 与惩罚系数 C：</p>
+$$\min \frac{1}{2}\|w\|^2 + C\sum_i \xi_i \quad \text{s.t.}\ y_i(w^\top x_i+b)\ge 1-\xi_i$$
+<p>C 大 → 对错分惩罚重、间隔窄、易过拟合；C 小 → 容忍错分、间隔宽、易欠拟合。</p>
+<p><b>对偶与核技巧</b>。拉格朗日对偶把约束转为对 α 的对偶问题（KKT 条件下多数 $\alpha_i=0$，只剩支持向量），且样本只以<b>内积</b> $x_i^\top x_j$ 出现——用核函数 $K(x_i,x_j)$ 直接替换内积，等价于隐式映射到高维再线性分（<b>不显式构造映射</b>）。常用核：</p>
+<table>
+<tr><th class="l">核</th><th class="l">形式</th><th class="l">适用</th></tr>
+<tr><td class="l">线性核</td><td class="l">$x_i^\top x_j$</td><td class="l">特征多、样本大、本就近似线性可分（文本）</td></tr>
+<tr><td class="l">多项式核</td><td class="l">$(\gamma x_i^\top x_j + r)^d$</td><td class="l">需要交互特征，d 大易过拟合</td></tr>
+<tr><td class="l">RBF/高斯核</td><td class="l">$\exp(-\gamma\|x_i-x_j\|^2)$</td><td class="l">默认首选；γ 大 → 方差小易过拟合</td></tr>
+</table>
+<p><b>SMO</b>：每次只优化两个 α（固定其余）、解析求解，是实用求解器。回归版 <b>SVR</b> 用 ε-不敏感损失（管道内的点不计损失）。NN 时代 SVM 的实用场景收窄，但<b>概念题永远在考</b>。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p>SVM 是「概念密度最高」的一页，选择题全从这里出：① 支持向量的定义与解的稀疏性；② C 与 γ 各自调大意味着什么（C 大过拟合、γ 大过拟合——双重"大就过拟合"最易混）；③ 为什么要对偶（内积形式 → 核技巧可行）；④ 核函数合法性（Mercer 条件：半正定）；⑤ SVM vs LR 表格对比；⑥ 为什么 SVM 对缺失/大规模数据不友好（核矩阵 O(n²)）。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 关于支持向量，正确的说法是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 所有训练样本都参与决定最终超平面</div>
+<div class="opt" data-k="B">B. 支持向量是被分错的样本</div>
+<div class="opt" data-k="C">C. 支持向量是位于间隔边界（或越界）上、使约束取等号的样本，最终解只由它们决定</div>
+<div class="opt" data-k="D">D. 支持向量就是距离超平面最远的样本</div>
+<div class="exp" hidden><b>答案 C。</b>hinge 损失在间隔外为 0，对应对偶里 α=0，删除这些样本模型不变——这是 SVM 解稀疏的来源。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 软间隔 SVM 中把惩罚系数 C 调得非常大，最可能发生的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 几乎不允许错分，间隔被压得很窄，训练集拟合好但容易过拟合</div>
+<div class="opt" data-k="B">B. 间隔变宽，模型更平滑</div>
+<div class="opt" data-k="C">C. 等价于把 w 的 L2 惩罚加强</div>
+<div class="opt" data-k="D">D. 核函数自动退化为线性核</div>
+<div class="exp" hidden><b>答案 A。</b>C 大 → ξ 代价高 → 硬间隔化。B/D 无关联；加强 $\|w\|$ 惩罚是<b>调小</b> C。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于对偶问题与核技巧，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 对偶形式里样本只以内积 $x_i^\top x_j$ 出现，这使核函数替换内积成为可能</div>
+<div class="opt" data-k="B">B. 核函数 $K(x_i,x_j)$ 等价于把样本隐式映射到高维空间后做内积，不必显式写出映射 φ</div>
+<div class="opt" data-k="C">C. 任何对称函数都可以当核函数用</div>
+<div class="opt" data-k="D">D. 对偶解中大多数 $\alpha_i=0$，只有支持向量对应 α 非零</div>
+<div class="exp" hidden><b>答案 ABD。</b>合法核需满足 Mercer 条件（ Gram 矩阵半正定），对称不够，C 错。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、示例题目</h2>
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> SVM 与逻辑回归对比，<b>错误</b>的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. SVM 用 hinge 损失、LR 用（对数）交叉熵损失</div>
+<div class="opt" data-k="B">B. LR 天然输出概率，SVM 输出的是决策值，要另接 Platt scaling 才有概率</div>
+<div class="opt" data-k="C">C. 两者都能加核，且在大规模样本（10⁷ 级）下核 SVM 训练比 LR 快</div>
+<div class="opt" data-k="D">D. 两者都是凸优化问题，全局最优有保证</div>
+<div class="exp" hidden><b>答案 C。</b>C 是错误说法：核 SVM 要计算并存储核矩阵，O(n²) 的内存与训练开销，大规模样本反而慢，此时用线性 SVM 或 LR。A/B/D 均正确。来源：面试高频改编。</div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① C 和 γ 都调大都会过拟合，但作用位置不同（C 管错分代价、γ 管 RBF 局部性）；② 支持向量不一定被分对——间隔边界上的正确样本与越界的样本都算；③ 核技巧 = 高维内积的省算力写法，不是「降维」；④ 缺失值要处理（SVM 无原生机制），特征要标准化（距离/内积敏感）；⑤ hinge 损失的「稀疏」与 L1 的「稀疏」是两回事：前者指参与训练的样本少，后者指特征权重为 0。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

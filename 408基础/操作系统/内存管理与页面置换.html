@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内存管理与页面置换 · 408基础/操作系统</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 操作系统</div>
+<h1>内存管理与页面置换</h1>
+<div class="meta">适用岗位：全部（地址转换与置换手算是笔试计算重灾区） ｜ 形态：概念 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：页大小决定<b>页内偏移位数</b>（4KB=12 位），页号位数 = 逻辑地址位数 − 偏移位数；<b>只有 FIFO 有 Belady 异常</b>（帧数变多缺页反而变多），LRU/OPT 是堆栈类算法没有；OPT 是缺页下界但无法实现；<b>抖动 = 页面频繁换入换出</b>，根因是分配帧数少于工作集；有效访问时间 EAT = 命中率×快路径 + 未命中率×慢路径。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>连续分配的三种动态分区适配算法</b>：</p>
+<table>
+<tr><th>算法</th><th>策略</th><th>特点</th></tr>
+<tr><td>首次适应 First Fit</td><td class="l">从低地址找第一个放得下的分区</td><td class="l">简单、综合性能最好（低地址优先被用，高地址留大块）</td></tr>
+<tr><td>最佳适应 Best Fit</td><td class="l">找容量最接近需求的分区</td><td class="l">省空间但产生大量难以利用的<b>外部碎片小分区</b></td></tr>
+<tr><td>最坏适应 Worst Fit</td><td class="l">每次挑最大的分区</td><td class="l">剩余大块仍可用，但大作业后患无穷</td></tr>
+</table>
+<p><b>分页存储</b>：物理内存划成等大的帧（页框），逻辑地址空间划成等大的页，页与帧同大小（常见 4KB）。逻辑地址 = <b>页号 P + 页内偏移 W</b>：页号 = 逻辑地址 ÷ 页大小（取商），偏移 = 取余；<b>偏移位数只由页大小决定</b>（4KB→12 位，1KB→10 位）。地址转换：页号查页表得物理帧号，帧号×页大小 + 偏移。页表本身放在内存，32 位系统 4KB 页单级页表要 4MB/进程——太大，于是引入<b>二级/多级页表</b>（页表也分页，可离散存放、部分换出），代价是缺页表时要多次访存。</p>
+<p><b>快表 TLB</b>：高速缓存里的"页表项缓存"。命中时：查 TLB(t) + 访存(m)；未命中：查 TLB + 查页表访存 + 再访存 = t + 2m（题设通常如此，看清题目是否计入）。EAT = H×(t+m) + (1−H)×(t+2m)。</p>
+<p><b>页面置换算法</b>（给访问串和帧数，手算缺页次数是必考计算）：</p>
+<table>
+<tr><th>算法</th><th>淘汰谁</th><th>要点</th></tr>
+<tr><td>OPT 最佳</td><td class="l">以后<b>最长时间不再使用</b>的页</td><td class="l">缺页率下界，无法实现（要预知未来），用作评价基准</td></tr>
+<tr><td>FIFO 先进先出</td><td class="l">最早进入内存的页</td><td class="l">实现最简单；<b>唯一有 Belady 异常</b>（帧数增多缺页可能反而增多）</td></tr>
+<tr><td>LRU 最近最久未使用</td><td class="l">最久未被访问的页</td><td class="l">堆栈类算法，无 Belady；硬件开销大（要记访问时间戳/栈）</td></tr>
+<tr><td>Clock / NRU</td><td class="l">循环扫描，淘汰访问位为 0 的页</td><td class="l">访问位 1 清 0 跳过、遇到 0 淘汰——"二次机会"，LRU 的低成本近似</td></tr>
+</table>
+<p><b>抖动（颠簸）</b>：页面频繁换入换出，CPU 大部分时间在做换页。根因：分配的帧数 &lt; 该进程的<b>工作集</b>（一段时间内实际活跃访问的页面集合）。对策：按工作集分配帧、降低多道程序度。缺页时缺页中断属于<b>内中断（故障）</b>，在指令执行期间产生并被处理。</p>
+<p><b>分段 vs 分页</b>：分页是<b>一维地址</b>（物理划分、页大小固定、对用户透明，有内部碎片）；分段是<b>二维地址</b>（按逻辑意义划分、段长可变，便于共享保护，有外部碎片）；段页式=先分段再分页，取长补短。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算题</span></p>
+<ul>
+<li>地址转换计算（给页大小与逻辑地址求页号/偏移/物理地址）——纯套公式但要快且准。</li>
+<li>置换手算：给访问串与帧数，分别求 FIFO/LRU/OPT 的缺页次数；或给缺页次数反推算法。</li>
+<li>Belady 异常、抖动根因、Clock 算法访问位的动作。</li>
+<li>EAT 计算（快表命中率题），看清题设的访存次数约定。</li>
+<li>动态分区三种适配的匹配题。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">计算</span><b>1.</b> 页大小为 4KB，逻辑地址 <b>8645</b>（十进制）对应的页号与页内偏移是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 页号 1，偏移 4549</div>
+<div class="opt" data-k="B">B. 页号 2，偏移 353</div>
+<div class="opt" data-k="C">C. 页号 2，偏移 453</div>
+<div class="opt" data-k="D">D. 页号 2，偏移 553</div>
+<div class="exp" hidden><b>答案 C。</b>4096×2 = 8192 ≤ 8645 &lt; 4096×3 = 12288，页号 2；偏移 = 8645 − 8192 = 453。快速法：4KB=2¹²，8645 = 10000110000101₂，低 12 位是偏移 453，其余是页号 2。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 访问串 <b>1,2,3,4,1,2,5,1,2,3,4,5</b>，内存 3 帧（初始为空，FIFO 置换）。求缺页次数；若帧数增到 4 帧呢？（教材经典序列）</p>
+<details><summary>先自己算，再展开对答案</summary>3 帧 FIFO：缺页 <b>9 次</b>。轨迹：1缺 2缺 3缺 → 4淘汰1缺 → 1淘汰2缺 → 2淘汰3缺 → 5淘汰4缺 → 1命中 2命中 → 3淘汰5缺 → 4淘汰1缺 → 5淘汰2缺（共 9）。4 帧时反而缺 <b>10 次</b>——帧数变多缺页变多，这就是 <b>Belady 异常</b>（同串 LRU 3 帧 10 次、4 帧 8 次，OPT 3 帧 7 次）。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 关于页面置换算法，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. LRU 算法可能出现 Belady 异常</div>
+<div class="opt" data-k="B">B. OPT 缺页次数最少但需要预知未来访问序列，无法实际实现</div>
+<div class="opt" data-k="C">C. Clock 算法淘汰访问位为 1 的页</div>
+<div class="opt" data-k="D">D. FIFO 是堆栈类算法，不会出现 Belady 异常</div>
+<div class="exp" hidden><b>答案 B。</b>Belady 异常是 FIFO 专属（LRU/OPT 是堆栈类算法）；Clock 淘汰的是访问位为 <b>0</b> 的页（遇到 1 就清 0 跳过，给第二次机会）；D 的"堆栈类"说反了，FIFO 恰恰不是堆栈类。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 某系统 TLB 访问 20ns，内存访问 100ns，TLB 命中率 90%。TLB 命中时"查 TLB+访存"一步完成，未命中时"查 TLB+查页表+访存"。求有效访问时间 EAT。</p>
+<details><summary>先自己算，再展开对答案</summary>命中路径：20 + 100 = 120ns；未命中路径：20 + 100（查页表）+ 100（取数）= 220ns。EAT = 0.9×120 + 0.1×220 = 108 + 22 = <b>130ns</b>。注意：不同教材对未命中是否要"查 TLB"计一次有出入，<b>按题目给定的路径算</b>，先读清题设再动笔。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 关于内存管理，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 最佳适应算法容易产生大量难以利用的外部碎片</div>
+<div class="opt" data-k="B">B. 分页管理会产生内部碎片（最后一页装不满）</div>
+<div class="opt" data-k="C">C. 抖动的常见根因是分配的帧数少于进程的工作集</div>
+<div class="opt" data-k="D">D. 分段管理的地址是一维的，与分页相同</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：分段是二维地址（段号+段内偏移，段长可变），分页才是一维；分段有外部碎片、分页有内部碎片，段页式两者兼而有之。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 页内偏移位数只看页大小（4KB→12 位），与总地址位数无关；页号位数 = 总位数 − 偏移位数；② 缺页次数统计惯例：<b>首次装入也算缺页</b>（初始为空时必缺），做题先对答案口径；③ 只有 FIFO 有 Belady 异常，"LRU 也可能"是常见干扰项；④ 银行家/置换/EAT 计算题先读题设约定（是否算查 TLB 一次、是否计入初始装入），再套公式；⑤ 二级页表的动机是"页表太大且必须连续存放"，不是加速——加速靠 TLB。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

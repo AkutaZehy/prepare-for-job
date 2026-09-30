@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>集合框架总览与 ArrayList/LinkedList · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>集合框架总览与 ArrayList / LinkedList</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（集合选型与扩容是笔试常客） ｜ 形态：结构 + 对比大表 + 代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：两棵树——<b>Collection</b>（List/Set/Queue）与 <b>Map</b>；ArrayList = Object[]，默认容量 10（懒初始化）、扩容 1.5 倍（<code>oldCap + (oldCap &gt;&gt; 1)</code>），随机访问 O(1)、中间插删 O(n)；LinkedList = 双向链表兼 Deque，头尾插删 O(1)、访问 O(n)；HashSet 内部就是 HashMap；TreeSet 红黑树排序；遍历删除只用 <code>iterator.remove()</code> / <code>removeIf</code>；<b>Arrays.asList 是定长列表</b>，add/remove 直接抛异常。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>两棵继承树（文字版）</b>。其中 HashMap 原理详见 <a href="HashMap全解.html">HashMap 全解</a>，并发集合详见 <a href="ConcurrentHashMap与线程安全集合.html">ConcurrentHashMap 与线程安全集合</a>。</p>
+<pre><code>Iterable
+   └─ Collection
+        ├─ List（有序、可重复）
+        │    ├─ ArrayList   ：Object[] 动态数组，随机访问快
+        │    ├─ LinkedList  ：双向链表，另实现了 Deque（兼作队列/栈）
+        │    └─ Vector      ：古老线程安全版（方法 synchronized），已过时
+        ├─ Set（不可重复）
+        │    ├─ HashSet           ：哈希表（内部就是一个 HashMap）
+        │    │    └─ LinkedHashSet：哈希表 + 双向链表，保持插入序
+        │    └─ TreeSet           ：红黑树（内部 TreeMap），按 key 排序
+        └─ Queue（队列）
+             ├─ Deque（双端队列） ：ArrayDeque / LinkedList
+             └─ PriorityQueue    ：二叉堆，出队按优先级
+
+Map（独立接口，不继承 Collection）
+   ├─ HashMap            ：数组+链表+红黑树，无序
+   │    └─ LinkedHashMap ：哈希表+双向链表，保插入序/访问序（可做 LRU）
+   ├─ TreeMap            ：红黑树，key 有序
+   ├─ Hashtable          ：古老线程安全版，已过时
+   └─ ConcurrentHashMap  ：并发首选</code></pre>
+<p><b>各实现对比大表</b></p>
+<table>
+<tr><th>实现</th><th>底层结构</th><th>重复</th><th>有序性</th><th>线程安全</th><th>典型场景</th></tr>
+<tr><td>ArrayList</td><td class="l">Object[] 动态数组</td><td>可重复</td><td>插入序</td><td>否</td><td class="l">随机访问为主的列表</td></tr>
+<tr><td>LinkedList</td><td class="l">双向链表（兼 Deque）</td><td>可重复</td><td>插入序</td><td>否</td><td class="l">头尾插删频繁、当队列/栈</td></tr>
+<tr><td>Vector</td><td class="l">Object[] + 方法 synchronized</td><td>可重复</td><td>插入序</td><td>是（已过时）</td><td class="l">仅存于老代码</td></tr>
+<tr><td>HashSet</td><td class="l">哈希表（内部 HashMap）</td><td>不可重复</td><td>无序</td><td>否</td><td class="l">快速去重与查找</td></tr>
+<tr><td>LinkedHashSet</td><td class="l">哈希表 + 双向链表</td><td>不可重复</td><td>插入序</td><td>否</td><td class="l">去重且保持插入顺序</td></tr>
+<tr><td>TreeSet</td><td class="l">红黑树（内部 TreeMap）</td><td>不可重复</td><td>按 key 排序</td><td>否</td><td class="l">排序去重、范围查询</td></tr>
+<tr><td>HashMap</td><td class="l">数组+链表+红黑树</td><td>key 不可重复</td><td>无序</td><td>否</td><td class="l">常规键值映射</td></tr>
+<tr><td>LinkedHashMap</td><td class="l">哈希表 + 双向链表</td><td>key 不可重复</td><td>插入/访问序</td><td>否</td><td class="l">LRU 缓存、保序映射</td></tr>
+<tr><td>TreeMap</td><td class="l">红黑树</td><td>key 不可重复</td><td>按 key 排序</td><td>否</td><td class="l">排序映射、范围查询</td></tr>
+<tr><td>Hashtable</td><td class="l">哈希表 + 全表 synchronized</td><td>key 不可重复</td><td>无序</td><td>是（已过时）</td><td class="l">仅存于老代码</td></tr>
+<tr><td>ConcurrentHashMap</td><td class="l">CAS + synchronized 锁桶头</td><td>key 不可重复</td><td>无序</td><td>是</td><td class="l">并发键值映射</td></tr>
+</table>
+<p><b>ArrayList</b>：底层 <code>Object[]</code>；<b>JDK8 中默认构造是空数组，默认容量 10 懒初始化</b>——首次 add 才分配；扩容公式 <code>newCap = oldCap + (oldCap &gt;&gt; 1)</code>（1.5 倍，整数右移取整），容量轨迹 10→15→22→33→49；get/set 随机访问 O(1)（实现了 RandomAccess 标记接口）；中间插删要 System.arraycopy 搬移元素 O(n)，尾部添加均摊 O(1)。</p>
+<p><b>LinkedList</b>：双向链表，同时实现 List 与 Deque；头尾插删 O(1)；按下标访问 O(n)（会从较近一端折半方向遍历，但复杂度量级不变）。当队列/栈用，工程上更推荐 ArrayDeque（性能更好——面试加分句）。</p>
+<p><b>Vector</b>：方法级 synchronized 的古老线程安全 List，开销大、迭代仍需外部同步，官方已不推荐；现代替代：读多写少用 CopyOnWriteArrayList，一般并发用 <code>Collections.synchronizedList</code> 或并发包。</p>
+<p><b>Set 三兄弟</b>：HashSet 底层就是一个 HashMap，元素作 key 存入（value 是共享的 PRESENT 哑对象），去重靠 hashCode 定桶 + equals 判等，允许一个 null；LinkedHashSet 在其上加了双向链表维持插入序；TreeSet 内部是 TreeMap，元素按 key 排序（默认自然序下插入 null 抛 NPE，因为要比较）。</p>
+<p><b>Comparable vs Comparator</b>：Comparable（java.lang）= 自然序，类自身实现 <code>compareTo</code>，一个类只有一种、一锤定音；Comparator（java.util）= 定制序，外部比较器，可以准备多个、用 lambda 现写，类不用改（String 是 final 改不了，就靠它）。TreeSet/TreeMap/PriorityQueue/Arrays.sort 都接受 Comparator 重载。</p>
+<p><b>遍历删除的正确姿势</b>：for-each 中直接 list.remove 会触发 fail-fast 抛 ConcurrentModificationException（modCount 校验，机制与 <a href="HashMap全解.html">HashMap 全解</a> 中讲的完全同源）；正解是 <code>iterator.remove()</code> 或 JDK8 的 <code>removeIf</code>。按下标普通 for 循环删除另有漏删坑（删除后元素前移，i 不回退会跳元素），需倒序删或 i--。</p>
+<p><b>Arrays.asList 的定长陷阱</b>：返回的是 Arrays 的内部类 java.util.Arrays$ArrayList（不是 java.util.ArrayList）——①定长：add/remove 抛 UnsupportedOperationException，set 可以；②写透：set 会改到底层原数组；③基本类型数组整型数组 <code>int[]</code> 传入会被当成"一个元素"得到 <code>List&lt;int[]&gt;</code>。要可变列表用 <code>new ArrayList&lt;&gt;(Arrays.asList(...))</code> 拷贝一份；JDK9 的 <code>List.of(...)</code> 则是完全不可变。</p>
+<span class="lang">Java</span>
+<pre><code>// 扩容观察（JDK8）：默认构造是空数组，容量 10 懒初始化
+List&lt;Integer&gt; list = new ArrayList&lt;&gt;();
+for (int i = 1; i &lt;= 11; i++) {
+    list.add(i);                        // 第 11 个触发扩容：10 + (10 &gt;&gt; 1) = 15
+}
+// 容量轨迹：10 → 15 → 22 → 33 → 49（1.5 倍，整数右移取整）
+
+// 遍历删除的正确姿势
+List&lt;String&gt; l = new ArrayList&lt;&gt;(Arrays.asList("a", "b", "c", "d"));
+l.removeIf(s -&gt; s.equals("b"));         // JDK8 推荐：内部就是迭代器安全删除
+Iterator&lt;String&gt; it = l.iterator();
+while (it.hasNext()) {
+    if (it.next().equals("a")) it.remove();   // 唯一安全的"边遍历边删"
+}</code></pre>
+<span class="lang">Java</span>
+<pre><code>// Arrays.asList 三连坑
+String[] arr = {"a", "b", "c"};
+List&lt;String&gt; fixed = Arrays.asList(arr);  // Arrays$ArrayList：定长包装
+fixed.set(0, "x");                        // OK，且写透：arr[0] 也变成 "x"
+fixed.add("d");                           // 运行时抛 UnsupportedOperationException
+
+int[] nums = {1, 2, 3};
+List&lt;int[]&gt; wrong = Arrays.asList(nums);  // 整个数组被当成 1 个元素！
+List&lt;Integer&gt; right = Arrays.stream(nums)
+        .boxed().collect(Collectors.toList());   // 正确：先装箱再收集</code></pre>
+<span class="lang">Python</span>
+<pre><code># Python list 是动态数组（定位同 ArrayList），扩容按超额分配增长（不是固定 1.5 倍）
+lst = [1, 2, 3]
+lst.append(4)              # 尾部均摊 O(1)，同 ArrayList.add
+lst.pop(0)                 # 头部删除 O(n) 要整体搬移 —— 头部操作选 deque
+from collections import deque
+dq = deque([1, 2, 3])
+dq.appendleft(0); dq.pop() # 双端 O(1)，对应 Java 的 ArrayDeque / LinkedList(Deque)
+# set/dict 基于哈希表；dict 从 3.7 起语言级保证插入序（Java 对应 LinkedHashMap）</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>笔试：扩容容量计算（给"加到第 N 个元素"问容量）、线程安全归类（Vector/Hashtable/CopyOnWrite 归安全组）、Arrays.asList 行为、Comparable/Comparator 区分。</li>
+<li>输出判断：遍历中 remove 的异常题（CME / UnsupportedOperationException）。</li>
+<li>面试：ArrayList vs LinkedList 选型、HashSet 怎么保证不重复、Set 三兄弟区别、为什么 Vector 被淘汰。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> JDK8 中 <code>new ArrayList&lt;&gt;()</code> 默认构造后依次 add 元素：加到第 11 个元素后、再继续加到第 16 个元素后，内部数组容量分别是多少？写出计算过程。</p>
+<details><summary>先自己算，再展开对答案</summary>默认构造时数组为空（懒初始化），首次 add 按默认容量 <b>10</b> 分配——前 10 个元素容量一直是 10。加第 11 个时数组已满，触发扩容：newCap = 10 + (10 &gt;&gt; 1) = 10 + 5 = <b>15</b>。加第 16 个时（前 15 个已装满容量 15 的数组）：newCap = 15 + (15 &gt;&gt; 1) = 15 + 7 = <b>22</b>。完整轨迹：10 → 15 → 22 → 33 → 49。考点就两句话：容量 10 懒初始化 + 1.5 倍整数右移取整。来源：牛客经典题。</details>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 下列集合类中，属于线程安全的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Vector</div>
+<div class="opt" data-k="B">B. ArrayList</div>
+<div class="opt" data-k="C">C. CopyOnWriteArrayList</div>
+<div class="opt" data-k="D">D. Hashtable</div>
+<div class="exp" hidden><b>答案 ACD。</b>Vector/Hashtable 是方法级 synchronized 的古老安全版；CopyOnWriteArrayList 靠写时复制实现读无锁的安全。ArrayList/LinkedList/HashMap/HashSet/TreeMap 全家线程不安全，并发场景分别对应 CopyOnWriteArrayList 与 ConcurrentHashMap（详见 <a href="ConcurrentHashMap与线程安全集合.html">ConcurrentHashMap 与线程安全集合</a>）。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 业务场景：绝大多数操作是按下标随机读取和尾部追加，偶尔中间插入。最合适的实现是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. LinkedList，头尾插删 O(1)</div>
+<div class="opt" data-k="B">B. ArrayList，随机访问 O(1)、尾部均摊 O(1)</div>
+<div class="opt" data-k="C">C. Vector，线程安全优先</div>
+<div class="opt" data-k="D">D. PriorityQueue，出队有序</div>
+<div class="exp" hidden><b>答案 B。</b>ArrayList 的 get/set 是 O(1) 数组寻址；LinkedList 随机访问要从头/尾遍历 O(n)，"插删快"只对已定位位置的头尾成立，按位插删要先 O(n) 找位置。Vector 有同步开销且已过时。选型口诀：查多用 ArrayList，头尾插删多/当队列才想 LinkedList。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> 需要 <code>TreeSet&lt;String&gt;</code> 按字符串长度排序，而 String 是 final 类、内部 compareTo 固定为字典序。最合适的做法是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 修改 String 类，让它重新实现 Comparable</div>
+<div class="opt" data-k="B">B. new TreeSet&lt;&gt;((a, b) -&gt; a.length() - b.length()) 传入 Comparator</div>
+<div class="opt" data-k="C">C. 改用 HashSet，去重后自然有序</div>
+<div class="opt" data-k="D">D. 把字符串逐个插入 ArrayList，HashMap 会自动排序</div>
+<div class="exp" hidden><b>答案 B。</b>类改不了（final）或需要多种排序规则时，用外部 Comparator 定制序，TreeSet 构造器直接接收；Comparable 是类内的自然序，只此一种。C 错——HashSet 无序；D 错——HashMap 更不排序。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>5.</b> 以下代码的运行结果是（&nbsp;&nbsp;）</p>
+<pre><code>String[] arr = {"a", "b", "c"};
+List&lt;String&gt; list = Arrays.asList(arr);
+list.set(0, "x");
+System.out.println(list.get(0) + "/" + arr[0]);
+list.add("d");</code></pre>
+<div class="opt" data-k="A">A. 打印 x/a，随后正常结束</div>
+<div class="opt" data-k="B">B. 打印 x/x，随后抛 UnsupportedOperationException</div>
+<div class="opt" data-k="C">C. 打印 x/x，随后抛 ConcurrentModificationException</div>
+<div class="opt" data-k="D">D. 第一行就编译错误</div>
+<div class="exp" hidden><b>答案 B。</b>Arrays.asList 返回定长的 Arrays$ArrayList：set 允许，且写透到底层数组——arr[0] 被一起改成 "x"，所以打印 <b>x/x</b>；add/remove 才是定长列表的禁区，抛 UnsupportedOperationException。C 的 ConcurrentModificationException 是迭代中结构性修改才触发的，这里没有迭代。来源：牛客经典题。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>6.</b> HashSet 是怎么保证元素不重复的？为什么重写 equals 必须重写 hashCode？</p>
+<details><summary>参考回答</summary>HashSet 底层就是一个 HashMap：元素作为 key 存入，value 是共享的哑对象。添加时先调 hashCode 定位桶，再在桶内用 equals 逐个判等，两者都"相同"才认定为重复、拒绝插入。如果只重写 equals 不重写 hashCode，两个"相等"对象的 hashCode 不同，会被散到不同桶， equals 根本没机会执行——于是去重失效，HashMap 也会"放进去取不出来"。加分点：LinkedHashSet 保插入序、TreeSet 走 compareTo 排序判重。来源：JavaGuide 收录题型。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 扩容 1.5 倍 = <code>oldCap + (oldCap &gt;&gt; 1)</code>，轨迹 10→15→22→33，别和 HashMap 的 2 倍搞混；② 默认构造是空数组，容量 10 首次 add 才分配（懒初始化，与 HashMap 延迟建表同思想）；③ Arrays.asList 三坑：定长、写透原数组、基本类型数组变单元素；④ for-each 中 remove 抛 CME（fail-fast，见 <a href="HashMap全解.html">HashMap 全解</a>），正解 iterator.remove()/removeIf；⑤ Vector/Hashtable 只在"线程安全归类"题里出场，工程一律并发包替代。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

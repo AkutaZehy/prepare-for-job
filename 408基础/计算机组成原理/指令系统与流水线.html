@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>指令系统与流水线 · 408基础/计算机组成原理</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机组成原理</div>
+<h1>指令系统与流水线</h1>
+<div class="meta">适用岗位：全部（笔试选择 + 计算；测开/嵌入式尤其常考） ｜ 形态：公式 + 对比表 + 手算过程 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：寻址方式记三件事——EA 怎么算、访存几次、寄存器归谁管；<b>基址 = 操作系统管 BR（面向重定位），变址 = 用户管 IX（面向遍历数组）</b>；RISC 四特征：<b>指令少、定长、只有 LOAD/STORE 访存、硬布线控制 + 寄存器多</b>；流水线总时间 $T=(k+n-1)\Delta t$、加速比 $S=\dfrac{nk\Delta t}{T}$（上限 = 段数 k）；三类冒险：<b>结构 = 资源冲突、数据 = 后用前果（转发旁路）、控制 = 转移改 PC（分支预测）</b>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>八种常见寻址方式</b>（访存次数指<b>执行阶段取操作数</b>的访存，不含取指令；(X) 表示"X 单元/寄存器的内容"）：</p>
+<table>
+<tr><th class="l">寻址方式</th><th>有效地址 EA / 操作数位置</th><th>访存次数</th><th class="l">特点与用途</th></tr>
+<tr><td class="l">立即寻址</td><td>操作数在指令中（#123）</td><td>0</td><td class="l">取指后立即可用、最快；立即数范围受 A 位数限制</td></tr>
+<tr><td class="l">直接寻址</td><td>EA = A</td><td>1</td><td class="l">寻址范围受 A 位数限制（A 有 n 位则可寻 $2^n$ 个单元）</td></tr>
+<tr><td class="l">一次间接寻址</td><td>EA = (A)</td><td>2</td><td class="l">先访存取出 EA、再访存取数；扩大寻址范围，速度慢</td></tr>
+<tr><td class="l">寄存器寻址</td><td>操作数就在 Ri 中</td><td>0</td><td class="l">不访存、快；寄存器数量与位数有限</td></tr>
+<tr><td class="l">寄存器间接寻址</td><td>EA = (Ri)</td><td>1</td><td class="l">地址放在寄存器里，比间接寻址快、比直接寻址范围大</td></tr>
+<tr><td class="l">基址寻址</td><td>EA = (BR) + A</td><td>1</td><td class="l"><b>BR 由操作系统管理</b>；程序重定位、多道程序设计</td></tr>
+<tr><td class="l">变址寻址</td><td>EA = (IX) + A</td><td>1</td><td class="l"><b>IX 由用户设定</b>；数组遍历、循环批量处理</td></tr>
+<tr><td class="l">相对寻址</td><td>EA = (PC) + A</td><td>1</td><td class="l">A 为位移量（补码）；程序整体搬移后转移目标仍正确</td></tr>
+</table>
+<p><b>基址 vs 变址（最爱考的区别）</b>：两者 EA 都是"寄存器内容 + 形式地址"，判别靠<b>寄存器归谁管、谁变谁不变</b>——</p>
+<ul>
+<li><b>基址寻址：BR 由操作系统（系统程序）设定，用户不能修改</b>。程序装入主存时确定基址，一道程序执行中 BR 不变、指令中的偏移 A 固定；程序整体搬家（重定位）时只需改基址寄存器，程序本身一字不改——面向<b>操作系统</b>，服务于多道程序与浮动装配，同时扩大寻址范围。</li>
+<li><b>变址寻址：IX 由用户（程序员）设定并可修改</b>。形式地址 A 作基准（如数组首地址）保持不变，IX 按规律递增/递减逐个访问元素——面向<b>用户</b>，适合数组遍历、字符串循环处理。</li>
+</ul>
+<p><b>CISC vs RISC 对比</b>：</p>
+<table>
+<tr><th class="l">对比维度</th><th>CISC（复杂指令集）</th><th>RISC（精简指令集）</th></tr>
+<tr><td class="l">指令数量与复杂度</td><td>指令多（200 条以上）、长短不一、格式多</td><td>指令少而简单、格式与寻址方式种类少</td></tr>
+<tr><td class="l">指令字长</td><td>变长</td><td><b>定长</b></td></tr>
+<tr><td class="l">访存指令</td><td>多种指令都能访存</td><td><b>只有 LOAD / STORE 指令访存</b>，运算只在寄存器间进行</td></tr>
+<tr><td class="l">指令执行时间</td><td>相差悬殊（多数多周期）</td><td>大多数一个机器周期完成</td></tr>
+<tr><td class="l">通用寄存器</td><td>较少</td><td>数量多</td></tr>
+<tr><td class="l">控制方式</td><td><b>微程序控制为主</b>（复杂指令要解释执行）</td><td><b>组合逻辑（硬布线）为主</b></td></tr>
+<tr><td class="l">流水线</td><td>指令规整性差，难以优化</td><td>定长规整，便于采用流水线技术</td></tr>
+<tr><td class="l">典型代表</td><td>x86</td><td>ARM、MIPS、RISC-V</td></tr>
+</table>
+<p>注：x86 对外是 CISC，内部把复杂指令拆成类 RISC 的微操作再流水执行。</p>
+<p><b>指令流水线（五段）</b>：取指 IF → 译码/取数 ID → 执行 EX → 访存 MEM → 写回 WB。这是<b>时间并行</b>：第 i 条指令在 EX 段时，第 i+1 条已在 ID、第 i+2 条已在 IF。理想条件：各段时间相等（都为 Δt）、无冒险、指令连续流入。以 3 条指令、5 段为例的时空图：</p>
+<table>
+<tr><th class="l">指令 ＼ 节拍</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th></tr>
+<tr><td class="l">I1</td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td><td></td></tr>
+<tr><td class="l">I2</td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td><td></td></tr>
+<tr><td class="l">I3</td><td></td><td></td><td>IF</td><td>ID</td><td>EX</td><td>MEM</td><td>WB</td></tr>
+</table>
+<p><b>总时间与加速比</b>：k 段流水线执行 n 条指令——第一条指令走完全程需 kΔt，此后每 Δt 流出一条：</p>
+<p style="text-align:center">$$T = k\Delta t + (n-1)\Delta t = (k+n-1)\Delta t$$</p>
+<p>不采用流水线时总时间 $nk\Delta t$，加速比 $S=\dfrac{nk\Delta t}{T}=\dfrac{nk}{k+n-1}$；当 n 充分大时 $S\to k$，<b>段数 k 就是加速比的上限</b>。吞吐率 TP = n/T，理想时每 Δt 完成一条。口诀："第一条走全程，剩下每拍出一条"。</p>
+<p><b>三类流水线冒险与对策</b>：</p>
+<table>
+<tr><th class="l">冒险类型</th><th class="l">成因（典型场景）</th><th class="l">对策</th></tr>
+<tr><td class="l"><b>结构冒险</b>（资源冒险）</td><td class="l">多条指令同时争用同一硬件资源：如指令与数据存在同一个存储器，IF 段与 MEM 段同时访存</td><td class="l">插入停顿（气泡）；<b>指令/数据存储器分开（哈佛结构）</b>；资源重复设置</td></tr>
+<tr><td class="l"><b>数据冒险</b></td><td class="l">后面的指令要用到前面指令尚未写回的结果（最常见：写后读 RAW）</td><td class="l"><b>数据转发/旁路</b>（forwarding：把上条指令的结果直接送给需要它的下条指令）；插入暂停；编译器调整指令顺序。注意 <b>load-use 相关即使有转发也要停 1 拍</b>（数据到 MEM 段末才产生）</td></tr>
+<tr><td class="l"><b>控制冒险</b></td><td class="l">转移/分支指令改变 PC，已按顺序取入流水线的后续指令作废</td><td class="l"><b>分支预测</b>（静态猜方向/动态按历史猜）、延迟分支、尽早判别转移条件</td></tr>
+</table>
+<p><b>提高并行度三条路线（各一句）</b>：<b>超标量</b>——一个时钟周期内发射多条指令，配置多条流水线/多套功能部件，靠编译静态调度或硬件动态调度；<b>超流水</b>——把流水段切得更细、时钟周期更短（主频更高），代价是段间锁存开销与冒险增多；<b>SMT（同时多线程）</b>——单个物理核在同一周期从多个线程取指令，填满空闲部件（Intel 超线程是其商业实现），提高部件利用率。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：给寻址方式算 EA、给场景挑寻址方式（基址 vs 变址、相对寻址程序搬移）、CISC/RISC 特征判断、冒险类型归类与对策匹配、超标量/超流水/SMT 概念辨析。</li>
+<li>计算：流水线总时间与加速比（套公式两步）、含停顿的流水线时间（数据冒险插气泡）、一次间接访存次数。</li>
+<li>面试口述：为什么 RISC 更适合流水线、数据转发是什么、分支预测为什么能提速、超线程和双核的区别。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 某机器指令中形式地址 A=500（十进制）。已知主存 (500)=800、(800)=1000，寄存器 R1=400，基址寄存器 BR=2000，变址寄存器 IX=350，取指后 PC=1000（已指向下一条指令）。分别写出<b>直接、一次间接、寄存器间接、基址、变址、相对</b>六种寻址方式下操作数的有效地址 EA。</p>
+<details><summary>先自己算，再展开对答案</summary>逐个套 EA 公式：<br>
+① 直接：EA = A = <b>500</b>；<br>
+② 一次间接：EA = (A) = (500) = <b>800</b>（执行阶段访存 2 次：先取 EA 再取数）；<br>
+③ 寄存器间接：EA = (R1) = <b>400</b>；<br>
+④ 基址：EA = (BR) + A = 2000 + 500 = <b>2500</b>；<br>
+⑤ 变址：EA = (IX) + A = 350 + 500 = <b>850</b>；<br>
+⑥ 相对：EA = (PC) + A = 1000 + 500 = <b>1500</b>。<br>
+易混点：④⑤公式同形，判别看寄存器归谁管——BR 系统设、IX 用户设。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 某流水线分 5 段（IF/ID/EX/MEM/WB），每段耗时 Δt=1ns，连续输入 10 条指令。求：(1) 流水线总执行时间；(2) 与串行执行相比的加速比；(3) 吞吐率。</p>
+<details><summary>先自己算，再展开对答案</summary>① 套公式 $T=(k+n-1)\Delta t$：k=5、n=10 → T = (5+10−1)×1ns = <b>14ns</b>（第 1 条 5ns 走完全程，剩余 9 条每 1ns 流出一条）。<br>② 串行时间 = nkΔt = 10×5×1 = 50ns，加速比 $S=\dfrac{50}{14}\approx$ <b>3.57</b>（上限是段数 5，10 条指令还远没逼近极限）。<br>③ 吞吐率 = 10 条 ÷ 14ns ≈ <b>0.71 条/ns</b>（理想极限为每 1ns 一条）。<br>验算：14 = 5 + 9 ✓，第 10 条指令的 WB 恰发生在第 14 个节拍 ✓。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> 关于基址寻址与变址寻址，下列说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 基址寄存器由操作系统管理，便于程序重定位；变址寄存器由用户设定，便于数组遍历</div>
+<div class="opt" data-k="B">B. 两者完全等价，寄存器都可由用户随意修改</div>
+<div class="opt" data-k="C">C. 变址寄存器的内容由操作系统在程序装入时确定，执行中用户不可修改</div>
+<div class="opt" data-k="D">D. 相对寻址的有效地址计算公式是 EA = (BR) + A</div>
+<div class="exp" hidden><b>答案 A。</b>基址 = 系统级：BR 由操作系统设定，程序整体搬移（重定位）只改基址，程序不变；变址 = 用户级：IX 程序员可改，A 作数组首址基准、IX 递增遍历。B 错在基址寄存器对用户透明；C 把两者说反；D 是基址寻址的公式，相对寻址是 (PC)+A。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="AD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 下列流水线工作情形中，属于<b>数据冒险</b>的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 第 i+1 条指令的源操作数是第 i 条指令刚算出、还没写回的结果</div>
+<div class="opt" data-k="B">B. 第 i 条指令在 MEM 段访存时，第 i+2 条指令恰在 IF 段取指，两者争用同一个存储器</div>
+<div class="opt" data-k="C">C. 条件转移指令成立，导致已取入流水线后面的指令全部作废</div>
+<div class="opt" data-k="D">D. load 指令后紧跟使用其加载结果的指令，即使有转发机制也需停顿 1 拍</div>
+<div class="exp" hidden><b>答案 AD。</b>A 是典型的 RAW（写后读）数据冒险；D 是 load-use 数据冒险——数据要到 MEM 段末才产生，转发也来不及，必须停 1 拍。B 是结构冒险（资源冲突，对策：指令/数据存储分开）；C 是控制冒险（对策：分支预测）。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 下列关于 RISC（精简指令集计算机）的叙述，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 指令条数少、指令长度固定、指令格式和寻址方式种类少</div>
+<div class="opt" data-k="B">B. 只有 LOAD 和 STORE 指令可以访存，其余指令都在寄存器之间进行</div>
+<div class="opt" data-k="C">C. 控制器以微程序控制为主，便于实现功能复杂的指令</div>
+<div class="opt" data-k="D">D. CPU 中设置大量通用寄存器，大多数指令单周期完成，便于采用流水线</div>
+<div class="exp" hidden><b>答案 ABD。</b>RISC 靠"简单 + 规整"换流水线效率：定长、少格式、load/store 式访存、寄存器多、<b>硬布线（组合逻辑）控制</b>——C 恰好说反，微程序控制是 CISC 的特征（复杂指令需要微程序解释执行）。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>6.</b> 某程序在主存中被整体搬移到另一位置后，其中的条件转移指令仍能跳到正确目标。该转移指令最可能采用的寻址方式是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 直接寻址</div>
+<div class="opt" data-k="B">B. 间接寻址</div>
+<div class="opt" data-k="C">C. 相对寻址</div>
+<div class="opt" data-k="D">D. 立即寻址</div>
+<div class="exp" hidden><b>答案 C。</b>相对寻址 EA=(PC)+A，转移目标随 PC（指令自身位置）浮动：程序整体搬移后偏移量 A 不变、目标依然正确——这正是转移指令普遍采用相对寻址的原因。直接/间接寻址写的是绝对地址，搬移后目标失效。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① "寄存器 + 形式地址"型（基址/变址/相对）公式同形，判别靠寄存器归谁管：BR=系统、IX=用户、PC=隐含给出；② 相对寻址的 PC 是取指后已自增、指向下一条指令的 PC，别拿当前指令地址去算；③ 一次间接寻址执行阶段访存 2 次（第一次取 EA、第二次取数），别漏第一次；④ 流水线公式先确认段数 k、每段等长 Δt，加速比上限是 k 而不是 n；⑤ load-use 冒险有转发也要停 1 拍，"转发能解决一切数据冒险"是错误说法；⑥ 对策别安错对象：结构冒险靠分资源/重复设置，数据冒险靠转发/停顿，控制冒险靠分支预测。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

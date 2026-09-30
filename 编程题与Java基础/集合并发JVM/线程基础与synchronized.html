@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>线程基础与 synchronized · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>线程基础与 synchronized</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开 ｜ 形态：概念 + 状态机 + 输出判断 + 机试手写 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>sleep 不放锁是 Thread 静态方法，wait 放锁是 Object 方法、必须在同步块内调用</b>；<b>synchronized 实例方法锁 this、静态方法锁 Class 对象、代码块锁括号里指定的对象</b>；<b>volatile 保证可见性、禁止指令重排，但不保证 i++ 这类复合操作的原子性</b>；锁升级单向：<b>无锁→偏向→轻量级→重量级</b>；生产者消费者里 wait 的条件判断<b>必须用 while 防虚假唤醒</b>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>创建线程的四种方式</b></p>
+<ul>
+<li>① 继承 <code>Thread</code> 重写 run：单继承受限，任务和线程耦合，不推荐。</li>
+<li>② 实现 <code>Runnable</code>：任务与执行解耦，无返回值、不抛受检异常——比继承 Thread 好。</li>
+<li>③ 实现 <code>Callable&lt;V&gt;</code> + <code>FutureTask</code>：有返回值、可抛异常，<code>get()</code> 阻塞拿结果。</li>
+<li>④ 线程池（生产推荐）：复用线程、控制并发数、统一管理。阿里规约禁用 <code>Executors</code> 快捷工厂——<code>newFixedThreadPool</code> 是无界队列、<code>newCachedThreadPool</code> 可无限加线程，都有 OOM 风险，要求手动 <code>new ThreadPoolExecutor(...)</code>。</li>
+</ul>
+<span class="lang">Java</span>
+<pre><code>// ① 继承 Thread
+class MyThread extends Thread {
+    @Override public void run() { System.out.println("A"); }
+}
+new MyThread().start();
+
+// ② 实现 Runnable：任务与执行解耦，无返回值
+Runnable r = () -&gt; System.out.println("B");
+new Thread(r).start();
+
+// ③ Callable + FutureTask：有返回值、可抛异常
+Callable&lt;Integer&gt; c = () -&gt; 1 + 1;
+FutureTask&lt;Integer&gt; ft = new FutureTask&lt;&gt;(c);
+new Thread(ft).start();
+System.out.println(ft.get());   // 阻塞等待执行完成，输出 2
+
+// ④ 线程池：生产推荐，手动指定参数
+ThreadPoolExecutor pool = new ThreadPoolExecutor(
+        2, 4, 60, TimeUnit.SECONDS,
+        new ArrayBlockingQueue&lt;&gt;(100),
+        new ThreadPoolExecutor.AbortPolicy());
+pool.execute(r);</code></pre>
+
+<p><b>线程六状态</b>（<code>java.lang.Thread.State</code>，笔试与面试双高频）</p>
+<pre class="ascii-fallback"><code>             new Thread()           start()
+   [*] ───────────────→ NEW ────────────────→ RUNNABLE
+                                             │   ↑
+                          wait()/join()/park()│   │ 超时到期 / 被唤醒并重新拿到锁
+                            （无参、无限等）    ↓   │
+                                        WAITING    │
+                                             │     │
+                sleep(n)/wait(n)/join(n)/parkUntil(n)
+                                             ↓     │
+                                       TIMED_WAITING
+   RUNNABLE ⇄ BLOCKED      进 synchronized 抢不到锁进 BLOCKED，获得锁回 RUNNABLE
+   RUNNABLE ──run() 执行完 / 抛出未捕获异常──→ TERMINATED（终态，再次 start 抛异常）
+   注：严格按 javadoc，wait 被唤醒后先回 BLOCKED 重抢锁，抢到才回 RUNNABLE（上图简化为直达）。</code></pre>
+<pre class="mermaid">
+stateDiagram-v2
+    direction TB
+    [*] --> NEW: new Thread()
+    NEW --> RUNNABLE: start()
+    RUNNABLE --> BLOCKED: 抢不到 monitor 锁
+    BLOCKED --> RUNNABLE: 获得锁
+    RUNNABLE --> WAITING: wait() / join() / park()
+    RUNNABLE --> TIMED_WAITING: sleep(n) / wait(n) / join(n)
+    WAITING --> RUNNABLE: notify() / unpark() 后抢到锁
+    TIMED_WAITING --> RUNNABLE: 超时 / 被唤醒后抢到锁
+    RUNNABLE --> TERMINATED: run() 执行完 / 未捕获异常
+</pre>
+<ul>
+<li><b>NEW</b>：new 出线程对象还没 start()。</li>
+<li><b>RUNNABLE</b>：start() 之后；Java 把操作系统的"就绪 + 运行中"合并成一个状态。</li>
+<li><b>BLOCKED</b>：等 monitor 锁——进 synchronized 没抢到；wait 被唤醒后重抢锁也是它（javadoc 口径，面试加分点）。</li>
+<li><b>WAITING</b>：无限等待，等别人叫：无参 <code>wait()</code>、无参 <code>join()</code>、<code>LockSupport.park()</code>。</li>
+<li><b>TIMED_WAITING</b>：限时等待，到点自己醒：<code>sleep(n)</code>、<code>wait(n)</code>、<code>join(n)</code>、<code>parkUntil(n)</code>。</li>
+<li><b>TERMINATED</b>：run() 执行完或抛出未捕获异常；终态不可逆，再次 <code>start()</code> 抛 <code>IllegalThreadStateException</code>。</li>
+</ul>
+
+<p><b>sleep vs wait</b>（笔试选择第一高频）</p>
+<table>
+<tr><th>对比点</th><th>Thread.sleep</th><th>Object.wait</th></tr>
+<tr><td class="l">所属</td><td>Thread 的静态方法</td><td>Object 的成员方法</td></tr>
+<tr><td class="l">锁</td><td>不释放已持有的锁</td><td>释放对象锁</td></tr>
+<tr><td class="l">调用前提</td><td>任意位置</td><td>必须在 synchronized 同步块内，否则 <code>IllegalMonitorStateException</code></td></tr>
+<tr><td class="l">唤醒</td><td>时间到自动苏醒</td><td>notify/notifyAll（或 wait(n) 超时 / 中断）</td></tr>
+<tr><td class="l">用途</td><td>单纯暂停当前线程</td><td>线程间协作通信</td></tr>
+</table>
+
+<p><b>synchronized 三种用法与 monitor 原理</b></p>
+<span class="lang">Java</span>
+<pre><code>public class Locker {
+    private final Object lock = new Object();
+    private int count;
+
+    // ① 实例方法：锁当前实例 this
+    public synchronized void inc() { count++; }
+
+    // ② 静态方法：锁类对象 Locker.class（类锁，全局只有一把）
+    public static synchronized void reset() { /* ... */ }
+
+    // ③ 同步代码块：锁括号里指定的对象
+    public void dec() {
+        synchronized (this) {           // 等价于 ①
+            count--;
+        }
+        synchronized (lock) {           // 私有锁对象：外部拿不到引用，锁不被干扰
+            count++;
+        }
+        synchronized (Locker.class) {   // 等价于 ②
+            /* ... */
+        }
+    }
+}</code></pre>
+<ul>
+<li><b>实例方法锁 this、静态方法锁 Class、代码块锁指定对象</b>——实例方法与静态方法<b>不互斥</b>（锁的不是同一个对象），这是经典坑。</li>
+<li><b>对象头 Mark Word</b>：存 hashCode、GC 分代年龄、锁标志位；加锁后存线程 ID 或指向 Lock Record / monitor 的指针。</li>
+<li><b>字节码层面</b>：同步代码块编译成 <code>monitorenter</code> / <code>monitorexit</code>（异常出口也有一条 monitorexit 保证解锁）；同步方法靠 <code>ACC_SYNCHRONIZED</code> 标志由 JVM 隐式加解锁。</li>
+<li><b>monitor（ObjectMonitor）</b>：owner 记持有线程，entryList 是抢锁阻塞队列，waitSet 是 wait 后的等待队列。</li>
+</ul>
+
+<p><b>锁升级</b>（JDK6 引入；JDK15 起默认废弃偏向锁，JEP 374——版本结论要带年份说）</p>
+<ul>
+<li><b>无锁 → 偏向锁</b>：只有一个线程反复进入，Mark Word 直接记线程 ID，再次进入零成本；出现第二个线程竞争就撤销。</li>
+<li><b>偏向锁 → 轻量级锁</b>：线程<b>交替</b>竞争（没有同时抢），CAS 自旋获取，线程不挂起。</li>
+<li><b>轻量级锁 → 重量级锁</b>：竞争激烈、自旋不划算时膨胀为 monitor，抢不到的线程挂起，涉及用户态/内核态切换。</li>
+<li>升级<b>单向不可降级</b>。一句话：竞争从无到有逐级加码。</li>
+</ul>
+
+<p><b>volatile：两个作用、一个不保</b></p>
+<ul>
+<li><b>保证可见性</b>：写 volatile 变量立即刷回主存并使其他核心的缓存副本失效，读时从主存加载——一个线程的修改其他线程立刻可见。</li>
+<li><b>禁止指令重排</b>：靠内存屏障，典型应用是双检锁单例防"半初始化对象"。</li>
+<li><b>不保证原子性</b>：<code>i++</code> 是"读→加→写"三步，volatile 挡不住线程交错，仍会丢更新；要原子性用 <code>synchronized</code> 或 <code>AtomicInteger.incrementAndGet()</code>。</li>
+</ul>
+<span class="lang">Java</span>
+<pre><code>public class LostUpdate {
+    private static volatile int count = 0;   // volatile 也救不了 i++
+
+    public static void main(String[] args) throws InterruptedException {
+        Runnable r = () -&gt; {
+            for (int i = 0; i &lt; 10000; i++) count++;
+        };
+        Thread t1 = new Thread(r), t2 = new Thread(r);
+        t1.start(); t2.start();
+        t1.join(); t2.join();
+        System.out.println(count);           // 几乎每次都小于 20000（如 13472）
+        // 修复：synchronized 包住 count++，或改用 AtomicInteger.incrementAndGet()
+    }
+}</code></pre>
+
+<p><b>双检锁单例（volatile + synchronized 的合体考点）</b></p>
+<span class="lang">Java</span>
+<pre><code>public class Singleton {
+    private static volatile Singleton instance;   // volatile 必须加，防重排
+    private Singleton() {}
+
+    public static Singleton getInstance() {
+        if (instance == null) {                    // 第一次检查：多数调用免加锁
+            synchronized (Singleton.class) {
+                if (instance == null) {            // 第二次检查：等锁期间可能已被创建
+                    instance = new Singleton();    // 分配内存→初始化→赋引用，可能被重排
+                }
+            }
+        }
+        return instance;
+    }
+}</code></pre>
+
+<p><b>synchronized vs ReentrantLock</b></p>
+<table>
+<tr><th>对比点</th><th>synchronized</th><th>ReentrantLock</th></tr>
+<tr><td class="l">层面</td><td>JVM 关键字（monitor）</td><td>JDK API（AQS 实现）</td></tr>
+<tr><td class="l">释放锁</td><td>自动释放（异常也释放）</td><td>必须 finally 里 unlock()</td></tr>
+<tr><td class="l">可中断</td><td>不可，等锁时死等</td><td>lockInterruptibly() 可中断</td></tr>
+<tr><td class="l">公平锁</td><td>只有非公平</td><td>构造参数可选公平/非公平</td></tr>
+<tr><td class="l">tryLock</td><td>没有</td><td>有，可限时尝试拿锁</td></tr>
+<tr><td class="l">条件队列</td><td>一对 wait/notify</td><td>多个 Condition 精准唤醒</td></tr>
+</table>
+<blockquote>选型一句话：默认 synchronized（简洁、不易错）；需要可中断、限时、公平、多条件时才上 ReentrantLock。</blockquote>
+
+<p><b>wait/notify 生产者消费者极简范式</b></p>
+<span class="lang">Java</span>
+<pre><code>class BoundedBuffer {
+    private final Queue&lt;Integer&gt; buf = new ArrayDeque&lt;&gt;();
+    private final int cap = 10;
+
+    public synchronized void put(int v) throws InterruptedException {
+        while (buf.size() == cap) wait();   // 必须 while 不用 if：防虚假唤醒
+        buf.add(v);
+        notifyAll();                        // 唤醒所有等待者，条件不满足的继续回去等
+    }
+
+    public synchronized int take() throws InterruptedException {
+        while (buf.isEmpty()) wait();       // 被唤醒后条件可能已被别人抢走，重新判断
+        int v = buf.poll();
+        notifyAll();
+        return v;
+    }
+}</code></pre>
+
+<p><b>Python 对照</b></p>
+<span class="lang">Python</span>
+<pre><code>import threading
+
+lock = threading.Lock()
+counter = 0
+
+def add():
+    global counter
+    for _ in range(100000):
+        with lock:            # with 自动获取/释放，对应 synchronized(对象)
+            counter += 1
+
+t1 = threading.Thread(target=add)
+t2 = threading.Thread(target=add)
+t1.start(); t2.start()
+t1.join(); t2.join()
+print(counter)                # 100000
+
+# 语义差异：Java synchronized 保护多线程共享的堆对象；CPython 有 GIL，
+# 同一时刻只有一个线程执行字节码，但 += 仍是"读-改-写"多步操作，
+# 线程随时可能切换，锁照样不能省。多线程适合 IO 密集，CPU 密集用
+# multiprocessing；GIL 细节见 Python 进阶页对应主题。</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">机试手写</span><span class="tag">面试口述</span></p>
+<ul>
+<li>笔试选择：六状态转换（wait/sleep/join 后进什么状态）、sleep vs wait、start vs run、volatile 语义、锁对象判断。</li>
+<li>输出判断：i++ 双线程事故、双检锁单例、两个线程同时调实例方法/静态方法的耗时。</li>
+<li>机试手写：生产者消费者、两个线程交替打印 1~100（synchronized + 标志位或 Lock + Condition）、单例模式。</li>
+<li>面试口述：锁升级全流程、synchronized vs ReentrantLock 选型、线程池七参数与执行流程（另有专题页）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 线程 T 已获得锁并在 synchronized 块内调用了 <code>lock.wait()</code>（无参），此时 T 处于什么状态？</p>
+<div class="opt" data-k="A">A. BLOCKED，等待重新获得锁</div>
+<div class="opt" data-k="B">B. WAITING，无限期等待被唤醒</div>
+<div class="opt" data-k="C">C. TIMED_WAITING，限时等待</div>
+<div class="opt" data-k="D">D. RUNNABLE，继续占用 CPU</div>
+<div class="exp" hidden><b>答案 B。</b>无参 wait() → WAITING；wait(n)/sleep(n) 才是 TIMED_WAITING。加分点：T 已在 wait 时<b>释放了锁</b>；被 notify 唤醒后按 javadoc 先回 BLOCKED 重抢锁，抢到才回 RUNNABLE。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于 sleep 与 wait，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. sleep 是 Thread 的静态方法，wait 是 Object 的成员方法</div>
+<div class="opt" data-k="B">B. sleep 不释放已持有的锁，wait 释放对象锁</div>
+<div class="opt" data-k="C">C. wait 可以在任意位置直接调用</div>
+<div class="opt" data-k="D">D. 无参 wait() 只能被 notify/notifyAll（或中断）唤醒</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错——wait 必须<b>在持有该对象锁的 synchronized 块内</b>调用，否则抛 <code>IllegalMonitorStateException</code>；这也是"wait 放锁、sleep 不放锁"的前提。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 volatile，说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 对 volatile 变量的写操作立即对其他线程可见</div>
+<div class="opt" data-k="B">B. 通过内存屏障禁止指令重排</div>
+<div class="opt" data-k="C">C. volatile int count; 多线程执行 count++ 是线程安全的</div>
+<div class="opt" data-k="D">D. 典型用途：双检锁单例的实例引用、线程可见的状态标志位</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 是最经典的坑——<code>count++</code> 是读→加→写三步，volatile 不保证原子性，交错执行仍丢更新；要原子性用 <code>AtomicInteger</code> 或加锁。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>4.</b> 以下代码，线程 A 调 <code>p.printA()</code>、线程 B 调 <code>p.printB()</code>，同时启动，总耗时约（&nbsp;&nbsp;）</p>
+<pre><code>class Printer {
+    public synchronized void printA() throws InterruptedException {
+        Thread.sleep(1000);
+    }
+    public static synchronized void printB() throws InterruptedException {
+        Thread.sleep(1000);
+    }
+}
+Printer p = new Printer();</code></pre>
+<div class="opt" data-k="A">A. 约 1 秒：printA 锁 p（实例），printB 锁 Printer.class（类），锁的不是同一个对象，不互斥</div>
+<div class="opt" data-k="B">B. 约 2 秒：所有 synchronized 方法互相排斥</div>
+<div class="opt" data-k="C">C. 编译报错：实例方法与静态方法不能都加 synchronized</div>
+<div class="opt" data-k="D">D. 无法确定，取决于 JVM 调度</div>
+<div class="exp" hidden><b>答案 A。</b>实例方法锁的是当前实例，静态方法锁的是 Class 对象，两把不同的锁，可并行。若两个线程都调 <code>p.printA()</code> 才是约 2 秒。延伸：换成两个不同实例分别调 printA 也互不相干。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 描述 synchronized 锁升级的完整流程。</p>
+<details><summary>参考回答</summary>对象初始为<b>无锁</b>。第一次被线程访问时升级为<b>偏向锁</b>：Mark Word 记下线程 ID，之后同一线程再进入无需任何同步操作；一旦有第二个线程竞争，偏向锁撤销，升级为<b>轻量级锁</b>：线程用 CAS 自旋抢锁，适合线程交替、持有时间短的场景；自旋失败或竞争激烈（同时抢、持有时间长）就膨胀为<b>重量级锁</b>：依赖操作系统 mutex，抢不到的线程挂起，有用户态/内核态切换开销。整个过程<b>单向升级、不可降级</b>。版本分寸：锁升级是 JDK6 引入的优化；JDK15 起偏向锁默认废弃（JEP 374，维护成本高、收益在现代场景下降），新代码谈锁升级要带这句。加分点：Mark Word 各阶段的位布局、自适应自旋。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① <code>start()</code> 才会开新线程，直接调 <code>run()</code> 是当前线程里的普通方法调用；线程 TERMINATED 后再 start() 抛 <code>IllegalThreadStateException</code>。② wait/notify 必须持有该对象锁才能调，否则 <code>IllegalMonitorStateException</code>；wait 的条件判断必须用 while（防虚假唤醒、防唤醒后条件已变）。③ sleep 在同步块内<b>不释放锁</b>，别拿 sleep 当"让锁"用。④ 别拿字符串字面量或 Integer 缓存对象当锁（<code>synchronized ("abc")</code>）——常量池/缓存让不相干代码共享同一把锁。⑤ volatile 计数器是经典错误，原子性找 AtomicInteger 或加锁。⑥ 双检锁单例漏 volatile 会在重排下返回半初始化对象。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

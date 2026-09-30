@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AOP 动态代理与 @Transactional 失效 · 编程题与Java基础/生态</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 生态</div>
+<h1>AOP 动态代理与 @Transactional 失效</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（事务失效场景题高频） ｜ 形态：原理 + 对比表 + 代码排查 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：AOP 五词——切面/连接点/切点/通知（<b>@Around 环绕最强</b>）/织入；JDK 动态代理<b>基于接口</b>（Proxy+InvocationHandler 反射），CGLIB <b>生成子类字节码</b>（final 类/方法无法代理）；<b>SpringBoot 2.x 起默认一律 CGLIB</b>；@Transactional 本质是 <b>AOP 环绕通知</b>：开事务→执行→提交/回滚；<b>失效八大场景必背</b>——自调用（this 不走代理，最高频）、非 public、catch 吞异常、受检异常默认不回滚、类没被 Spring 管理、多线程、传播行为设错、存储引擎不支持。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>AOP 五词表</b>（横切关注点模块化）：</p>
+<table>
+<tr><th>术语</th><th>含义</th></tr>
+<tr><td>切面 Aspect</td><td class="l">Pointcut + Advice 组合成的横切逻辑模块（一个切面类）</td></tr>
+<tr><td>连接点 JoinPoint</td><td class="l">程序执行中可被拦截的点；Spring AOP 里就是<b>方法执行</b></td></tr>
+<tr><td>切点 Pointcut</td><td class="l">匹配连接点的表达式，如 <code>execution(* com.demo.service..*.*(..))</code></td></tr>
+<tr><td>通知 Advice</td><td class="l">做什么+何时：<code>@Before</code> / <code>@After</code> / <code>@AfterReturning</code> / <code>@AfterThrowing</code> / <b><code>@Around</code>（环绕最强：可控是否执行、包裹前后逻辑、改返回值）</b></td></tr>
+<tr><td>织入 Weaving</td><td class="l">把切面应用到目标对象生成代理的过程；<b>Spring 是运行期动态代理织入</b>（AspectJ 是编译期/类加载期字节码织入——对比加分）</td></tr>
+</table>
+
+<p><b>两种动态代理对比</b>：</p>
+<table>
+<tr><th>维度</th><th>JDK 动态代理</th><th>CGLIB</th></tr>
+<tr><td>原理</td><td class="l"><b>基于接口</b>：<code>Proxy.newProxyInstance</code> + <code>InvocationHandler</code> 反射调用目标方法</td><td class="l"><b>继承目标类生成子类字节码</b>（ASM），重写方法拦截（MethodInterceptor）</td></tr>
+<tr><td>前提</td><td class="l">目标必须实现接口</td><td class="l">类可继承；<b>final 类 / final 方法 / private 方法无法代理</b>（不能重写）</td></tr>
+<tr><td>Spring 口径</td><td class="l">传统 Spring：目标<b>有接口</b>默认 JDK</td><td class="l">无接口时用 CGLIB；<code>proxy-target-class=true</code> 强制 CGLIB；<b>SpringBoot 2.x 起默认一律 CGLIB</b>（注明版本）</td></tr>
+</table>
+
+<p><b>AOP 典型应用</b>：统一日志、权限校验、<b>声明式事务</b>、接口幂等防重、方法耗时监控。</p>
+
+<p><b>@Transactional 原理一句话</b>：本质是 AOP 环绕通知——方法执行前开启事务（取连接、<code>setAutoCommit(false)</code>），业务正常结束则提交，抛出 <b>RuntimeException / Error</b> 才回滚（默认不含受检异常，需 <code>rollbackFor</code>）。理解了"代理"，八大失效场景全都推得出来：<b>凡是绕过代理、让切面看不到异常、或拿不到同一连接的，事务就失效</b>。</p>
+
+<p><b>失效八大场景表（必背）</b>：</p>
+<table>
+<tr><th>#</th><th>场景</th><th>为什么失效</th></tr>
+<tr><td>①</td><td class="l"><b>同类自调用</b>（最高频）：this.method() 调本类事务方法</td><td class="l"><b>this 不走代理对象</b>，事务通知根本没机会执行</td></tr>
+<tr><td>②</td><td class="l">方法<b>非 public</b></td><td class="l">Spring 事务切面只对 public 方法生效，非 public 拿不到事务属性</td></tr>
+<tr><td>③</td><td class="l">异常被 <b>try-catch 吞掉</b></td><td class="l">切面感知不到异常，方法"正常"结束，照常提交</td></tr>
+<tr><td>④</td><td class="l">抛<b>受检异常</b>默认不回滚</td><td class="l">默认只回滚 RuntimeException 和 Error；IOException 这类要 <code>@Transactional(rollbackFor = Exception.class)</code></td></tr>
+<tr><td>⑤</td><td class="l">类<b>没被 Spring 管理</b>（自己 new 的）</td><td class="l">对象不是容器里的 bean，压根没有代理</td></tr>
+<tr><td>⑥</td><td class="l"><b>多线程</b>调用</td><td class="l">事务绑定 ThreadLocal 里的同一个 Connection，新线程拿不到，子线程操作不在事务内</td></tr>
+<tr><td>⑦</td><td class="l"><b>传播行为设置错</b></td><td class="l">NOT_SUPPORTED 挂起事务以非事务运行；NEVER 遇到事务反而抛异常</td></tr>
+<tr><td>⑧</td><td class="l"><b>存储引擎不支持事务</b></td><td class="l">MyISAM 无事务，要 InnoDB</td></tr>
+</table>
+
+<p><b>自调用的三种解法</b>：①<b>注入自身代理</b>——<code>@Autowired @Lazy</code> 注入自己，调 <code>self.method()</code>（走代理才生效）；②<code>AopContext.currentProxy()</code>——启动类加 <code>@EnableAspectJAutoProxy(exposeProxy = true)</code>，方法内 <code>((OrderService) AopContext.currentProxy()).save()</code>；③<b>拆到另一个类</b>——最朴素也最推荐，从设计上消除自调用。</p>
+
+<p><b>传播行为三巨头</b>：</p>
+<table>
+<tr><th>传播行为</th><th>规则</th><th>典型用途</th></tr>
+<tr><td><b>REQUIRED</b>（默认）</td><td class="l">当前有事务就<b>加入</b>，没有就新建</td><td class="l">绝大多数业务方法</td></tr>
+<tr><td><b>REQUIRES_NEW</b></td><td class="l"><b>挂起</b>当前事务，<b>新开独立事务</b>；内层回滚与否不影响外层已提交的部分（反之亦然）</td><td class="l">操作日志、审计——"日志失败不影响主业务"（外层还要 catch 住内层抛出的异常）</td></tr>
+<tr><td><b>NESTED</b></td><td class="l">嵌套事务，靠 <b>savepoint</b>：内层回滚回到保存点、外层可捕获继续；外层回滚则内层必然回滚（同一物理事务）</td><td class="l">批量导入的分组容错</td></tr>
+</table>
+<p>其余（SUPPORTS / MANDATORY / NOT_SUPPORTED / NEVER）知道"存在且可能把事务变非事务"即可。</p>
+
+<p><b>SpringMVC 请求流程（文字版）</b>：请求 → <b>DispatcherServlet</b>（前端控制器，统一入口）→ 查 <b>HandlerMapping</b> 得到执行链（Handler + 拦截器）→ <b>HandlerAdapter</b> 按适配规则调用（参数解析、数据绑定）→ <b>Controller</b> 执行业务返回 ModelAndView → <b>ViewResolver</b> 解析视图 → 渲染输出响应。前后端分离时：Controller 标 <code>@ResponseBody</code>（或 @RestController），返回值<b>不走视图解析</b>，由 HttpMessageConverter（Jackson）直接序列化成 JSON 写进响应体。</p>
+
+<span class="lang">Java</span>
+<pre><code>@Service
+public class OrderService {
+    @Autowired
+    private OrderMapper orderMapper;
+
+    // 失效①：同类自调用 —— this.savePoint() 不经过代理，事务不生效
+    public void createOrder(Order o) {
+        orderMapper.insert(o);
+        savePoint();                        // ← 无事务保护！
+    }
+
+    @Transactional
+    public void savePoint() { /* 加积分 */ }
+
+    // 解法：注入自身代理，改走代理对象
+    @Autowired @Lazy
+    private OrderService self;
+
+    public void createOrder2(Order o) {
+        orderMapper.insert(o);
+        self.savePoint();                   // ← 走代理，事务生效
+    }
+
+    // 失效④：默认只回滚 RuntimeException，受检异常要显式声明 rollbackFor
+    @Transactional(rollbackFor = Exception.class)
+    public void importUsers(List&lt;User&gt; users) throws IOException {
+        for (User u : users) { persist(u); }   // 抛 IOException 也能回滚
+    }
+}</code></pre>
+<p>代理在 Bean 生命周期"BeanPostProcessor 后置"那一步生成——前后因果见同目录 <a href="SpringBoot核心IoC与Bean.html">SpringBoot核心IoC与Bean</a>。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：JDK/CGLIB 选择口径（有无接口 + Boot 版本）、失效场景判断、传播行为语义、MVC 流程排序。</li>
+<li>面试："说几种 @Transactional 失效场景"（按八大场景背，自调用必打头阵）、"自调用怎么解决"（三招）、"REQUIRED 和 REQUIRES_NEW 区别"、"项目里 AOP 用在哪"。</li>
+<li>追问链：代理生成时机 → 自调用失效 → exposeProxy → 传播行为 → 异常回滚规则，一环扣一环。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> SpringBoot 2.x 项目里，无接口的 UserService 被 @Transactional 增强，实际使用的代理方式是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. JDK 动态代理，因为 Spring 默认优先 JDK</div>
+<div class="opt" data-k="B">B. CGLIB 子类代理——SpringBoot 2.x 起默认 proxy-target-class=true，一律 CGLIB</div>
+<div class="opt" data-k="C">C. AspectJ 编译期织入</div>
+<div class="opt" data-k="D">D. 不生成代理，直接反射调用</div>
+<div class="exp" hidden><b>答案 B。</b>传统 Spring 才是"有接口默认 JDK、无接口 CGLIB"；<b>SpringBoot 2.x 起默认一律 CGLIB</b>（有接口也一样）。AspectJ 是另一种织入方式，Spring 默认不用。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 下列会导致 @Transactional 失效的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 同类中通过 this 调用带 @Transactional 的方法</div>
+<div class="opt" data-k="B">B. 事务方法声明为 private</div>
+<div class="opt" data-k="C">C. 方法内 try-catch 把异常吞掉后正常返回</div>
+<div class="opt" data-k="D">D. 方法为 public，抛出 RuntimeException 且未被捕获</div>
+<div class="exp" hidden><b>答案 ABC。</b>自调用绕过代理、非 public 拿不到事务切面、catch 吞异常让切面看不到——全失效。D 是事务<b>正常回滚</b>的标准姿势（RuntimeException 在默认回滚范围内）。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 下单主事务中要写操作日志，要求"日志写失败不影响下单主流程"，日志方法的传播行为与配套处理应是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. REQUIRED，让日志加入主事务，一起提交一起回滚</div>
+<div class="opt" data-k="B">B. REQUIRES_NEW 新开独立事务，外层再 try-catch 住日志方法的异常</div>
+<div class="opt" data-k="C">C. NESTED，内层回滚时外层事务整体回滚</div>
+<div class="opt" data-k="D">D. NEVER，禁止日志在事务中运行</div>
+<div class="exp" hidden><b>答案 B。</b>REQUIRES_NEW 让日志事务独立提交/回滚；但内层回滚抛出的异常若传到外层仍会带崩主事务，所以要配 try-catch。REQUIRED 会绑死主事务（D 语义完全不符）；NESTED 下外层回滚内层跟着没。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>4.</b> SpringMVC 中一次请求的正确处理顺序是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. DispatcherServlet → HandlerMapping → HandlerAdapter → Controller → ViewResolver</div>
+<div class="opt" data-k="B">B. DispatcherServlet → HandlerAdapter → HandlerMapping → Controller → ViewResolver</div>
+<div class="opt" data-k="C">C. HandlerMapping → DispatcherServlet → Controller → HandlerAdapter → ViewResolver</div>
+<div class="opt" data-k="D">D. DispatcherServlet → Controller → HandlerMapping → HandlerAdapter → ViewResolver</div>
+<div class="exp" hidden><b>答案 A。</b>前端控制器先收口 → 查映射找 Handler（含拦截器链）→ 适配器执行（参数绑定、调 Controller）→ 拿到 ModelAndView → 视图解析渲染。前后端分离时最后一步换成 HttpMessageConverter 序列化 JSON。来源：牛客经典题。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 说出至少三种 @Transactional 失效场景，并给出自调用的解法。</p>
+<details><summary>参考回答</summary>先给总纲：事务靠 AOP 代理实现，绕过代理、切面看不到异常、拿不到同一连接，都会失效。然后挑最有把握的说：①同类自调用——this 不走代理，最高频；②方法非 public——切面只对 public 生效；③异常被 try-catch 吞掉——切面感知不到照常提交；④抛受检异常默认不回滚——默认只认 RuntimeException/Error，要 rollbackFor；⑤多线程——事务绑在 ThreadLocal 的连接上，子线程不在事务内。自调用三解：注入自身代理调 self 方法；@EnableAspectJAutoProxy(exposeProxy=true) 后用 AopContext.currentProxy()；或把方法拆到另一个 bean。加分点：顺手说出总纲的那句"凡是绕过代理的都失效"，展示体系而非背题。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 事务失效排查顺序定式：是不是 Spring bean → 方法是不是 public → 有没有自调用 → 异常类型对不对（默认只回滚 RuntimeException/Error）→ 传播行为与存储引擎；② CGLIB 对 final 类/final 方法/private 方法直接无法代理——代理失效排查也要看这里；③ "REQUIRES_NEW 内层失败不影响外层"只对了半句——内层回滚抛出的异常传到外层照样回滚，必须配 try-catch；④ JDK 代理基于接口、CGLIB 基于继承，SpringBoot 2.x 起默认一律 CGLIB——版本口径别说混；⑤ 事务在哪个线程开启就只管哪个线程，跨线程的 SQL 不在同一事务里。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

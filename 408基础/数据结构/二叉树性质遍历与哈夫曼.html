@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二叉树性质、遍历与哈夫曼 · 408基础/数据结构</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>二叉树性质、遍历与哈夫曼</h1>
+<div class="meta">适用岗位：全部（408 笔试硬骨头，手算大题高频） ｜ 形态：性质推导 + 手算过程 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>$n_0=n_2+1$，与度为 1 的结点个数无关</b>；完全二叉树编号 i 的孩子是 2i、2i+1，双亲 $\lfloor i/2\rfloor$，n 个结点高度 $h=\lceil\log_2(n+1)\rceil$；<b>前序首元素定根，回中序切左右子树递归</b>，前中→后序手算三步走；<b>哈夫曼树每次取权值最小的两棵合并，WPL $=\sum w_i l_i$（也等于全部内部结点权值之和）</b>；哈夫曼编码是前缀码，频率越高编码越短，总报文长度即 WPL。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>结点数与度数：$n_0=n_2+1$</b>。推导：结点总数 $n=n_0+n_1+n_2$；边数 $=n-1$（除根外每个结点恰有一条来自双亲的边），也从孩子角度数 $=n_1+2n_2$；联立 $n_0+n_1+n_2=n_1+2n_2+1$ 得 $n_0=n_2+1$——与 $n_1$ 完全无关。推论：$n=2n_2+n_1+1$，奇偶由 $n_1$ 决定。</p>
+<p><b>满二叉树与完全二叉树</b>：满二叉树每层结点都达最大（高 h 共 $2^h-1$ 个）；完全二叉树只允许最后一层缺最右边若干结点，等价于对满二叉树从 1 到 n 连续编号。编号性质（从 1 开始编）：结点 i 的左孩子 2i、右孩子 2i+1、双亲 $\lfloor i/2\rfloor$；编号大于 $\lfloor n/2\rfloor$ 的全是叶子（叶子数 $=\lceil n/2\rceil$）；高度 $h=\lceil\log_2(n+1)\rceil=\lfloor\log_2 n\rfloor+1$。完全二叉树可用数组顺序存储（父子下标正好是 2i/2i+1），堆就是一棵顺序存储的完全二叉树。</p>
+<p><b>三种遍历与递归序本质</b>：递归中每个结点会被"经过"三次——第一次到达时访问得前序（根左右），第二次回溯时访问得中序（左根右），第三次得后序（左右根）。前序序列<b>第一个</b>是根，后序序列<b>最后一个</b>是根；中序中根把序列切成左右子树。<b>前序+中序、后序+中序可唯一确定二叉树；前序+后序不能</b>（切不开左右）。层序遍历用<b>队列</b>：根入队，出队访问时把非空左右孩子依次入队。</p>
+<p><b>前序+中序求后序的手算三步</b>：① 前序第一个 = 根；② 回中序用根切出左、右子树各自的前序/中序片段；③ 对每段递归。后序 = 左子树后序 + 右子树后序 + 根。</p>
+<p><b>线索二叉树</b>：n 个结点的二叉链表共 2n 个指针域，实际只用 n−1 个（边数），空链域 <b>n+1</b> 个。利用空域存放前驱/后继线索（左空存前驱、右空存后继），加标志位区分"孩子指针/线索"。中序线索树最常考：找结点后继——右标志为线索则右指针即后继，否则后继 = 右子树中沿左链走到底的结点。</p>
+<p><b>树/森林与二叉树互转：左孩子右兄弟</b>。树的左指针指向第一个孩子，右指针指向下一个兄弟。树转二叉树后根<b>没有右子树</b>；森林转二叉树：把各棵树的根视为兄弟依次右连。遍历对应：树的先根遍历序列 = 对应二叉树的先序序列；树的后根遍历序列 = 对应二叉树的中序序列（森林同理）。</p>
+<p><b>哈夫曼树构造与 WPL</b>：带权路径长度 $\text{WPL}=\sum_{i=1}^{n} w_i l_i$（权 × 到根路径长）最小的二叉树。构造：n 个权值各自成单结点树，每步取权值<b>最小</b>的两棵合并，新根权值为二者之和，重复 n−1 次只剩一棵。性质：只合并"最小两棵"→ 每个新结点必有两个孩子 → <b>没有度为 1 的结点</b>，总结点数 2n−1（必为奇数）；权值越大的叶子离根越近；<b>树形可能不唯一但 WPL 唯一</b>（左右子树可交换、等权时合并顺序可选）。WPL 有两种算法、互为验算：① Σ叶子权×深度；② Σ所有非叶（内部）结点的权值。</p>
+<p><b>哈夫曼编码</b>：字符放叶子，左分支记 0、右分支记 1 → 字符路径即编码。因为字符全在叶子上，任一编码都不是另一编码的前缀（<b>前缀码</b>），解码逐位走树、不会歧义。频率（权）越高编码越短；n 个字符的编码总长（等长报文总数）= WPL。同一组权值的哈夫曼编码不唯一（0/1 可互换、等权合并顺序可选），但最短总长唯一。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算</span><span class="tag">机试手写</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：$n_0=n_2+1$ 计算、完全二叉树编号/高度/叶子数、遍历序列反推、线索二叉树空链域、哈夫曼树性质判断。</li>
+<li>计算：前序+中序求后序（手算过程分步给）、哈夫曼构造+WPL（每步合并都写）、哈夫曼编码总长度。</li>
+<li>机试：前中后序递归与非递归遍历、层序遍历（队列）——手写热身高频。</li>
+<li>面试口述：为什么完全二叉树适合数组存储、堆与完全二叉树的关系、前缀码为什么无歧义。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 一棵二叉树有 10 个度为 2 的结点、5 个度为 1 的结点，叶子结点个数是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 10</div>
+<div class="opt" data-k="B">B. 11</div>
+<div class="opt" data-k="C">C. 16</div>
+<div class="opt" data-k="D">D. 21</div>
+<div class="exp" hidden><b>答案 B。</b>$n_0=n_2+1=10+1=11$，与 $n_1=5$ 无关——这是该公式最常设的陷阱（用 5 去参与计算就错了）。验证：总结点 $n=2n_2+n_1+1=26$，边数 $=25=n_1+2n_2=5+20$ ✓。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 一棵完全二叉树有 100 个结点（从 1 开始编号）。求：① 树的高度；② 编号 40 的结点的双亲与左右孩子编号（若存在）；③ 叶子结点个数。</p>
+<details><summary>先自己算，再展开对答案</summary>① 高度：$2^6=64 \lt 101 \le 128=2^7$ → $h=\lceil\log_2(101)\rceil=$ <b>7</b>。② 双亲 $\lfloor 40/2\rfloor=$ <b>20</b>；左孩子 2×40=<b>80</b>、右孩子 2×40+1=<b>81</b>（都 ≤100，均存在）。③ 编号大于 $\lfloor 100/2\rfloor=50$ 的都是叶子，即 51~100，共 <b>50</b> 个。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 已知一棵二叉树的先序序列为 ABDEC，中序序列为 DBEAC，求后序序列，要求写出手算过程。</p>
+<details><summary>先自己算，再展开对答案</summary>① 根 = 先序第一个 <b>A</b>；回中序：D B E | A | C → 左子树 {D,B,E}，右子树 {C}。② 左子树：先序片段 BDE → 根 = <b>B</b>；中序片段 DBE → D | B | E → <b>D</b> 是 B 的左孩子、<b>E</b> 是 B 的右孩子。③ 右子树：单结点 <b>C</b>。④ 后序 = 左后序 + 右后序 + 根：(D E B) + (C) + A = <b>DEBCA</b>。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 以权值集合 {7, 5, 2, 4} 构造哈夫曼树：写出每一步合并，求 WPL 和总结点数，并用"内部结点求和法"验算。</p>
+<details><summary>先自己算，再展开对答案</summary>① 取最小两棵 2、4 合并 → 新结点 <b>6</b>；剩 {5, 6, 7}。② 取最小两棵 5、6 合并 → 新结点 <b>11</b>；剩 {7, 11}。③ 取 7、11 合并 → 根 <b>18</b>。<br>WPL（叶子法）：7×1 + 5×2 + 2×3 + 4×3 = 7+10+6+12 = <b>35</b>。<br>验算（内部结点法）：6 + 11 + 18 = <b>35</b> ✓。<br>总结点数 = 2×4−1 = <b>7</b>。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 关于哈夫曼树，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 树中不存在度为 1 的结点</div>
+<div class="opt" data-k="B">B. 对同一组权值，哈夫曼树的树形是唯一的</div>
+<div class="opt" data-k="C">C. 权值越大的叶结点离根越近</div>
+<div class="opt" data-k="D">D. n 个叶结点的哈夫曼树共有 2n−1 个结点</div>
+<div class="exp" hidden><b>答案 ACD。</b>A：构造时只合并"最小两棵"，每个新结点必有两个孩子，故无度为 1 的结点；C：若大权叶子离根远，与大权叶子交换就能减小 WPL，所以最优树中权值越大离根越近；D：$n_0=n$，$n_2=n_0-1$，总数 $=n_0+n_2=2n-1$。B 错：左右子树可交换、存在等权值时合并顺序可选，树形可能不唯一，但 WPL 唯一。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>6.</b> 用二叉链表存储含 n 个结点的二叉树，空链域（可用来存放线索的指针域）的个数是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. n−1</div>
+<div class="opt" data-k="B">B. n</div>
+<div class="opt" data-k="C">C. n+1</div>
+<div class="opt" data-k="D">D. 2n</div>
+<div class="exp" hidden><b>答案 C。</b>n 个结点共 2n 个指针域，非空指针恰为边数 n−1，空链域 = 2n−(n−1) = <b>n+1</b>。线索二叉树正是把这 n+1 个空域利用起来存前驱/后继线索。来源：牛客经典题。</div>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① $n_0=n_2+1$ 与 $n_1$ 无关，题目给 $n_1$ 多半是干扰；② 编号性质（孩子 2i/2i+1、双亲 $\lfloor i/2\rfloor$）只在"从 1 开始编号"时成立，数组实现的堆下标也从 1 起最省心；③ 前序+后序不能唯一确定二叉树——切分子树靠的是中序；④ 哈夫曼树没有度为 1 的结点，总结点数 2n−1 一定是奇数；⑤ WPL 用"叶子权×深"与"内部结点求和"各算一遍互相验证；⑥ 哈夫曼编码不唯一（左右 0/1 可交换、等权合并顺序可选），但最短总长（WPL）唯一；⑦ 树转二叉树后根没有右子树。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

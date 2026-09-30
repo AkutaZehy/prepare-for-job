@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>栈与队列 · 408基础/数据结构</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>栈与队列</h1>
+<div class="meta">适用岗位：全部（笔试选择 + 计算 + 机试手写常客） ｜ 形态：知识点 + 手算技巧 + 图解 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：栈 FILO 只在栈顶进出、队列 FIFO 队尾入队头出；<b>出栈序列合法性用"进栈—比栈顶—弹栈"模拟 30 秒判定，n 个元素合法出栈序列共 C(2n,n)/(n+1) 种（卡特兰数）</b>；<b>循环队列牺牲一格法：判空 rear==front，判满 (rear+1)%size==front，元素个数 (rear-front+size)%size</b>；共享栈两栈顶相向生长，<b>栈满条件 top1+1==top2</b>；中缀转后缀口诀：<b>操作数直接输出，运算符先弹"优先级不低于自己"的再进栈，右括号弹到左括号为止</b>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>栈（Stack）</b>：先进后出 FILO，只在栈顶插入（push）与删除（pop）。典型应用：函数调用与返回（调用栈/栈帧）、表达式求值与括号匹配、深度优先搜索（DFS）、递归转非递归、编辑器撤销/浏览器回退。</p>
+<p><b>队列（Queue）</b>：先进先出 FIFO，队尾（rear）入队、队头（front）出队。典型应用：任务调度与消息队列（Kafka/RabbitMQ 的排队语义）、广度优先搜索（BFS）、打印任务与 IO 缓冲区。延伸：双端队列（deque）两头均可进出。</p>
+<p><b>出栈序列合法性（笔试最爱）</b>：给定进栈序列与出栈序列，判断能否实现——用模拟法：对出栈序列从左到右取"期望元素"，进栈序列依次入栈，每入栈一个就比较栈顶：等于期望元素就一直弹出并前进；若进栈序列已耗尽而栈顶仍不等于期望元素 → 非法。数量上，n 个不同元素依次进栈，合法出栈序列共 C(2n,n)/(n+1) 种（<b>卡特兰数</b>：n=3 有 5 种，n=4 有 14 种）。</p>
+<p><b>循环队列与假溢出</b>：顺序队列反复入队出队后，rear 到达数组末尾，但 front 前面明明有空位却"装不进"——这叫<b>假溢出</b>，解决办法是把数组逻辑上接成环。循环队列常用<b>牺牲一格法</b>区分空与满：</p>
+<ul>
+<li>判空：<code>rear == front</code></li>
+<li>判满：<code>(rear + 1) % size == front</code>（牺牲一格，最多存 size−1 个元素）</li>
+<li>元素个数：<code>(rear - front + size) % size</code>（先加 size 再取模，避免负数）</li>
+<li>不牺牲格的变体：设计数器 count（判满 <code>count == size</code>），或操作标志 tag（入队后置 1、出队后置 0，则 <code>front == rear</code> 时看 tag：1 为满、0 为空），此时 size 个位置全部可用。</li>
+</ul>
+<pre><code>循环队列 size=6（牺牲一格最多存 5 个），下图 front=3，rear=1
+下标    0    1    2    3    4    5
+      +----+----+----+----+----+----+
+      | x  |    |    | F  |    | R  |    F=front(队头)  R=rear(下一入队位置)
+      +----+----+----+----+----+----+
+元素占 3,4,5,0 共 4 个；个数 = (1-3+6)%6 = 4；判满：(1+1)%6 = 2 ≠ 3 未满</code></pre>
+<p><b>共享栈</b>：两个栈共享一个大小为 n 的数组，栈 1 栈底在下标 0、向上生长，栈 2 栈底在下标 n−1、向下生长，两栈顶相向而行。栈 1 空 <code>top1 == -1</code>，栈 2 空 <code>top2 == n</code>；<b>栈满：top1+1==top2</b>（两栈顶之间只剩一格）。只有整个数组占满才溢出，空间利用率高，适合"两栈空间需求此消彼长"的场景。</p>
+<pre><code>共享栈：数组 [0 .. n-1]，栈1 向上长，栈2 向下长
+栈1底                                              栈2底
+  ↓                                                  ↓
+ [ 0 ][ 1 ][ 2 ][   ][   ][   ] ... [n-1]
+        top1 →                    ← top2
+栈1空: top1 == -1     栈2空: top2 == n     栈满: top1 + 1 == top2</code></pre>
+<p><b>中缀转后缀（手算全过程）</b>：后缀式又叫逆波兰式。转换规则：操作数直接输出；运算符入栈前，先把栈顶<b>优先级不低于自己</b>的运算符依次弹出输出（左括号挡住不弹，同级按从左到右）；左括号直接进栈；右括号把栈顶弹到左括号为止（左括号出栈丢弃）；表达式结束时把栈中剩余运算符全部弹出。后缀式求值只需一个操作数栈：操作数进栈，遇到运算符弹出<b>两个</b>操作数——<b>先弹出的是右操作数</b>——计算后把结果压回，最后栈中剩下的就是答案。</p>
+<pre><code>求后缀式 6 3 2 + - 3 8 2 / + *   （对应中缀 (6-(2+3))*(3+8/2)）
+读 6 → 栈 [6]
+读 3 → 栈 [6,3]
+读 2 → 栈 [6,3,2]
+读 + → 弹 2,3 → 2+3=5        栈 [6,5]     （先弹的 2 是右操作数）
+读 - → 弹 5,6 → 6-5=1        栈 [1]
+读 3 → 栈 [1,3]
+读 8 → 栈 [1,3,8]
+读 2 → 栈 [1,3,8,2]
+读 / → 弹 2,8 → 8/2=4        栈 [1,3,4]
+读 + → 弹 4,3 → 3+4=7        栈 [1,7]
+读 * → 弹 7,1 → 1*7=7        栈 [7]   → 结果 7</code></pre>
+<p><b>递归与栈</b>：递归调用由系统栈支撑——每层调用压入一个活动记录（参数、返回地址、局部变量），返回时弹出，"最后调用的最先返回"天然符合 FILO。递归深度受栈空间限制，过深会栈溢出（如 Java 的 <code>StackOverflowError</code>）；任何递归都可改写为"循环 + 显式栈"，树的遍历、汉诺塔的非递归版就是显式栈的典型应用。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算</span><span class="tag">机试手写</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：出栈序列合法性（高频）、循环队列空/满/个数、共享栈判满条件、栈与队列的应用场景归类。</li>
+<li>计算：循环队列 front/rear 推算元素个数与剩余容量、中缀转后缀或后缀求值手算、卡特兰数计数。</li>
+<li>机试：括号匹配、用两个栈实现队列、两个队列实现栈（牛客/LeetCode 入门高频，Java 与 Python 都要会写）。</li>
+<li>面试口述：栈为什么适合函数调用、消息队列削峰填谷、"循环队列怎么解决假溢出"。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 元素 a、b、c、d 依次进栈（进栈与出栈可任意交替），不可能得到的出栈序列是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. a，b，c，d</div>
+<div class="opt" data-k="B">B. d，c，b，a</div>
+<div class="opt" data-k="C">C. c，a，d，b</div>
+<div class="opt" data-k="D">D. b，d，c，a</div>
+<div class="exp" hidden><b>答案 C。</b>模拟：进 a、b、c 后弹出 c（输出第 1 个 ✓）；下一个期望 a，但栈顶是 b、a 被 b 压着，且进栈序列已耗尽，a 无法先于 b 出栈 → 非法。验证其余：A 进一个弹一个；B 全部进栈再依次弹出；D 进 a、b 弹 b，进 c、d 弹 d、弹 c、弹 a，均合法。技巧：出栈序列中只要存在"某元素之后有两个都比它小且顺序颠倒"即为非法（312 模式），拿不准时花 30 秒模拟最稳。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 循环队列用大小为 6 的数组实现（牺牲一格法），当前 front=3、rear=1。求：① 队中元素个数；② 队列当前是否已满；③ 还能连续入队几个元素？</p>
+<details><summary>先自己算，再展开对答案</summary>① 个数 = (rear−front+size)%size = (1−3+6)%6 = <b>4</b>（占下标 3、4、5、0）。② 判满：(rear+1)%size = 2 ≠ front(3) → <b>未满</b>。③ 牺牲一格法容量为 size−1 = 5，已存 4 个，还能入队 <b>1</b> 个；该元素入队后 rear=2，(2+1)%6=3==front，恰好判满。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 将中缀表达式 A + B * ( C - D ) - E / F 转换为后缀表达式，要求写出用运算符栈逐步处理的过程。</p>
+<details><summary>先自己算，再展开对答案</summary>
+<pre><code>读 A → 输出 A                    栈: []
+读 + → 进栈                      栈: [+]
+读 B → 输出 A B                  栈: [+]
+读 * → 优先级高于 +，进栈         栈: [+, *]
+读 ( → 进栈                      栈: [+, *, (]
+读 C → 输出 A B C                栈: [+, *, (]
+读 - → 栈顶是 ( ，进栈           栈: [+, *, (, -]
+读 D → 输出 A B C D              栈: [+, *, (, -]
+读 ) → 弹出 - 输出，( 出栈丢弃    输出: A B C D -        栈: [+, *]
+读 - → 弹出 * 与 + （优先级≥）再进栈  输出: A B C D - * +   栈: [-]
+读 E → 输出 … E                  栈: [-]
+读 / → 优先级高于 -，进栈         栈: [-, /]
+读 F → 输出 … F                  栈: [-, /]
+结束 → 依次弹出 /、-              输出: A B C D - * + E F / -</code></pre>
+<b>结果：A B C D - * + E F / -</b>。验算：两个 - 优先级最低、最后运算，且先算左边的 +（同级从左到右）✓。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>4.</b> 两个栈共享一个大小为 n 的数组空间：栈 1 栈顶指针 top1 初始为 −1、向上生长，栈 2 栈顶指针 top2 初始为 n、向下生长。栈满的判定条件是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. top1 + top2 == n</div>
+<div class="opt" data-k="B">B. top1 == top2</div>
+<div class="opt" data-k="C">C. top1 + 1 == top2</div>
+<div class="opt" data-k="D">D. top1 - top2 == 1</div>
+<div class="exp" hidden><b>答案 C。</b>两栈顶相向而行，中间只剩一格时数组全满：top1+1==top2。若等到 top1==top2 才算满，两栈顶已指向同一格，任何一方再进栈都会覆盖对方——正确分界就是"还差一格即满"。A、D 为杜撰条件。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 下列场景中，适合用"栈"这种结构（或其 FILO 语义）的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 函数调用时保存返回地址与局部变量（调用栈）</div>
+<div class="opt" data-k="B">B. 表达式求值与括号匹配</div>
+<div class="opt" data-k="C">C. 打印任务排队，先提交的先打印</div>
+<div class="opt" data-k="D">D. 递归程序改写为非递归程序</div>
+<div class="exp" hidden><b>答案 ABD。</b>调用栈保存"最后调用的最先返回"，FILO ✓；表达式求值靠运算符栈/操作数栈，括号匹配靠栈做最近匹配 ✓；递归本质就是系统栈，转非递归用显式栈保存状态 ✓。C 是"先来先服务"，属于队列（FIFO）——排队类需求一律队列，是本题干扰项。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 牺牲一格的循环队列最多存 size−1 个元素，"还能入队几个"要按容量 5（size=6 时）算；② 元素个数公式 (rear−front+size)%size 中的 +size 是防负数的，忘加会算出负值；③ 后缀求值先弹出的是<b>右操作数</b>，减法、除法顺序最容易反（6−5 算成 5−6）；④ 出栈序列合法性别背结论，直接模拟最稳；⑤ 共享栈栈底在两端、栈顶相向，判满是 top1+1==top2 而不是 top1==top2；⑥ "排队/先来先服务"是队列不是栈，多选里常做干扰项。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

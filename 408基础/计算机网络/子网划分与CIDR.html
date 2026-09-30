@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>子网划分与CIDR · 408基础/计算机网络</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机网络</div>
+<h1>子网划分与 CIDR</h1>
+<div class="meta">适用岗位：全部（笔试计算题重灾区，套路固定拿满不亏） ｜ 形态：计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：/n 表示掩码前 n 位是 1；<b>块大小 = 256 − 掩码最后一个非 0 段</b>（如 /26 的 192 → 块 64）；可用主机数 = <b>2^(32−n) − 2</b>（扣网络地址与广播地址）；聚合 = 取各网段的<b>公共前缀</b>；路由匹配多条时选<b>前缀最长的</b>。私有段三兄弟：10.0.0.0/8、172.16.0.0/12、192.168.0.0/16。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>分类地址速览</b>（看第一段数字定性）：</p>
+<table>
+<tr><th>类</th><th>第一段范围</th><th>默认掩码</th><th>备注</th></tr>
+<tr><td>A</td><td>0 ~ 127</td><td>/8（255.0.0.0）</td><td class="l">0 与 127 特殊（本机/回环），实际可用 1~126</td></tr>
+<tr><td>B</td><td>128 ~ 191</td><td>/16（255.255.0.0）</td><td class="l">—</td></tr>
+<tr><td>C</td><td>192 ~ 223</td><td>/24（255.255.255.0）</td><td class="l">—</td></tr>
+<tr><td>D/E</td><td>224~239 / 240~255</td><td>—</td><td class="l">组播 / 保留</td></tr>
+</table>
+<p><b>私有地址段</b>（内网专用，路由器不转发）：10.0.0.0/8、172.16.0.0/12（即 172.16.x.x ~ 172.31.x.x）、192.168.0.0/16。另有 127.0.0.0/8 回环、169.254.0.0/16 链路本地（DHCP 失败自配）。</p>
+<p><b>掩码与 /n 等价换算</b>：/20 = 255.255.<b>240</b>.0（第三段 240 = 11110000₂）。反向：240 → 前 4 位是 1，前两段 8+8 位 + 4 = /20。</p>
+<p><b>块大小法（四步套路）</b>——所有划分题的万能钥匙：</p>
+<pre><code>① 找掩码最后一个非 255 的段，块大小 = 256 − 该段值
+② 该段取值只能落在 0, 块, 2×块, 3×块, … 的网格上
+③ 给定 IP 判断落在哪一格 → 该段的网络地址，前面的段照抄，后面的段归 0
+④ 广播地址 = 下一格网络地址 − 1</code></pre>
+<p><b>可用主机数</b> = 2^(主机位数) − 2：扣掉主机位全 0（网络地址）与全 1（广播地址）。/23 → 2⁹−2=510；/26 → 2⁶−2=62。特例：/31（点对点）与 /32（单机路由）不遵守 −2，考试出现按题意处理。</p>
+<p><b>CIDR 聚合</b>：把多个连续网段合成一条路由。方法：把各网段写成二进制，<b>找公共前缀</b>，公共前缀长度就是聚合后的 /n。例：192.168.0.0/24 与 192.168.1.0/24——第三段 0=00000000、1=00000001，公共前缀 7 位 → 聚合为 192.168.0.0/<b>23</b>。</p>
+<p><b>最长前缀匹配</b>：目的地址同时命中多条路由时，选掩码最长（最具体）的那条——这也是默认路由 0.0.0.0/0 永远垫底的原因。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">计算题</span><span class="tag">笔试选择</span></p>
+<ul>
+<li>判断给定 IP 属于哪个子网、求网络地址/广播地址/可用主机范围——块大小法直出。</li>
+<li>给主机数求最小块（200 台→/24；60 台→/26），给块数求子网位。</li>
+<li>CIDR 聚合与最长前缀匹配。</li>
+<li>私有/特殊地址的识别（多选）。</li>
+<li>整套计算 3~5 分钟内完成，笔式草稿按"段→块→格"书写不易乱。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 计算题先自算）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 主机 IP 为 <b>192.168.1.100/26</b>。求：所在子网的网络地址、广播地址、可用主机数与范围。</p>
+<details><summary>先自己算，再展开对答案</summary>/26 → 掩码 255.255.255.192，第四段块大小 = 256−192 = <b>64</b>。网格：0、64、128、192…100 落在 [64,128) 格 → 网络地址 <b>192.168.1.64</b>，广播 = 下一格 128 −1 = <b>192.168.1.127</b>。主机位 6 位 → 可用 2⁶−2 = <b>62</b> 台：192.168.1.65 ~ 192.168.1.126。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 主机 IP 为 <b>10.1.100.5/20</b>，求所在网段与广播地址。</p>
+<details><summary>先自己算，再展开对答案</summary>/20 → 掩码 255.255.240.0，非 255 段是第三段（240）→ 块大小 = 256−240 = <b>16</b>。第三段网格 0,16,32,…,96,112,…；100 落在 [96,112) → 网段 <b>10.1.96.0/20</b>，广播 <b>10.1.111.255</b>（第三段 111、第四段 255）。验证：/20 主机位 12 位，2¹²−2 = 4094 台，范围 10.1.96.1 ~ 10.1.111.254。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 将 192.168.0.0/24 与 192.168.1.0/24 聚合为一条路由，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 192.168.0.0/22</div>
+<div class="opt" data-k="B">B. 192.168.0.0/23</div>
+<div class="opt" data-k="C">C. 192.168.0.0/24</div>
+<div class="opt" data-k="D">D. 192.168.0.0/16</div>
+<div class="exp" hidden><b>答案 B。</b>第三段 0=00000000 与 1=00000001 的公共前缀是 7 位，加上前两个完整段 16 位 → /23。/22 会多吞 192.168.2.0 和 192.168.3.0（超配，路由不精确），/24 则没聚合够。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>4.</b> 某部门有 200 台主机，至少应分配哪个前缀长度的地址块？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. /25</div>
+<div class="opt" data-k="B">B. /23</div>
+<div class="opt" data-k="C">C. /24</div>
+<div class="opt" data-k="D">D. /26</div>
+<div class="exp" hidden><b>答案 C。</b>2^(32−n) − 2 ≥ 200 → 主机位 h：2⁷−2=126 不够，2⁸−2=254 够 → h=8 → /24。注意"至少"选满足条件的最小块，/23 能放但浪费，是"至少"的反向陷阱。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>5.</b> 路由表中同时存在 10.0.0.0/8 与 10.1.0.0/16 两条路由，目的地址 10.1.1.1 的报文按（&nbsp;&nbsp;）转发。</p>
+<div class="opt" data-k="A">A. 10.0.0.0/8，因为它先被写入路由表</div>
+<div class="opt" data-k="B">B. 10.1.0.0/16，最长前缀匹配</div>
+<div class="opt" data-k="C">C. 两条各转发一份</div>
+<div class="opt" data-k="D">D. 丢弃该报文</div>
+<div class="exp" hidden><b>答案 B。</b>两条都命中时选前缀最长（最具体）的一条；0.0.0.0/0 默认路由就是最短前缀、永远垫底的兜底。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>6.</b> 下列地址中属于<b>私有地址</b>的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 10.200.3.1</div>
+<div class="opt" data-k="B">B. 172.20.255.1</div>
+<div class="opt" data-k="C">C. 192.168.10.10</div>
+<div class="opt" data-k="D">D. 172.32.1.1</div>
+<div class="exp" hidden><b>答案 ABC。</b>私有段：10.0.0.0/8、172.16.0.0/12（第三段 16~31，172.20 落内、<b>172.32 落外</b>）、192.168.0.0/16。D 的 172.32 是公网地址——"172 开头"不等于私有，要看第二段是否落在 16~31。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① "至少分配"给主机用 → 找满足 2^h−2 ≥ 主机数的最小 h；② 广播地址 = 下一格网络地址 −1，别用本格 + 块大小算错边界；③ 172.16~172.31 是私有、172.32 起是公网——只背"172 开头"必翻车；④ 聚合时 /n 取公共前缀，多吞的地址叫"超配"，考试问"精确聚合"就是最小公共前缀；⑤ 最长前缀匹配优先于任何其他规则，默认路由 /0 是最后兜底。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

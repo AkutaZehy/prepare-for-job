@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JVM 调优与排障工具（OOM/jmap/jstack） · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>JVM 调优与排障工具（OOM/jmap/jstack）</h1>
+<div class="meta">适用岗位：后端/测开面试高频 ｜ 关联页：<a href="垃圾回收与收集器.html">垃圾回收与收集器</a>、<a href="ThreadLocal与并发工具类.html">ThreadLocal 与并发工具类</a> ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：线上排障三板斧——<b>CPU 高</b>：<code>top</code> 找进程 → <code>top -Hp</code> 找线程 → 线程号转十六进制 → <code>jstack</code> 里按 <code>nid</code> 定位栈；<b>内存涨/泄漏</b>：<code>jmap -histo</code> 看对象直方图、<code>jmap -dump</code> + MAT 看支配树；<b>GC 频繁</b>：<code>jstat -gcutil</code> 看 GC 占比与频率。OOM 先分清类型再谈方案，<code>-XX:+HeapDumpOnOutOfMemoryError</code> 提前埋好现场。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>常见 OOM 类型与归因</b>：</p>
+<table>
+<tr><th class="l">报错关键词</th><th class="l">区域</th><th class="l">典型原因</th></tr>
+<tr><td class="l">Java heap space</td><td class="l">堆</td><td class="l">大对象/集合无限增长、堆设置过小、内存泄漏</td></tr>
+<tr><td class="l">GC overhead limit exceeded</td><td class="l">堆</td><td class="l">GC 时间占比 &gt; 98% 但回收不到 2%——泄漏的预警信号</td></tr>
+<tr><td class="l">Metaspace</td><td class="l">元空间</td><td class="l">动态生成类太多（CGLIB 代理、反射、Groovy 脚本），类加载器泄漏</td></tr>
+<tr><td class="l">unable to create new native thread</td><td class="l">线程</td><td class="l">线程数超系统限制，无界线程池 + 泄漏</td></tr>
+<tr><td class="l">Direct buffer memory</td><td class="l">堆外</td><td class="l">NIO DirectByteBuffer 超出 -XX:MaxDirectMemorySize</td></tr>
+</table>
+<p><b>命令行工具全家桶</b>：</p>
+<table>
+<tr><th class="l">命令</th><th class="l">作用</th><th class="l">一句话记忆</th></tr>
+<tr><td class="l"><code>jps -l</code></td><td class="l">列 Java 进程</td><td class="l">第一步先找到 pid</td></tr>
+<tr><td class="l"><code>jstat -gcutil pid 1000 10</code></td><td class="l">GC 各区占用/次数/耗时快照</td><td class="l">看 YGC/FGC 频率与 O 区是否只涨不跌</td></tr>
+<tr><td class="l"><code>jmap -histo:live pid</code></td><td class="l">对象直方图（触发 Full GC）</td><td class="l">内存泄漏先看谁最多</td></tr>
+<tr><td class="l"><code>jmap -dump:live,format=b,file=a.hprof pid</code></td><td class="l">导出堆转储</td><td class="l">MAT/Eclipse 打开看支配树与 GC Root 链</td></tr>
+<tr><td class="l"><code>jstack pid</code></td><td class="l">线程栈快照</td><td class="l">死锁、CPU 飙高、请求卡住</td></tr>
+<tr><td class="l"><code>jcmd pid help</code></td><td class="l">诊断命令瑞士军刀</td><td class="l">新工具，能替代大部分 jmap/jstat</td></tr>
+</table>
+<p>图形化/在线工具：JConsole、VisualVM（本地开发）；<b>Arthas</b>（阿里开源，线上免重启看方法耗时/反编译/watch 变量，面试提一句加分）。堆转储离线分析用 MAT：看 Dominator Tree（谁占大头）→ Leaks Suspects → 按 GC Root 找引用链。</p>
+<p><b>常用启动参数</b>：</p>
+<span class="lang">Shell</span>
+<pre><code>java -Xms4g -Xmx4g \                       # 初始=最大，避免堆动态伸缩抖动
+     -Xss512k \                            # 线程栈大小（影响能开的线程数）
+     -XX:MaxMetaspaceSize=512m \           # 元空间上限，防动态类生成打爆
+     -XX:+HeapDumpOnOutOfMemoryError \     # OOM 时自动留现场
+     -XX:HeapDumpPath=/data/dump/ \
+     -XX:+UseG1GC -XX:MaxGCPauseMillis=200 \   # G1 与停顿目标
+     -jar app.jar
+# GC 日志：JDK 8 用 -XX:+PrintGCDetails -XX:+PrintGCDateStamps；
+#         JDK 9+ 用 -Xlog:gc*:file=gc.log:time</code></pre>
+<p><b>CPU 飙高排查流程</b>（重点背诵）：<code>top</code> 找到耗 CPU 的 Java 进程 → <code>top -Hp pid</code> 找到线程 → <code>printf '%x\n' tid</code> 把线程号转十六进制 → <code>jstack pid | grep -A 20 'nid=0x???'</code> 定位栈。判读：栈在业务代码 → 看死循环/正则回溯/大量序列化；栈显示 GC 线程多（如 <code>GC task thread</code>）→ 实际是 GC 压力，转内存排查。</p>
+<p><b>内存泄漏排查</b>：<code>jstat</code> 看 Old 区回收后水位只涨不跌 → <code>jmap -histo:live</code> 看异常膨胀的类 → dump + MAT 支配树 → 沿 GC Root 链找到引用持有者。高频泄漏点：静态集合只加不删、<a href="ThreadLocal与并发工具类.html">ThreadLocal</a> 线程池场景忘记 <code>remove()</code>、资源类未 close、自定义 ClassLoader 缓存。</p>
+<p><b>调优的正确姿势</b>：先有指标（吞吐优先还是延迟优先），再压测拿数据，最后动参数——顺序不能反。常见手段：堆设满物理内存一半左右、对象大导致晋升快就加大 Young 区、Metaspace 报警先查动态代理而非盲目加内存。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p>这页在面试里以<b>流程口述题</b>为主：① CPU 飙高五步流程（几乎必考，背熟 top -Hp → 16 进制 → jstack nid）；② 给一个 OOM 报错文案问归因（Metaspace → 动态类生成；heap space → 看是否泄漏）；③ jmap/jstat/jstack 各管什么（选择题配对）；④ 内存泄漏的典型场景（静态集合/ThreadLocal/未关闭资源，能和线程池场景串起来讲）；⑤ 为什么 -Xms=-Xmx。参数细节不用背全，说得出用途和方向即可。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 应用运行一段时间后抛 <code>OutOfMemoryError: Metaspace</code>，最可能的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 堆内存设置太小，直接把 -Xmx 调大一倍</div>
+<div class="opt" data-k="B">B. 老年代对象太多</div>
+<div class="opt" data-k="C">C. 动态生成类过多且类加载器无法回收（如大量 CGLIB 代理、Groovy/热部署脚本），元空间被打爆</div>
+<div class="opt" data-k="D">D. 线程数超过系统上限</div>
+<div class="exp" hidden><b>答案 C。</b>Metaspace 存类元数据，与堆大小无关——调 -Xmx 没用。先查谁在无限生成类（代理/脚本引擎/热部署），其次才是限制 MaxMetaspaceSize。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 用 top 定位到耗 CPU 的 Java 进程 pid=1234 后，下一步最合理的动作是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 立即 jstack 1234 并全文件逐行阅读</div>
+<div class="opt" data-k="B">B. top -Hp 1234 找到具体耗 CPU 的线程，把线程号转十六进制后到 jstack 输出里按 nid=0x??? 过滤</div>
+<div class="opt" data-k="C">C. jmap -dump 直接导堆，用 MAT 分析</div>
+<div class="opt" data-k="D">D. 重启进程恢复服务后再说</div>
+<div class="exp" hidden><b>答案 B。</b>进程级信息只说明"这个 JVM 忙"，必须下钻到线程；dump 是内存问题的工具，对 CPU 问题信息量低。D 丢失现场，生产上要慎重。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 JVM 参数与工具，说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. -Xms 与 -Xmx 设成一样，可避免堆动态伸缩带来的抖动</div>
+<div class="opt" data-k="B">B. -XX:+HeapDumpOnOutOfMemoryError 让 OOM 时自动保留堆转储，是提前埋好的"现场"</div>
+<div class="opt" data-k="C">C. jmap -histo 对线上服务完全无副作用，随便频繁执行</div>
+<div class="opt" data-k="D">D. jstat -gcutil 可以观察 Old 区回收后水位是否只涨不跌，辅助判断泄漏</div>
+<div class="exp" hidden><b>答案 ABD。</b><code>-histo:live</code> 与 dump 前会触发 Full GC，线上大堆执行要挑时机、慎用，C 错。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、示例题目</h2>
+<div class="q">
+<p><span class="tg">口述</span><b>1.</b> 完整口述「线上服务 CPU 飙到 300%」的排查过程与两种结论分支。</p>
+<details><summary>参考回答</summary>
+<p>① <code>top</code> 确认是哪个 Java 进程；② <code>top -Hp pid</code> 找出最耗 CPU 的线程 TID；③ <code>printf '%x\n' TID</code> 转十六进制；④ <code>jstack pid | grep -A 30 nid=0x???</code> 看该线程栈。分支一：栈顶是业务代码——看死循环、低效正则回溯、频繁 JSON 序列化等，对应修复；分支二：栈里是 GC 线程（GC task thread 多个占高）——说明 CPU 被 GC 吃掉，转内存方向：jstat -gcutil 看 FGC 频率，jmap -histo 或 dump + MAT 找大对象/泄漏。来源：面试高频改编。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">口述</span><b>2.</b> 运营反馈接口偶发超时，jstat 显示 Old 区 90%+、FGC 一天几十次且回收后水位不降。说排查与处理。</p>
+<details><summary>参考回答</summary>
+<p>水位回收后不降 = 有东西回收不掉，按泄漏查：① <code>jmap -histo:live pid | head</code> 看对象量 Top（byte[]/自定义类异常膨胀往往是线索）；② <code>jmap -dump</code>（挑低峰）+ MAT Dominator Tree 定位占用大头，沿 GC Root 引用链找持有者；③ 常见嫌疑：静态 Map 缓存只加不删、线程池里 ThreadLocal 没 remove（配合内存-sized 大对象）、连接/流未关闭；④ 短期止血可重启或扩容堆，长期按引用链修代码；⑤ 若确认不是泄漏而是"活对象确实大"，再谈加大堆/换 G1/优化缓存淘汰策略。来源：面试高频改编。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 堆 8G，一次 dump 显示：Young 2G 常满且 YGC 每 30 秒一次、Old 6G 中 4G 是一个 <code>ConcurrentHashMap</code> 的 value（自定义缓存对象），GC 后仍 3.9G。判断问题性质并给两条处理建议。</p>
+<details><summary>解答</summary>
+<p>性质：缓存把老年代占满，接近泄漏（缓存无淘汰或键无限增长）。建议：① 给缓存加容量上限与淘汰策略（如换 Caffeine，maximumSize + expireAfterWrite），杜绝只进不出；② 排查键的生成逻辑（是否把不可控输入直接当键），必要时对 value 做瘦身、用弱引用或分片过期。另：Young 2G 每 30 秒一次 YGC 属正常量级，本轮先别动堆参数。来源：AI 岗笔试高频。</p>
+</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① Metaspace OOM 调 -Xmx 无效，方向先找动态类生成；② jstack 过滤线程用 <code>nid=0x十六进制</code>，十进制直接 grep 找不到；③ jmap -histo:live / dump 都会触发 Full GC，线上执行要低峰+授权；④ OOM 排查第一步是看错误类型与 dump 文件，不是重启；⑤ -Xss 太小会 StackOverflow、太大限制总线程数，两面都要会说；⑥ 调优顺序：指标 → 压测 → 改参数，倒过来就是玄学。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

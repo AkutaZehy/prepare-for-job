@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>滑动窗口与前缀和（ACM 模式） · 编程题与Java基础/算法编程题/数组与双指针</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 数组与双指针</div>
+<h1>滑动窗口与前缀和（ACM 模式）</h1>
+<div class="meta">原型：LeetCode 209 / 3 / 560 ｜ 适用岗位：全部 ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：对付「连续子数组/子串」的两把刀——<b>滑动窗口</b>（同向双指针，每个元素进窗出窗各一次，O(n)，前提是窗口指标有单调性）和<b>前缀和</b>（prefix[r] − prefix[l] 即区间和，查询 O(1)）。窗口求长短、前缀和求个数，负数出现时窗口失效退回前缀和。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>主打题（LC209 长度最小的子数组）</b>：给定 n 个<b>正整数</b>和目标值 target，找出和 ≥ target 的<b>长度最小</b>的连续子数组，输出其长度；不存在输出 0。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>6 7                     # n target
+2 3 1 2 4 3             # n 个正整数</code></pre>
+<b>输出格式</b>（1 行）：
+<pre><code>2</code></pre>
+（子数组 [4,3] 和为 7，长度 2）</div>
+<div class="tip">变体提前看：① 改成「和恰好等于 target」；② 输出子数组本身而不只是长度；③ 元素含负数（窗口失效，见思路节）；④ 字符串版（LC3）输入是一行字符串而不是数字。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<ul>
+<li><b>滑动窗口（LC209）</b>：右端 r 不断进窗累加，一旦窗口和 ≥ target 就反复缩左端并更新最短长度。每个元素最多进窗一次、出窗一次，均摊 O(n)。暴力双层循环 O(n²)，n 到 10⁵ 必超时。</li>
+<li><b>窗口的前提</b>：元素全为正 → 扩窗和单调增、缩窗和单调减，指针不用回头。一旦有负数，缩窗后窗口和可能不降反升，窗口策略失效——改用前缀和 + 单调队列，或前缀和 + 二分。</li>
+<li><b>无重复字符最长子串（LC3）</b>：同一框架，条件换成「窗口内无重复」：记录每个字符最近出现位置，右端撞到重复字符时把左端直接跳到「上次出现位置 + 1」。</li>
+<li><b>和为 k 的子数组个数（LC560）</b>：元素可正可负，窗口不能用。前缀和 + 哈希计数：扫到位置 j 时，以 j 结尾且和为 k 的子数组个数 = 之前前缀和等于 prefix[j] − k 的次数。注意 <code>cnt[0] = 1</code> 的初始化（空前缀），漏了会少算「从头开始」的子数组。</li>
+</ul>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 用滑动窗口求「和 ≥ target 的最短子数组」，能这么滑的前提是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 数组已按升序排好</div>
+<div class="opt" data-k="B">B. 数组元素全为正数，窗口和随扩窗单调增、随缩窗单调减</div>
+<div class="opt" data-k="C">C. 数组元素互不相同</div>
+<div class="opt" data-k="D">D. 只要 target 是正数就行，与元素正负无关</div>
+<div class="exp" hidden><b>答案 B。</b>单调性保证 l、r 都只往前走不回头。数组含负数时缩窗后窗口和可能反而变大，指针会漏解，此时应改前缀和 + 单调队列/二分。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于前缀和，说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. prefix[i] 表示前 i 个元素之和，则区间和 = prefix[r] − prefix[l]，查询 O(1)</div>
+<div class="opt" data-k="B">B. 「和为 k 的子数组个数」用前缀和 + 哈希表，边扫边查 prefix − k 出现过的次数</div>
+<div class="opt" data-k="C">C. 数组元素被修改后，前缀和数组照样能 O(1) 完成区间和查询</div>
+<div class="opt" data-k="D">D. 前缀和预处理本身是 O(n)</div>
+<div class="exp" hidden><b>答案 ABD。</b>前缀和是静态结构，单点修改会使其后缀全部过期，动态更新要用树状数组/线段树，C 错。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<span class="lang">Java · 主打 LC209</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        in.nextToken(); int target = (int) in.nval;
+        int[] a = new int[n];
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); a[i] = (int) in.nval; }
+
+        int ans = Integer.MAX_VALUE;
+        for (int l = 0, r = 0, sum = 0; r &lt; n; r++) {
+            sum += a[r];                       // 右端进窗
+            while (sum &gt;= target) {            // 满足条件就尽量缩左端
+                ans = Math.min(ans, r - l + 1);
+                sum -= a[l++];
+            }
+        }
+        System.out.println(ans == Integer.MAX_VALUE ? 0 : ans);
+    }
+}</code></pre>
+<span class="lang">Python · 主打 LC209</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    n, target = int(data[0]), int(data[1])
+    a = list(map(int, data[2:2 + n]))
+    ans = n + 1
+    l = s = 0
+    for r in range(n):
+        s += a[r]
+        while s >= target:
+            ans = min(ans, r - l + 1)
+            s -= a[l]
+            l += 1
+    print(0 if ans == n + 1 else ans)
+
+main()</code></pre>
+<span class="lang">Java · 第二题 LC3（字符串读入：readLine，别用数字 tokenizer）</span>
+<pre><code>import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        String s = br.readLine().trim();
+        int[] last = new int[128];              // 字符 -&gt; 最近出现位置（1 起始，0 = 没出现过）
+        int ans = 0;
+        for (int l = 0, r = 0; r &lt; s.length(); r++) {
+            char c = s.charAt(r);
+            if (last[c] &gt; l) l = last[c];       // 撞重复：左端直接跳到上次出现之后
+            last[c] = r + 1;
+            ans = Math.max(ans, r - l + 1);
+        }
+        System.out.println(ans);
+    }
+}</code></pre>
+<span class="lang">Python · 第二题 LC3</span>
+<pre><code>import sys
+
+s = sys.stdin.readline().strip()
+last = {}
+ans = l = 0
+for r, c in enumerate(s):
+    if c in last and last[c] >= l:
+        l = last[c] + 1
+    last[c] = r
+    ans = max(ans, r - l + 1)
+print(ans)</code></pre>
+<span class="lang">Java · 核心函数 LC560（和为 k 的子数组个数，可正可负）</span>
+<pre><code>static long countSub(int[] a, int k) {
+    Map&lt;Long, Integer&gt; cnt = new HashMap&lt;&gt;();
+    cnt.put(0L, 1);                             // 空前缀，漏掉会少算从头开始的子数组
+    long p = 0, res = 0;
+    for (int v : a) {
+        p += v;
+        res += cnt.getOrDefault(p - k, 0);
+        cnt.merge(p, 1, Integer::sum);
+    }
+    return res;
+}</code></pre>
+<span class="lang">Python · 核心函数 LC560</span>
+<pre><code>def count_sub(a, k):
+    cnt = {0: 1}
+    p = res = 0
+    for v in a:
+        p += v
+        res += cnt.get(p - k, 0)
+        cnt[p] = cnt.get(p, 0) + 1
+    return res</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 缩窗用 <code>while</code> 不是 <code>if</code>（可能要连缩多次）；② LC209 是「≥ target」，写错成 == 直接全错；③ 字符串/网格题用 <code>readLine</code>，前导零和字母用数字 tokenizer 会读错；④ LC560 的 <code>cnt[0] = 1</code> 与前缀和用 long（10⁵ 个 10⁹ 相加会溢 int）；⑤ 复杂度报法说「均摊 O(n)」，依据是每个元素至多进窗、出窗各一次。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

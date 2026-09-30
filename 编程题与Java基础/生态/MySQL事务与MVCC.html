@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MySQL 事务与 MVCC · 编程题与Java基础/生态</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 生态</div>
+<h1>MySQL 事务与 MVCC</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开、后端（数据库八股头号高频） ｜ 形态：原理 + 对比表 + 场景分析 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：ACID 靠什么——<b>原子性 undo log、持久性 redo log、隔离性 锁+MVCC、一致性是目的</b>；InnoDB 默认可重复读（RR）；MVCC 三件套 = 隐藏列（trx_id/roll_ptr）+ undo log 版本链 + ReadView，<b>RC 每次快照读新建 ReadView、RR 只在第一次建立</b>——这就是两级别差异的全部根源；幻读是"<b>部分解决</b>"：快照读靠 MVCC、当前读靠间隙锁；行锁基于索引，条件无索引会升级为扫描加锁近表锁。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>ACID 与实现手段</b>（面试常问"各自靠什么保证"）：</p>
+<table>
+<tr><th>特性</th><th>含义</th><th>靠什么保证</th></tr>
+<tr><td>原子性 A</td><td class="l">事务内操作要么全成功、要么全不执行</td><td class="l"><b>undo log</b>：回滚时按反向操作把数据改回去</td></tr>
+<tr><td>持久性 D</td><td class="l">提交后的修改永久生效</td><td class="l"><b>redo log</b>：WAL 先写日志再刷数据页，崩溃后重放恢复</td></tr>
+<tr><td>隔离性 I</td><td class="l">并发事务互不干扰</td><td class="l"><b>锁 + MVCC</b>：写写靠锁，读写靠版本链无锁并发</td></tr>
+<tr><td>一致性 C</td><td class="l">数据从一个一致状态到另一个一致状态</td><td class="l"><b>是目的不是手段</b>：由 A/I/D 加应用层约束共同达成</td></tr>
+</table>
+
+<p><b>并发三读</b>：<b>脏读</b>=读到别的事务【未提交】的数据（A 把余额 100 改 200 未提交，B 读到 200，A 回滚，200 就是脏数据）；<b>不可重复读</b>=同一事务内两次读【同一行】值不同——侧重别的事务 <b>update</b> 改了值；<b>幻读</b>=同一事务内两次【同条件】范围查询行数不同——侧重别的事务 <b>insert</b> 多出了行。</p>
+
+<p><b>四种隔离级别与现象矩阵</b>：</p>
+<table>
+<tr><th>隔离级别</th><th>脏读</th><th>不可重复读</th><th>幻读</th><th>说明</th></tr>
+<tr><td>读未提交 RU</td><td>可能</td><td>可能</td><td>可能</td><td class="l">性能最好，基本不用</td></tr>
+<tr><td>读已提交 RC</td><td>避免</td><td>可能</td><td>可能</td><td class="l">Oracle / PostgreSQL 默认</td></tr>
+<tr><td><b>可重复读 RR</b></td><td>避免</td><td>避免</td><td><b>部分解决</b></td><td class="l"><b>MySQL InnoDB 默认</b>；靠 MVCC + 间隙锁</td></tr>
+<tr><td>串行化</td><td>避免</td><td>避免</td><td>避免</td><td class="l">读加共享锁，完全串行，性能最差</td></tr>
+</table>
+<p>注：SQL 标准里 RR 并不防幻读；InnoDB 用 MVCC + 临键锁把幻读做到了"部分解决"（准确说法见下）。</p>
+
+<p><b>MVCC 三件套（多版本并发控制，只在 RC/RR 下生效）</b>：</p>
+<ul>
+<li><b>隐藏列</b>：每行记录带 trx_id（最近一次修改它的事务 id）、roll_ptr（回滚指针，指向 undo log 中的上一个版本）；无主键时另有 row_id。</li>
+<li><b>undo log 版本链</b>：每次更新把旧版本写入 undo log，roll_ptr 把历史版本串成链——MVCC 的"多个版本"就存在这条链上。</li>
+<li><b>ReadView 四字段</b>：m_ids（生成时刻所有<b>活跃未提交</b>事务的 id 列表）、min_trx_id（活跃中的最小值）、max_trx_id（系统下一个将分配的事务 id）、creator_trx_id（当前事务自己）。</li>
+<li><b>可见性判断一句话版</b>：拿版本链上某版本的 trx_id 从新往旧问——等于 creator_trx_id（自己改的）可见；&lt; min_trx_id（视图建立前已提交）可见；≥ max_trx_id（视图建立后才开启）不可见；介于两者之间：落在 m_ids 里不可见、不在则可见；不可见就顺 roll_ptr 看上一版本再问，直到找到可见版本。</li>
+<li><b>RC 与 RR 的唯一实现差异</b>：RC <b>每次快照读都新建 ReadView</b>，能看到别的事务最新提交的值 → 不可重复读；RR <b>只在第一次快照读时建立 ReadView 并全程复用</b>，整个事务一个视图 → 可重复读。背下这句，"为什么 RC 不可重复读"自然答得出。</li>
+</ul>
+
+<p><b>快照读 vs 当前读</b>：普通 SELECT 是<b>快照读</b>，读 MVCC 版本链、不加锁；<b>当前读</b>读最新已提交版本并加锁，包括 SELECT ... FOR UPDATE、SELECT ... LOCK IN SHARE MODE、UPDATE、DELETE、INSERT。<b>RR 幻读"部分解决"的准确说法</b>：纯快照读靠 MVCC 避免幻读；当前读靠临键锁（记录锁+间隙锁）锁住区间禁止插入。但两者混用仍有窗口——第一次快照读建好视图后，别的事务插入并提交，本事务若先当前读（比如 UPDATE 那条新行，把它的 trx_id 改成自己）再快照读就能看到它，幻读发生。所以只说"部分解决"，不说"解决"。</p>
+
+<span class="lang">SQL</span>
+<pre><code>-- RR 下"快照读 / 当前读混用仍见幻读"的复现（T1、T2 交错执行）
+-- T1: START TRANSACTION;
+-- T1: SELECT * FROM t WHERE id &gt; 15;          -- 快照读：建立 ReadView，只见 id=20 一行
+-- T2: INSERT INTO t VALUES (18, 'x'); COMMIT;  -- 别的事务插入并提交
+-- T1: UPDATE t SET v='y' WHERE id = 18;        -- 当前读：新行 trx_id 被改成 T1 自己
+-- T1: SELECT * FROM t WHERE id &gt; 15;           -- 快照读：id=18 的 trx_id=自己 → 可见，幻读出现</code></pre>
+
+<p><b>三大日志对比</b>：</p>
+<table>
+<tr><th>日志</th><th>所属层</th><th>类型</th><th>作用</th></tr>
+<tr><td>redo log</td><td>InnoDB 引擎层</td><td class="l">物理日志（"某页某处改成了什么"），循环写</td><td class="l">崩溃恢复重放，保证<b>持久性</b>（WAL）</td></tr>
+<tr><td>undo log</td><td>InnoDB 引擎层</td><td class="l">逻辑日志（反向操作）</td><td class="l"><b>回滚</b>保证原子性 + 支撑 MVCC 版本链</td></tr>
+<tr><td>binlog</td><td>Server 层</td><td class="l">逻辑日志（语句/行），追加写</td><td class="l"><b>主从复制</b>、数据恢复与备份</td></tr>
+</table>
+<p><b>两阶段提交一句话</b>：redo log 先置 prepare → 写 binlog → redo log 再 commit；保证 redo 与 binlog 两份日志一致，否则崩溃恢复后主从数据不一致。</p>
+
+<p><b>锁体系（InnoDB）</b>：全局锁（FTWRL，全库逻辑备份用）；表级——表锁、MDL 元数据锁（防 DML 撞 DDL）、<b>意向锁 IS/IX</b>（加行锁前先在表级打标记，让"能否上表锁"不必逐行检查，知道概念即可）、AUTO-INC 锁；<b>行级锁三种</b>——记录锁 Record Lock（锁单条索引记录）、间隙锁 Gap Lock（锁两条记录之间的开区间，只防插入）、临键锁 Next-Key Lock（记录+间隙，左开右闭，RR 下当前读的默认加锁单位）。<b>行锁基于索引</b>：WHERE 条件没走索引时走全表扫描，扫过的每一行都加锁，效果近似锁表（索引原理见同目录 <a href="MySQL索引与B+树.html">MySQL索引与B+树</a>）。</p>
+
+<p><b>三大范式</b>：<b>1NF</b> 列原子不可再分（反例：地址列塞"省-市-详址"，没法按市查询）；<b>2NF</b> 消除非主属性对联合主键的<b>部分依赖</b>（反例：(学号,课程号,姓名,成绩) 中姓名只依赖学号 → 把学生信息拆出去）；<b>3NF</b> 消除<b>传递依赖</b>（反例：(学号,系名,系主任) 中 学号→系名→系主任 → 把系信息拆出去）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：隔离级别与现象匹配、三读辨析、redo/undo/binlog 归属与类型、间隙锁范围（开闭区间）、范式级别判断。</li>
+<li>面试："MVCC 怎么实现 RC/RR 的差异"（ReadView 生成时机）、"RR 下幻读到底解决没有"（答部分解决并给混用反例）、"ACID 各靠什么"、"两阶段提交为什么需要"。</li>
+<li>追问链：MVCC → 间隙锁/临键锁 → 加锁规则 → 无索引行锁退化为扫描加锁 → 索引与 B+ 树，一环扣一环要接得住。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 事务 A 两次执行 <code>select * from t where age &gt; 18</code>，期间事务 B 插入一行 age=20 并提交，A 第二次查询多出一行。该现象及它在 InnoDB 默认隔离级别下是否可能出现，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 脏读；RR 下完全避免</div>
+<div class="opt" data-k="B">B. 幻读；RR 下仍可能出现（部分解决）</div>
+<div class="opt" data-k="C">C. 不可重复读；RR 下仍可能出现</div>
+<div class="opt" data-k="D">D. 幻读；RR 下完全避免</div>
+<div class="exp" hidden><b>答案 B。</b>两次同条件查询行数变化是幻读（不可重复读强调"同一行的值变了"）。InnoDB RR 只是把幻读<b>部分解决</b>：纯快照读靠 MVCC、当前读靠临键锁；快照读与当前读混用仍有窗口。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> RC 隔离级别能读到别的事务最新已提交的数据，而 RR 不能。其根本原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. RC 不使用 MVCC，直接读最新行</div>
+<div class="opt" data-k="B">B. RC 下没有 undo log 版本链</div>
+<div class="opt" data-k="C">C. RC 每次快照读都新建 ReadView，RR 只在第一次快照读时建立并全程复用</div>
+<div class="opt" data-k="D">D. RR 对全表加了共享锁</div>
+<div class="exp" hidden><b>答案 C。</b>两个级别都用 MVCC（隐藏列、版本链一个不少），差别只在 ReadView 的生成时机：RC 每次快照读新建 → 看得到最新提交；RR 复用第一次的 → 全程一个视图。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 redo log、undo log、binlog，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. redo log 是物理日志，崩溃恢复靠它重放，保证持久性</div>
+<div class="opt" data-k="B">B. undo log 既用于回滚保证原子性，也支撑 MVCC 版本链</div>
+<div class="opt" data-k="C">C. binlog 属于 Server 层，用于主从复制与数据恢复</div>
+<div class="opt" data-k="D">D. binlog 是 InnoDB 引擎层的物理日志</div>
+<div class="exp" hidden><b>答案 ABC。</b>三句话定位：redo 物理+引擎层+崩溃恢复；undo 逻辑+回滚/MVCC；binlog Server 层+主从复制。D 错——binlog 不属于 InnoDB 引擎，且是逻辑日志。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> 表 t 主键 id 现有值 1、5、10、20。RR 下事务 A 执行 <code>select * from t where id = 8 for update</code>（id=8 不存在），随后事务 B 尝试 <code>insert</code> id=9 的行，结果是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 立即成功，间隙锁只锁已存在的记录</div>
+<div class="opt" data-k="B">B. 被阻塞，因为 A 的间隙锁锁住了 (5,10) 这个开区间，禁止插入</div>
+<div class="opt" data-k="C">C. 被阻塞，因为 A 锁了整张表</div>
+<div class="opt" data-k="D">D. 立即成功，for update 是快照读不加锁</div>
+<div class="exp" hidden><b>答案 B。</b>id=8 不存在时加的是 (5,10) 的<b>间隙锁</b>（不是记录锁），任何落入该间隙的插入都会被阻塞；这正是 RR 下当前读防幻读的手段。D 错——for update 是当前读，要加锁。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>5.</b> 关系模式 R(学号, 姓名, 系名, 系主任)，函数依赖：学号→姓名，学号→系名，系名→系主任。R 最高满足（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 2NF</div>
+<div class="opt" data-k="B">B. 3NF</div>
+<div class="opt" data-k="C">C. BCNF</div>
+<div class="opt" data-k="D">D. 1NF</div>
+<div class="exp" hidden><b>答案 A。</b>姓名、系名都完全依赖候选键"学号"，无部分依赖 → 满足 2NF；但存在传递依赖 学号→系名→系主任 → 不满足 3NF。拆成学生表 + 系表即到 3NF。来源：牛客经典题。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>6.</b> 讲讲 MVCC 是怎么实现可重复读的。</p>
+<details><summary>参考回答</summary>先说三件套：每行记录有隐藏列 trx_id 和 roll_ptr；每次更新把旧版本写进 undo log，用 roll_ptr 串成版本链；查询时生成 ReadView，含 m_ids（活跃事务列表）、min_trx_id、max_trx_id、creator_trx_id。可见性判断：trx_id 是自己、或小于 min（视图前已提交）就可见；大于等于 max 或还在活跃列表里就不可见，顺 roll_ptr 找旧版本，直到找到可见的。关键一句：<b>RR 只在第一次快照读时生成 ReadView 并全程复用</b>，所以别人后来提交的修改全程不可见，这就是可重复读；RC 是每次快照读都新建 ReadView，所以能读到最新提交。加分点：幻读只是部分解决——快照读靠 MVCC、当前读靠间隙锁；普通 select 是快照读，update/delete/for update 是当前读。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 一致性是<b>目的</b>，别答成"靠 undo log 保证一致性"；② 不可重复读 vs 幻读：update 改值 vs insert 多行，答题先报侧重；③ 默认级别是 InnoDB 的 RR，别答成 SQL 标准或 RC；④ "RR 彻底解决幻读"是错的——快照读与当前读混用仍有窗口，准确说法是部分解决；⑤ 间隙锁只锁间隙防插入，不锁已存在的记录；id=8 不存在加的就是 (5,10) 间隙锁；⑥ binlog 在 Server 层、redo/undo 在引擎层；主从复制靠 binlog 不是 redo log。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

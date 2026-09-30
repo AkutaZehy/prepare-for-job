@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>贪心与区间调度（ACM 模式） · 编程题与Java基础/算法编程题/贪心</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 贪心</div>
+<h1>贪心与区间调度（ACM 模式）</h1>
+<div class="meta">原型：LeetCode 435 / 56 / 121 ｜ 适用岗位：全部 ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：区间题三板斧——<b>按右端点排序</b>（能留就留 → 保留最多/移除最少，LC435、射气球）；<b>按左端点排序</b>（合并区间，LC56）；<b>排序后线性扫</b>（维护一个边界变量）。Java 比较器写 <code>Integer.compare</code> 防减法溢出。贪心题面试要能说出「为什么贪」：交换论证一句即可。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>主打题（LC435 无重叠区间）</b>：n 个区间，求最少移除多少个区间，使剩余区间互不重叠（端点相接不算重叠，如 [1,2] 与 [2,3]）。</p>
+<div class="io"><b>输入格式</b>（n+1 行）：
+<pre><code>4                       # n
+1 2                     # start end，共 n 行
+2 3
+3 4
+1 3</code></pre>
+<b>输出格式</b>（1 行）：
+<pre><code>1</code></pre></div>
+<div class="tip">变体提前看：① 「最多能参加多少场会议/活动」= n − 本题答案，同一套代码换个输出；② 射气球（LC452）：端点相接算引爆，判断条件从 <code>&gt;=</code> 变 <code>&gt;</code>；③ 区间值域到 10⁹ → 比较器必须防溢出。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<ul>
+<li><b>无重叠区间（LC435）</b>：按<b>右端点升序</b>排序，能保留就保留（start ≥ 上一个保留区间的 end），保留数最大化 → 移除数 = n − 保留数。为什么按右端点：结束得越早，给后面留的空间越大——交换论证：最优解里第一个被保留的区间若不是右端点最小的，换成它不会更差。</li>
+<li><b>合并区间（LC56）</b>：按<b>左端点升序</b>排序，当前区间起点 ≤ 结果里最后一个区间的终点就合并（终点取两者较大值），否则另起一段。O(n log n)。</li>
+<li><b>买卖股票最佳时机（LC121）</b>：一次遍历，维护历史最低买入价，每天试「今天卖」更新最大利润。O(n)。变体：允许多次交易 → 等价于收集所有正的相邻差值。</li>
+<li><b>贪心的一般姿势</b>：先想清楚「每一步局部最优选什么」，再用交换论证/反例说服自己；举不出反例就先写，笔试用样例和对拍兜底。</li>
+</ul>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 「移除最少区间使剩余互不重叠」要按右端点而不是左端点排序，原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 右端点排序后循环写起来更短</div>
+<div class="opt" data-k="B">B. 左端点排序会改变区间本身</div>
+<div class="opt" data-k="C">C. 结束越早给后面腾的空间越大，能保留的区间数才最多（交换论证可证最优）</div>
+<div class="opt" data-k="D">D. 左端点排序无法处理重叠</div>
+<div class="exp" hidden><b>答案 C。</b>按左端点排序做本题可能保留一个「横跨很长」的区间挤掉多个短区间。经典反例：[1,100]、[2,3]、[3,4]。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于区间类贪心，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 「保留最多不重叠区间」与「移除最少区间」是同一排序框架，只差输出什么</div>
+<div class="opt" data-k="B">B. 合并区间按左端点排序，合并时终点取 max(旧终点, 当前终点)</div>
+<div class="opt" data-k="C">C. 贪心策略对所有优化问题都能得到全局最优</div>
+<div class="opt" data-k="D">D. LC121 只需一次遍历：维护历史最低价，每天用「今日价 − 历史最低」更新答案</div>
+<div class="exp" hidden><b>答案 ABD。</b>贪心必须有适用条件，不满足时（如带冷却期的股票）要退回 DP，C 错。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<span class="lang">Java · 主打 LC435（按右端点贪心）</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        int[][] iv = new int[n][2];
+        for (int i = 0; i &lt; n; i++) {
+            in.nextToken(); iv[i][0] = (int) in.nval;
+            in.nextToken(); iv[i][1] = (int) in.nval;
+        }
+        Arrays.sort(iv, (a, b) -&gt; Integer.compare(a[1], b[1]));   // 右端点升序；减法会溢出
+        int keep = 0;
+        int end = Integer.MIN_VALUE;
+        for (int[] p : iv) {
+            if (p[0] &gt;= end) {                 // 端点相接不算重叠
+                keep++;
+                end = p[1];
+            }
+        }
+        System.out.println(n - keep);
+    }
+}</code></pre>
+<span class="lang">Python · 主打 LC435</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    n = int(data[0])
+    iv = []
+    for i in range(n):
+        s, e = int(data[1 + 2 * i]), int(data[2 + 2 * i])
+        iv.append((s, e))
+    iv.sort(key=lambda x: x[1])
+    keep = 0
+    end = float('-inf')
+    for s, e in iv:
+        if s >= end:
+            keep += 1
+            end = e
+    print(n - keep)
+
+main()</code></pre>
+<span class="lang">Java · 第二题 LC56 合并区间</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        int[][] iv = new int[n][2];
+        for (int i = 0; i &lt; n; i++) {
+            in.nextToken(); iv[i][0] = (int) in.nval;
+            in.nextToken(); iv[i][1] = (int) in.nval;
+        }
+        Arrays.sort(iv, (a, b) -&gt; Integer.compare(a[0], b[0]));   // 左端点升序
+        List&lt;int[]&gt; res = new ArrayList&lt;&gt;();
+        for (int[] p : iv) {
+            if (!res.isEmpty() &amp;&amp; p[0] &lt;= res.get(res.size() - 1)[1]) {
+                int[] last = res.get(res.size() - 1);
+                last[1] = Math.max(last[1], p[1]);
+            } else {
+                res.add(new int[]{p[0], p[1]});
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int[] p : res) sb.append(p[0]).append(' ').append(p[1]).append('\n');
+        System.out.print(sb);
+    }
+}</code></pre>
+<span class="lang">Python · 第二题 LC56</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    n = int(data[0])
+    iv = sorted((int(data[1 + 2 * i]), int(data[2 + 2 * i])) for i in range(n))
+    res = []
+    for s, e in iv:
+        if res and s <= res[-1][1]:
+            res[-1][1] = max(res[-1][1], e)
+        else:
+            res.append([s, e])
+    out = '\n'.join(f'{s} {e}' for s, e in res)
+    sys.stdout.write(out + '\n')
+
+main()</code></pre>
+<span class="lang">Java · 核心函数：LC121 买卖股票（一次遍历）</span>
+<pre><code>static int maxProfit(int[] a) {
+    int lo = a[0], best = 0;                 // lo：历史最低买入价
+    for (int v : a) {
+        best = Math.max(best, v - lo);
+        lo = Math.min(lo, v);
+    }
+    return best;
+}
+// 样例 [7,1,5,3,6,4] → 5（第 2 天买、第 5 天卖）</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 重叠的定义看题面：LC435 端点相接<b>不算</b>重叠（<code>&gt;=</code> 保留），射气球算重叠（<code>&gt;</code>），先读清再写判断；② Java 比较器 <code>a[1] - b[1]</code> 在 10⁹ 级坐标上溢出，永远 <code>Integer.compare</code>；③ 排序的「稳定与否」不影响这三题，但 LC56 合并后输出顺序 = 左端点升序，题目另有要求时再排一次；④ 贪心说不出理由时，笔试退路是「排序 + 线性扫」再小数据对拍。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

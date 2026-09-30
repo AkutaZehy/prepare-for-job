@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>拓扑排序与关键路径 · 408基础/数据结构</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>拓扑排序与关键路径</h1>
+<div class="meta">适用岗位：全部（408 手算大题 + 面试口述） ｜ 形态：拓扑枚举 + ve/vl 表格手算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：拓扑序列存在 <b>⇔ AOV 网无环</b>；同一图拓扑序列一般不唯一。Kahn 删点法：<b>输出顶点数小于 n 就是有环</b>。AOE 网四件套：<b>ve 正推取 max、vl 逆推取 min</b>；活动 a=弧 u→v（工期 w）：e=ve(u)、l=vl(v)−w，<b>e==l 即关键活动</b>；关键路径 = 最长路径 = 最短工期。<b>缩短关键活动不一定缩短工期</b>——多条关键路径只缩一条等于白缩。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>AOV 网与拓扑排序</b>：顶点 = 活动，有向弧 u→v 表示"v 必须排在 u 之后"。拓扑序列：把全部顶点排成一行，使每条弧都从前指向后。<b>拓扑序列存在 ⇔ 网中无回路</b>（环上的顶点互相等待，谁也排不进去）；同一个 AOV 网的拓扑序列<b>一般不唯一</b>（无先后约束的活动随便换位）。</p>
+<p><b>Kahn 算法（删点法）</b>：反复输出一个入度为 0 的顶点并删去它的出边（后继入度减 1），减到 0 就入队。结束时<b>输出的顶点数小于 n ⇒ 有环</b>——这是工程上判环的标准手段。<b>逆拓扑序列</b>：把图反转（建逆邻接表）后做拓扑排序；或对 DFS 的"退栈序"倒过来取。求 vl 要从汇点往回推，用的正是它。</p>
+<p><b>AOE 网与关键路径</b>：边 = 活动（带工期 w），顶点 = 事件。四个量：<br>① <b>ve(k)</b>：事件 k 的最早发生时刻。按<b>拓扑序正推</b>，源点 ve=0，取各入边的 max：ve(v) = max(ve(u)+w(u,v))。<br>② <b>vl(k)</b>：事件 k 的最迟发生时刻。按<b>逆拓扑序回推</b>，汇点 vl=ve（=工期），取各出边的 min：vl(u) = min(vl(v)−w(u,v))。<br>③ 活动 a = 弧 u→v（工期 w）：<b>最早开始 e = ve(u)，最迟开始 l = vl(v) − w</b>。<br>④ <b>e == l 的时间余量为 0，即关键活动</b>；关键活动串成的从源点到汇点的最长路径就是<b>关键路径</b>，其长度 = 工期（项目最快完工时间）。</p>
+<p><b>缩短关键活动 ≠ 缩短工期</b>：关键路径可能不止一条，只缩短其中一条上的活动，另一条立刻"补位"，工期纹丝不动；缩得太狠的活动还会失去关键地位（余量被别的路径接管）。要真正提速，得压<b>所有关键路径共有的</b>活动，或者多条同时压。</p>
+<p>本页例题用这张 AOE 网（7 个活动，源点 v1、汇点 v6）：</p>
+<pre class="ascii-fallback"><code>活动(弧, 工期):
+a1: v1 -a1(3)-&gt; v2      a2: v1 -a2(2)-&gt; v3
+a3: v2 -a3(4)-&gt; v4      a4: v2 -a4(5)-&gt; v5
+a5: v3 -a5(5)-&gt; v4      a6: v4 -a6(3)-&gt; v6
+a7: v5 -a7(1)-&gt; v6
+关键路径 = 从 v1 到 v6 的最长路径, 长度即工期</code></pre>
+<pre class="mermaid">
+flowchart LR
+    v1(["v1 源点"]) -->|"a1 = 3"| v2(["v2"])
+    v1 -->|"a2 = 2"| v3(["v3"])
+    v2 -->|"a3 = 4"| v4(["v4"])
+    v2 -->|"a4 = 5"| v5(["v5"])
+    v3 -->|"a5 = 5"| v4
+    v4 -->|"a6 = 3"| v6(["v6 汇点"])
+    v5 -->|"a7 = 1"| v6
+</pre>
+<pre><code>// Kahn 拓扑排序: 反复摘出入度为 0 的顶点. 输出个数小于 n 说明有环
+static List&lt;Integer&gt; topoSort(int n, List&lt;List&lt;Integer&gt;&gt; adj, int[] indeg) {
+    Queue&lt;Integer&gt; qe = new ArrayDeque&lt;&gt;();
+    for (int i = 0; i &lt; n; i++)
+        if (indeg[i] == 0) qe.offer(i);
+    List&lt;Integer&gt; order = new ArrayList&lt;&gt;();
+    while (!qe.isEmpty()) {
+        int u = qe.poll();
+        order.add(u);
+        for (int v : adj.get(u))
+            if (--indeg[v] == 0) qe.offer(v);
+    }
+    return order;   // order.size() 小于 n 即图中有回路
+}</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算大题</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：拓扑序列存在与无环的等价性、序列不唯一、有环时 Kahn 的行为、关键活动判定 e==l。</li>
+<li>计算：给 AOV 网数拓扑序列个数（枚举要有序，防漏防重）；给 AOE 网列 ve/vl 表求工期与关键活动——过程必须成表。</li>
+<li>面试口述：完整复述求关键路径的步骤，并能解释"缩关键活动不缩工期"的反例。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> AOV 网含 5 个活动 A、B、C、D、E，弧为：A→B、A→C、B→D、C→E、D→E。写出<b>所有</b>拓扑序列并给出个数，说明枚举方法。</p>
+<details><summary>先自己算，再展开对答案</summary>用"删点法"分层枚举，保证不重不漏：<br>① A 入度为 0，必排第一；删 A 后 B、C 入度同时归零，分两个分支。<br>② 走 B：剩余 C、D、E，此时 D 已解锁（B 已排），剩余约束只有 C→E 和 D→E，即 E 必须最后，C、D 可换序：得 <b>ABCDE、ABDCE</b>（验证 ABDCE：B→D ✓、C→E ✓、D→E ✓）。<br>③ 走 C：剩余 B、D、E，约束链 B→D、D→E 完全串死，只有一种排法：得 <b>ACBDE</b>。<br>共 <b>3</b> 个：<b>ABCDE、ABDCE、ACBDE</b>。易错：别把 ABDEC、ACBED 数进去——它们违反弧 D→E（E 必须在 D 之后）。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 对本页 AOE 网（知识点一中的图）：① 列出每个事件的 ve 与 vl；② 列出每个活动的 e、l 并找出关键活动；③ 求工期与全部关键路径；④ 若把 a3 的工期从 4 缩短到 3，工期变吗？</p>
+<details><summary>先自己算，再展开对答案</summary>① ve 正推（取入边 max）：ve(v1)=0，ve(v2)=0+3=3，ve(v3)=0+2=2，ve(v4)=max(3+4, 2+5)=7，ve(v5)=3+5=8，ve(v6)=max(7+3, 8+1)=<b>10</b>。vl 逆推（取出边 min，vl(v6)=10）：vl(v5)=10−1=9，vl(v4)=10−3=7，vl(v3)=7−5=2，vl(v2)=min(7−4, 9−5)=3，vl(v1)=min(3−3, 2−2)=0。<br>
+<table>
+<tr><th>事件</th><td>v1</td><td>v2</td><td>v3</td><td>v4</td><td>v5</td><td>v6</td></tr>
+<tr><th>ve</th><td>0</td><td>3</td><td>2</td><td>7</td><td>8</td><td>10</td></tr>
+<tr><th>vl</th><td>0</td><td>3</td><td>2</td><td>7</td><td>9</td><td>10</td></tr>
+</table>
+② 活动 e=ve(弧尾)，l=vl(弧头)−w：<br>
+<table>
+<tr><th>活动</th><td>a1(3)</td><td>a2(2)</td><td>a3(4)</td><td>a4(5)</td><td>a5(5)</td><td>a6(3)</td><td>a7(1)</td></tr>
+<tr><th>e</th><td>0</td><td>0</td><td>3</td><td>3</td><td>2</td><td>7</td><td>8</td></tr>
+<tr><th>l</th><td>0</td><td>0</td><td>3</td><td><b>4</b></td><td>2</td><td>7</td><td><b>9</b></td></tr>
+<tr><th>关键?</th><td>是</td><td>是</td><td>是</td><td>否</td><td>是</td><td>是</td><td>否</td></tr>
+</table>
+③ 工期 = <b>10</b>；关键路径两条：v1→v2→v4→v6（3+4+3）与 v1→v3→v4→v6（2+5+3）。④ a3 缩到 3 后 ve(v4)=max(3+3, 2+5)=7 不变，工期仍 <b>10</b>——a3 所在的关键路径只有一条，另一条 2+5+3=10 立刻补位，白缩。来源：牛客经典题。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 对一个<b>含有回路</b>的 AOV 网执行 Kahn 拓扑排序，结果是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 照常输出全部顶点，只是顺序不同</div>
+<div class="opt" data-k="B">B. 输出部分顶点后停止，剩余顶点的入度都不为 0</div>
+<div class="opt" data-k="C">C. 程序必然报错终止</div>
+<div class="opt" data-k="D">D. 算法自动去掉环上的顶点后继续输出</div>
+<div class="exp" hidden><b>答案 B。</b>环上顶点互相等待：要删它们的入边的前驱都在环里，永远轮不到入度归零，于是队列空了、还有顶点没输出——"输出个数 &lt; n"就是判环信号，工程上 Check DAG 就这么写。不报错、不会自动处理环。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="BCD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于 AOE 网与关键活动，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 只要缩短任何一个关键活动的持续时间，总工期一定缩短</div>
+<div class="opt" data-k="B">B. 关键路径是 AOE 网中路径长度（各活动工期之和）最大的路径</div>
+<div class="opt" data-k="C">C. 同一个 AOE 网的关键路径可能不止一条</div>
+<div class="opt" data-k="D">D. 时间余量 e−l 等于 0 的活动是关键活动</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 BCD。</b>A 错：关键路径有多条时只缩其中一条，最长的那条补位，工期不变——本页例题 2 第④问的 a3 就是现成反例；缩过头的关键活动还会自动"退籍"。要提速得压各条关键路径<b>共有</b>的活动。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 完整说出求关键路径的五个步骤，并补一句"为什么缩关键活动不一定缩工期"。</p>
+<details><summary>参考回答</summary>五步：① 对 AOE 网做<b>拓扑排序</b>得事件序列（顺便验证无环）；② 按拓扑序<b>正推 ve</b>：源点 0，每个事件取各入边 ve(前驱)+工期 的 max；③ 按<b>逆拓扑序回推 vl</b>：汇点 vl=ve（=工期），每个事件取各出边 vl(后继)−工期 的 min；④ 对每个活动（弧 u→v，工期 w）算 e=ve(u)、l=vl(v)−w；⑤ <b>e==l 的活动即关键活动</b>，串起来就是关键路径，长度即工期。补充：关键路径常有多条，只压一条上的活动另一条补位，工期不变；有效做法是压所有关键路径的公共活动，或多条同压。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 有环 ⇔ 拓扑排序输出不全，判环用 Kahn 不用 DFS 硬绕；② ve 正推 max、vl 逆推 min，方向搞反全盘错；③ ve/vl 是"点"（事件）的属性，e/l 是"边"（活动）的属性：e=ve(弧尾)、l=vl(弧头)−w，弧尾弧头别对调；④ 关键路径 = 最长路径（不是最短），长度 = 工期；⑤ 数拓扑序列个数时先删点分层枚举，特别注意某条弧是否把两个"看似独立"的活动锁了先后；⑥ 拓扑序列不唯一，但约束关系个个都满足。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

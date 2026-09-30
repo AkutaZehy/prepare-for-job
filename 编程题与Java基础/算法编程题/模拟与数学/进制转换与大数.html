@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>进制转换与大数运算（ACM 模式） · 编程题与Java基础/算法编程题/模拟与数学</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 模拟与数学</div>
+<h1>进制转换与大数运算（ACM 模式）</h1>
+<div class="meta">适用岗位：全部（小中厂 Java/Python 笔试高频，大数题是笔试常客） ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：进制双向——十→k <b>短除取余反转</b>，k→十<b>按权展开</b>（Horner：res = res*k + digit）；大数三路线——Java <b>BigInteger</b>（add/multiply/divide/mod 一族）、Python int 天生大数、通用<b>字符串竖式模拟</b>（对齐、逐位加、进位、末位判进位）；日期差=统一折算总天数再相减；约瑟夫=递推 <b>f(i)=(f(i-1)+m)%i</b>。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题 1（主打）大数加法</b>：两行各一个非负整数（可达数百位，long 存不下），输出它们的和。来源：牛客经典题。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>12345678901234567890
+98765432109876543210</code></pre>
+<b>输出格式</b>：
+<pre><code>111111111011111111100</code></pre></div>
+<p><b>题 2 进制转换</b>：一行 n 与 k（n 为十进制非负整数，2 ≤ k ≤ 16），输出 n 的 k 进制表示（10~15 用大写 A~F）。n=0 输出 0。来源：牛客经典题。</p>
+<div class="io"><b>输入格式</b>：
+<pre><code>31 16                   # n k</code></pre>
+<b>输出格式</b>：
+<pre><code>1F</code></pre></div>
+<p><b>题 3 日期计算（核心函数）</b>：闰年判断；两日期相差天数。例：2024-02-28 到 2024-03-01 相差 2 天（2024 是闰年，2 月 29 日存在）。来源：牛客经典题。</p>
+<p><b>题 4 约瑟夫环（核心函数）</b>：n 人围圈编号 1..n，从 1 起报数报到 m 出列，下一位从 1 重新报；输出幸存者编号。n=5、m=3 → 4。来源：牛客经典题。</p>
+<div class="tip">大数题先看位数：≤18 位 long 可接（10¹⁸ 量级），更长的必须 BigInteger / Python int / 字符串模拟；输入是否带前导零看题面，一般保证无前导零。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<p><b>1. 进制转换（双向）</b>：十进制转 k 进制——<b>短除法取余</b>，余数按"低位→高位"依次得到，最后<b>反转</b>；k 进制转十进制——<b>按权展开</b>，用 Horner 式 res = res*k + digit 从左往右一遍扫完（不用真算幂）。负进制（如 −2）笔试少见：套短除框架，余数为负时按题意借位调整（r = (n % k + k) % k 这类处理），见题再套。时间 O(log_k n)。</p>
+<p><b>2. 大数运算（Java vs Python vs 通用竖式）</b>：路线 A——Java <code>BigInteger</code>，<code>add / subtract / multiply / divide / mod</code> 一族（对象<b>不可变</b>，a.add(b) 要接收返回值；比较用 compareTo）；路线 B——Python <code>int</code> 天生无上限，直接算；路线 C——<b>字符串竖式模拟</b>（任何语言通用，面试手写高频）：从末位对齐，逐位相加再加进位，低位先存，最后整体反转；循环条件 <code>i &gt;= 0 || j &gt;= 0 || carry &gt; 0</code>——<b>最后还有进位也要补一位</b>（999+1=1000 就是靠它）。时间 O(位数)。</p>
+<p><b>3. 日期计算</b>：闰年规则——能被 4 整除且不能被 100 整除，或能被 400 整除（2000 闰、1900 不闰、2024 闰）。两日期差：把两个日期分别折算成"从公元 1 年 1 月 1 日起的总天数"（整年 365 + 闰年补偿 + 当年逐月累计 + 日，2 月 29 只影响当年 3 月及以后的累计），再相减；数据小也可以逐日/逐年模拟前进。O(1)。</p>
+<p><b>4. 约瑟夫环</b>：模拟法 O(nm)——数组圈着数，报 m 出列；<b>递推公式 O(n)</b>：编号 0 起始，f(1)=0，f(i) = (f(i-1) + m) % i（幸存者在 i 人圈中的位置 = 在 i−1 人圈中的位置整体左移 m 再取模），答案按题面转 1 起始 +1。验证 n=5、m=3：f = 0 → (0+3)%2=1 → (1+3)%3=1 → (1+3)%4=0 → (0+3)%5=3，+1 得 4，与模拟法一致。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 短除法把十进制转 k 进制时，余数按"低位→高位"依次得到，正确输出前需要（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 直接顺序拼接</div>
+<div class="opt" data-k="B">B. 补前导零</div>
+<div class="opt" data-k="C">C. 反转</div>
+<div class="opt" data-k="D">D. 逐位取反</div>
+<div class="exp" hidden><b>答案 C。</b>先得到的是最低位（如 31 转 16 进制先得 F 再得 1，要输出 1F）；另外 n=0 要特判直接输出 "0"。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> n=5、m=3 的约瑟夫环（编号 1 起始），幸存者是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 3</div>
+<div class="opt" data-k="B">B. 4</div>
+<div class="opt" data-k="C">C. 5</div>
+<div class="opt" data-k="D">D. 1</div>
+<div class="exp" hidden><b>答案 B。</b>递推 f：0→1→1→0→3（0 起始），+1 得 4；也可模拟：出列顺序 3、1、5、2，剩 4。来源：牛客经典题。</div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<p><b>题 1 大数加法（完整程序）</b>——Java BigInteger 版（读字符串行，<b>Scanner 慢，字符串输入用 BufferedReader</b>）：</p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+import java.math.BigInteger;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        BigInteger a = new BigInteger(br.readLine().trim());
+        BigInteger b = new BigInteger(br.readLine().trim());
+        System.out.println(a.add(b));   // subtract/multiply/divide/mod 同族
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def main():
+    a, b = sys.stdin.read().split()
+    print(int(a) + int(b))    # Python int 天生大数，一行搞定
+
+main()</code></pre>
+<p>通用<b>字符串竖式模拟</b>版（面试手写这版，任何语言都这么写）：</p>
+<span class="lang">Java</span>
+<pre><code>// 竖式加法：从末位对齐，逐位加，低位先存，最后整体反转
+static String bigAdd(String a, String b) {
+    StringBuilder sb = new StringBuilder();
+    int i = a.length() - 1, j = b.length() - 1, carry = 0;
+    while (i &gt;= 0 || j &gt;= 0 || carry &gt; 0) {   // 最后还有进位也要补一位
+        int s = carry;
+        if (i &gt;= 0) s += a.charAt(i--) - '0';
+        if (j &gt;= 0) s += b.charAt(j--) - '0';
+        sb.append(s % 10);
+        carry = s / 10;
+    }
+    return sb.reverse().toString();   // 低位先存，反转后输出
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>def big_add(a, b):
+    i, j, carry = len(a) - 1, len(b) - 1, 0
+    res = []
+    while i &gt;= 0 or j &gt;= 0 or carry:          # 最后还有进位也要补
+        da = int(a[i]) if i &gt;= 0 else 0
+        db = int(b[j]) if j &gt;= 0 else 0
+        s = da + db + carry
+        res.append(str(s % 10))
+        carry = s // 10
+        i -= 1; j -= 1
+    return ''.join(reversed(res))             # 低位在前存，最后反转</code></pre>
+
+<p><b>题 2 进制转换（完整程序）</b>：短除法 + "0123456789ABCDEF" 查表。</p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); long n = (long) in.nval;
+        in.nextToken(); int k = (int) in.nval;
+
+        final String tab = "0123456789ABCDEF";
+        if (n == 0) { System.out.println(0); return; }   // 边界：0 直接输出
+        StringBuilder sb = new StringBuilder();
+        while (n &gt; 0) {
+            sb.append(tab.charAt((int) (n % k)));   // 短除法取余（低位先出）
+            n /= k;
+        }
+        System.out.println(sb.reverse());           // 余数反转 = 高位到低位
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def to_base(n, k):
+    tab = "0123456789ABCDEF"
+    if n == 0:
+        return "0"                # 边界：0 直接返回
+    res = []
+    while n &gt; 0:
+        res.append(tab[n % k])    # 短除法取余
+        n //= k
+    return ''.join(reversed(res)) # 低位先出，反转后输出
+
+def to_dec(s, k):
+    tab = "0123456789ABCDEF"
+    res = 0
+    for c in s:
+        res = res * k + tab.index(c)   # 按权展开（Horner），反方向自测用
+    return res
+
+def main():
+    data = sys.stdin.read().split()
+    n, k = int(data[0]), int(data[1])
+    print(to_base(n, k))
+
+main()</code></pre>
+
+<p><b>题 3 日期计算 / 题 4 约瑟夫环（核心函数）</b></p>
+<span class="lang">Java</span>
+<pre><code>static final int[] DAYS = {31,28,31,30,31,30,31,31,30,31,30,31};
+
+// 闰年：能被 4 整除且不能被 100 整除，或能被 400 整除
+static boolean isLeap(int y) {
+    return (y % 4 == 0 &amp;&amp; y % 100 != 0) || y % 400 == 0;
+}
+
+// 从公元 1 年 1 月 1 日起算到 y-m-d 的总天数（不含当天）；两日期差 = 两值相减
+static long absDays(int y, int m, int d) {
+    long n = (y - 1) * 365L + (y - 1) / 4 - (y - 1) / 100 + (y - 1) / 400;  // 整年贡献
+    for (int i = 1; i &lt; m; i++) n += DAYS[i - 1];   // 当年已过整月
+    if (m &gt; 2 &amp;&amp; isLeap(y)) n++;   // 闰年 2 月 29 只影响 3 月及以后
+    return n + d - 1;
+}
+// 自测：absDays(2024,3,1) - absDays(2024,2,28) = 2（闰年有 2 月 29）
+//      absDays(2023,3,1) - absDays(2023,2,28) = 1（平年）
+
+// 约瑟夫递推 O(n)：f(1)=0，f(i)=(f(i-1)+m)%i，编号 0 起始
+static int joseph(int n, int m) {
+    int f = 0;
+    for (int i = 2; i &lt;= n; i++) f = (f + m) % i;
+    return f + 1;                  // 按题面 1 起始编号输出
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>DAYS = [31,28,31,30,31,30,31,31,30,31,30,31]
+
+def is_leap(y):
+    return (y % 4 == 0 and y % 100 != 0) or y % 400 == 0
+
+def abs_days(y, m, d):
+    # 从公元 1 年 1 月 1 日起的总天数；两日期差 = 两值相减
+    n = (y - 1) * 365 + (y - 1) // 4 - (y - 1) // 100 + (y - 1) // 400
+    n += sum(DAYS[:m - 1])
+    if m &gt; 2 and is_leap(y):
+        n += 1
+    return n + d - 1
+# 自测：abs_days(2024,3,1) - abs_days(2024,2,28) = 2
+
+def joseph_sim(n, m):
+    people = list(range(n))               # 模拟法 O(nm)，编号 0..n-1
+    idx = 0
+    while len(people) &gt; 1:
+        idx = (idx + m - 1) % len(people) # 数到第 m 个出列
+        people.pop(idx)                   # pop 后 idx 恰好指向下一个人
+    return people[0] + 1                  # 1 起始
+
+def joseph(n, m):
+    f = 0                                 # 递推 O(n)
+    for i in range(2, n + 1):
+        f = (f + m) % i
+    return f + 1                          # n=5, m=3 → 4</code></pre>
+<div class="tip">进制题考场自测法：转过去再转回来（1F 按 16 进制展开 = 1×16+15 = 31），进出一致才提交。</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① <b>n=0 边界</b>直接输出 "0"（短除法循环一次都不进，否则输出空串）；② 短除法余数低位先出，<b>最后必须反转</b>；③ 竖式模拟循环条件带 carry，999+1 这类"最高位进位"别丢；④ BigInteger 不可变：a.add(b) 的返回值要接住，比较用 compareTo；⑤ 输入/输出都别带前导零（题面若给 "007" 先 strip，模拟结果开头连续 0 也要 strip，全 0 时留一个 "0"）；⑥ 闰年 2 月 29 只影响当年 3 月及以后的月累计；⑦ 约瑟夫输出按题面编号（0 起还是 1 起），差一个 +1。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

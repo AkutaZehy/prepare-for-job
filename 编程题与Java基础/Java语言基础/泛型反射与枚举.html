@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>泛型反射与枚举 · 编程题与Java基础/Java语言基础</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / Java语言基础</div>
+<h1>泛型、反射与枚举</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开 ｜ 形态：概念 + 输出判断 + 面试口述 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：泛型只在编译期——<b>擦除后运行时无泛型</b>，List&lt;String&gt; 与 List&lt;Integer&gt; 是<b>同一个 Class</b>，不能 new T[]、instanceof 只能判原始类型；通配符记 <b>PECS</b>：生产者（只读）用 ? extends、消费者（只写）用 ? super；反射三种拿 Class：getClass()、X.class、Class.forName；<b>枚举单例天然防反射防序列化破坏</b>——Constructor.newInstance 对枚举直接抛异常，反序列化由 JVM 特殊处理。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<ul>
+<li><b>泛型是编译期检查</b>：编译器用泛型做类型检查并自动插入强转，<b>编译后擦除</b>为原始类型（List&lt;String&gt; → List），运行时对象不携带泛型信息。后果三连：不能 <code>new T[]</code>、不能 <code>new T()</code>、<code>instanceof List&lt;String&gt;</code> 直接编译错（只能 <code>instanceof List</code>）。</li>
+<li><b>擦除的两个补充</b>：同一泛型类的所有实例共享同一个 Class 对象；编译器会为重写泛型方法生成"桥接方法（Bridge method）"来维持擦除后的多态——一句话了解即可。用原始类型引用可绕过编译检查混入其他类型（堆污染），错误在取值时才以 ClassCastException 暴露。</li>
+<li><b>通配符与 PECS</b>：<code>? extends T</code> 上界——生产者（只往外读），读出按 T 处理，不能 add 任何元素（除 null）；<code>? super T</code> 下界——消费者（只往里写），可写 T 及其子类，读出只能当 Object。经典应用：<code>Collections.copy(List&lt;? super T&gt; dest, List&lt;? extends T&gt; src)</code>。</li>
+<li><b>反射三种获取 Class</b>：<code>对象.getClass()</code>、<code>类字面量 Xxx.class</code>、<code>Class.forName("全限定名")</code>。getDeclaredMethod / getDeclaredField 可拿到私有成员，<code>setAccessible(true)</code> 绕过访问检查。</li>
+<li><b>反射的应用与代价</b>：Spring 实例化 Bean、MyBatis/Jackson 字段映射、JDBC 加载驱动、动态代理都靠它；代价是比直接调用慢（JIT 能优化一部分）、绕过编译期检查有风险；JDK9+ 模块化后对非导出包 setAccessible 受限（可能抛 InaccessibleObjectException）。</li>
+<li><b>枚举本质</b>：enum 是继承 java.lang.Enum 的 final 类（不能再继承别的类，可实现接口），实例隐式 public static final、构造器隐式 private；常用方法 <code>values()</code>（全部实例，每次返回新数组）、<code>valueOf("名字")</code>（不存在则抛 IllegalArgumentException）、<code>name()</code>、<code>ordinal()</code>（序号从 0 起）。</li>
+<li><b>枚举单例</b>：JVM 保证枚举实例唯一——反射创建枚举对象会被 Constructor.newInstance 拒绝（直接抛 IllegalArgumentException，"Cannot reflectively create enum objects"）；序列化/反序列化由 JVM 特殊处理、返回同一实例，不需要像普通单例那样手写 readResolve。《Effective Java》推荐的写法。</li>
+</ul>
+<span class="lang">Java</span>
+<pre><code>import java.lang.reflect.Method;
+
+class Secret {
+    private String greet(String name) {
+        return "hi, " + name;
+    }
+}
+
+public class ReflectDemo {
+    public static void main(String[] args) throws Exception {
+        Secret s = new Secret();
+        Method m = Secret.class.getDeclaredMethod("greet", String.class);
+        m.setAccessible(true);           // 绕过 private 访问检查
+        Object r = m.invoke(s, "tom");
+        System.out.println(r);           // hi, tom
+    }
+}</code></pre>
+<span class="lang">Java</span>
+<pre><code>import java.util.HashMap;
+import java.util.Map;
+
+public enum ConfigHolder {
+    INSTANCE;                            // 枚举实例由 JVM 保证唯一
+
+    private final Map&lt;String, String&gt; cfg = new HashMap&lt;&gt;();
+
+    public String get(String key) {
+        return cfg.get(key);
+    }
+}
+// 使用：ConfigHolder.INSTANCE.get("key")
+// 反射破坏：Constructor.newInstance() 对枚举直接抛 IllegalArgumentException
+// 序列化破坏：JVM 特殊处理，反序列化返回同一实例</code></pre>
+<span class="lang">Java</span>
+<pre><code>List&lt;Integer&gt; list = new ArrayList&lt;&gt;();
+list.add(1);
+List raw = list;                 // 原始类型引用：编译期泛型检查被绕过
+raw.add("混进来的字符串");        // 只报 unchecked 警告，运行期不检查
+System.out.println(list.get(1)); // 打印"混进来的字符串"（println 收 Object）
+// 若写 int v = list.get(1); 取值拆箱时才抛 ClassCastException</code></pre>
+<span class="lang">Python</span>
+<pre><code>import enum
+
+class Color(enum.Enum):
+    RED = 1
+
+print(Color.RED.value, Color.RED.name)  # 1 RED
+# 反射等价物：getattr(obj, "greet")("tom") 按字符串名取函数再调用</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断：擦除后 getClass() 相同、instanceof 原始类型恒真——给几行泛型代码问 true/false。</li>
+<li>概念选择：List&lt;String&gt; 与 List&lt;Integer&gt; 的运行时关系、反射应用场景、枚举单例防破坏原理。</li>
+<li>面试口述：PECS 怎么选、为什么枚举单例最安全、泛型擦除带来哪些限制。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>List&lt;String&gt; a = new ArrayList&lt;&gt;();
+List&lt;Integer&gt; b = new ArrayList&lt;&gt;();
+System.out.println(a instanceof List);
+System.out.println(a.getClass() == b.getClass());</code></pre>
+<div class="opt" data-k="A">A. true / true</div>
+<div class="opt" data-k="B">B. true / false</div>
+<div class="opt" data-k="C">C. false / true</div>
+<div class="opt" data-k="D">D. false / false</div>
+<div class="exp" hidden><b>答案 A。</b>泛型擦除后 a、b 运行时都是 ArrayList，getClass() 相同；instanceof 只能针对原始类型 List 判断（写 instanceof List&lt;String&gt; 直接编译错），恒为 true。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 运行时的 <code>List&lt;String&gt;</code> 与 <code>List&lt;Integer&gt;</code>，说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 二者是同一个 Class 对象；运行时对象不携带泛型信息，声明处的泛型签名只能通过反射（如 getGenericType）读到</div>
+<div class="opt" data-k="B">B. 二者是不同的 Class，泛型信息保存在每个对象里</div>
+<div class="opt" data-k="C">C. 泛型信息在运行时完整保留，可随时取出</div>
+<div class="opt" data-k="D">D. 向 List&lt;String&gt; 塞入 Integer 会立即抛 ClassCastException</div>
+<div class="exp" hidden><b>答案 A。</b>擦除后所有参数化的 ArrayList 都是同一个 Class；塞入时不检查（编译期检查被绕过/擦除），错误在取值赋给 String 时才以 CCE 暴露。想拿泛型信息只能读字段/方法签名上的元数据（getGenericType）。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 反射的典型应用场景有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Spring 按全类名字符串实例化 Bean 并完成依赖注入</div>
+<div class="opt" data-k="B">B. MyBatis / Jackson 把数据库行、JSON 按名字映射到实体对象字段</div>
+<div class="opt" data-k="C">C. JDBC 按配置的类名 Class.forName 加载驱动</div>
+<div class="opt" data-k="D">D. 编译器借助反射在运行期完成泛型类型检查</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ABC。</b>D 反了——泛型检查发生在编译期，擦除后运行期没有泛型信息可查。反射的本质是"运行时看类的内容再操作"，一切按字符串配置驱动的框架都离不开它。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> 枚举单例天然防反射与防序列化破坏的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. enum 是 final 类，反射 API 访问不到它</div>
+<div class="opt" data-k="B">B. Constructor.newInstance 创建枚举对象时直接抛 IllegalArgumentException；序列化/反序列化由 JVM 特殊处理，返回同一实例</div>
+<div class="opt" data-k="C">C. 枚举实例存在方法区，靠类加载锁保证只创建一次</div>
+<div class="opt" data-k="D">D. 枚举自动实现了 readResolve 方法</div>
+<div class="exp" hidden><b>答案 B。</b>final 只防继承不防反射；真正拦下反射的是 JDK 对枚举的特判（Cannot reflectively create enum objects）；反序列化也不走普通对象流程，不需要手写 readResolve。这正是 Effective Java 推荐枚举单例的原因。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 什么是 PECS 原则？? extends 和 ? super 各怎么选，为什么？</p>
+<details><summary>参考回答</summary>PECS = Producer Extends, Consumer Super。① 参数是"生产者"——你主要从中读数据——用 ? extends T：如 int sum(List&lt;? extends Number&gt; list)，读出来按 Number 用；因为编译器只知道元素是"某种 Number 的子类型"，不知道具体是哪种，往里 add 任何对象都可能破坏类型安全，所以除 null 外禁止写入。② 参数是"消费者"——你主要往里写数据——用 ? super T：如 Collections.copy 的目标参数 List&lt;? super T&gt;，写入 T 及其子类一定满足下界声明；但读出来只能保证是 Object。③ 既读又写就不用通配符，直接精确类型。加分点：举 Collections.copy 一读一写的双通配签名。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 擦除题三步走：泛型编译期检查 → 运行时只剩原始类型 → 同一泛型类一个 Class；② List&lt;? extends Number&gt; 只读不写（连 Object 都塞不进去），? super 只写读出来是 Object；③ 反射拿私有成员用 getDeclaredXxx + setAccessible(true)，getXxx 只拿公有；④ 枚举 values() 每次返回新数组，valueOf 查不到抛 IllegalArgumentException；⑤ 普通单例靠私有构造 + readResolve 也可能被攻破，枚举单例一劳永逸。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

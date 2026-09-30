@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物理层速览 · 408基础/计算机网络</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机网络</div>
+<h1>物理层速览</h1>
+<div class="meta">适用岗位：全部（笔试计算高频；通信/嵌入式向必问） ｜ 形态：公式 + 手算过程 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>比特率 = 波特率 × log₂V</b>（V = 每码元状态数）；奈氏（理想无噪声）：极限码元速率 <b>2W 波特</b>、极限信息速率 $2W\log_2 V$；香农（有噪声）：$C=W\log_2(1+S/N)$，<b>dB = 10·lg(S/N)，30dB → 1000 倍</b>；双重限制<b>取较小者</b>；曼彻斯特每比特中间必跳变、<b>波特率 = 2×比特率</b>（10Mb/s 以太网 → 20M 波特）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>码元、波特率与比特率</b>：码元 = 一个固定时长的信号波形（可取 V 种离散状态，每种状态携带若干比特）；波特率 B = 每秒码元数（单位 Baud，波特）；比特率 R = 每秒比特数（b/s）。三者关系：</p>
+<p style="text-align:center">$$R = B\log_2 V$$</p>
+<p>例：波特率 2400 Baud、四进制码元（V=4）→ 比特率 = 2400×log₂4 = 4800 b/s。注意"波特"是码元单位、不是 b/s，两者不能混写。</p>
+<p><b>奈氏准则（理想无噪声信道）</b>：带宽 W（Hz）的理想低通信道，极限码元速率 = <b>2W Baud</b>（超过就会严重的码间串扰，接收端无法识别码元）。此时极限信息速率 = $2W\log_2 V$ b/s。要点：奈氏只卡<b>码元速率</b>，与噪声无关（前提是无噪声）；想提高信息速率只能增大 V（每码元多带比特）。</p>
+<p><b>香农定理（有噪声信道）</b>：带宽 W、信噪比 S/N 的信道，无差错传输的极限信息速率：</p>
+<p style="text-align:center">$$C = W\log_2(1+S/N)\ \text{(b/s)}$$</p>
+<p>信噪比常以分贝给出：<b>dB = 10·lg(S/N)</b>。换算速查：<b>20dB→100 倍、30dB→1000 倍</b>、3dB≈2 倍、6dB≈4 倍。香农给的是信息速率上限，实际系统只能逼近、达不到；要提升 C 只能增大带宽或信噪比。</p>
+<p><b>两定理关系（联合计算题套路）</b>：奈氏限制<b>码元速率</b>（波特率上限 2W），香农限制<b>信息速率</b>（比特率上限 C）。信道同时受两重限制时<b>取较小者</b>：先算奈氏极限信息速率 $2W\log_2 V$，再算香农 $W\log_2(1+S/N)$，实际可达速率 = min(两者)。</p>
+<p>经典例：W=4kHz、16 进制码元、信噪比 30dB。奈氏侧：2×4000×log₂16 = 8000×4 = 32kb/s；香农侧：30dB→S/N=1000，4000×log₂(1+1000) ≈ 4000×9.97 ≈ 39.9kb/s → 取 min = <b>32kb/s</b>（此时奈氏是瓶颈：再增大 V 只会抬高"想用的速率"，但码元速率 2W 先到顶，瓶颈转到香农侧才有用）。</p>
+<p><b>四种编码</b>：</p>
+<table>
+<tr><th class="l">编码</th><th class="l">规则</th><th class="l">要点</th></tr>
+<tr><td class="l">不归零 NRZ</td><td class="l">整个码元期间电平恒定（如 1 高 0 低）</td><td class="l">最简单、最省带宽；<b>无自同步能力</b>（长串相同比特电平不变，时钟漂移累积）</td></tr>
+<tr><td class="l">归零 RZ</td><td class="l">每个码元中间回归零电平</td><td class="l">可自同步；带宽要求高</td></tr>
+<tr><td class="l">曼彻斯特</td><td class="l"><b>每个比特正中间必有一次电平跳变</b>，跳变既是时钟又承载数据</td><td class="l">自同步、无直流分量；<b>波特率 = 2×比特率</b>（10Mb/s 以太网 → 20M 波特，编码效率 50%）；跳变方向有两种约定（IEEE 802.3 与 G.E. Thomas 恰好相反），做题以题目给图为准</td></tr>
+<tr><td class="l">差分曼彻斯特</td><td class="l">看每个码元<b>开始处</b>有无跳变定数据（常见约定：有跳变=0、无跳变=1）；中间照样必跳变（只作时钟）</td><td class="l">抗传输极性接反，自同步</td></tr>
+</table>
+<p><b>复用技术（各一句）</b>：<b>FDM 频分</b>——所有用户同一时间占用不同频段（模拟通信）；<b>TDM 时分</b>——各用户轮流独占整个频带的一个时隙（按时隙划帧）；<b>统计 TDM</b>——按需动态分配时隙（时隙不固定），利用率高于同步 TDM，但须携带地址标识；<b>WDM 波分</b>——一根光纤传多个波长（光的频分复用）；<b>CDMA 码分多址</b>——每站分配正交的码片序列，所有站<b>同频同时</b>通信靠码型区分（发 1 比特=发本站码片序列，发 0=发其反相）。</p>
+<p><b>宽带接入（概念级）</b>：<b>ADSL</b>——电话线上用频分复用划出电话/上行/下行三个频段，下行快上行慢（不对称）；<b>FTTx</b>——光纤到路边/楼/户（FTTH 到户带宽最大）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">计算</span><span class="tag">笔试选择</span></p>
+<ul>
+<li>计算：波特率↔比特率换算、奈氏（2W 与 2W·log₂V）、香农（dB 先换倍数）、曼彻斯特波特率、奈氏+香农联合取 min——408 网络层计算题的常客。</li>
+<li>选择：编码方式特征与自同步能力判断、复用技术归属、码元/波特/比特概念辨析、奈氏与香农的适用条件。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 某理想无噪声信道带宽 W=4kHz，采用 16 个状态的码元传输。求极限码元速率与极限信息速率。</p>
+<details><summary>先自己算，再展开对答案</summary>奈氏准则：极限码元速率 = 2W = 2×4000 = <b>8000 Baud</b>（8000 波特）。<br>每码元携带 log₂16 = 4 比特 → 极限信息速率 = 8000×4 = <b>32kb/s</b>。<br>注意：奈氏直接给出的是<b>码元</b>速率上限；问信息速率还要乘 log₂V。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 电话信道带宽 3kHz，信噪比 30dB。求该信道的极限（无差错）信息速率。</p>
+<details><summary>先自己算，再展开对答案</summary>第一步（dB 换倍数）：30dB = 10·lg(S/N) → lg(S/N)=3 → S/N = 10³ = <b>1000</b>。<br>第二步代入香农：C = 3000×log₂(1+1000) = 3000×log₂1001 ≈ 3000×9.97 ≈ <b>29.9kb/s</b>（估算常取 30kb/s）。<br>验算：log₂1024 = 10，1001 略小于 1024，故 log₂1001≈9.97 合理 ✓。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 传统 10Mb/s 以太网采用曼彻斯特编码。求它的波特率，以及每个码元携带的比特数。</p>
+<details><summary>先自己算，再展开对答案</summary>曼彻斯特每个比特分前半+后半两段电平，1 比特 = 2 个码元 → 波特率 = 2×比特率 = <b>20M 波特（20MBaud）</b>。<br>每码元携带比特数 = 比特率/波特率 = 10M/20M = <b>0.5 比特/码元</b>。<br>这就是"编码效率 50%"：两种电平本可 1 码元带 1 比特，曼彻斯特只用了一半。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 信道带宽 W=4kHz，信噪比 30dB。(1) 若采用 256 个状态的码元，实际可达到的最大信息速率是多少？(2) 此时哪条定理构成瓶颈？为什么继续增加码元状态数没有用？</p>
+<details><summary>先自己算，再展开对答案</summary>① 奈氏极限信息速率：2W·log₂V = 2×4000×log₂256 = 8000×8 = <b>64kb/s</b>。<br>② 香农极限：30dB → S/N=1000，C = 4000×log₂1001 ≈ 4000×9.97 ≈ <b>39.9kb/s</b>。<br>取较小者：实际最大 ≈ <b>39.9kb/s，香农定理是瓶颈</b>。<br>瓶颈分析：速率上限由信道容量决定，继续增大 V 只会抬高"想用的速率"，超过 C 必然出错；此时提速率的正确手段是增大信噪比或带宽。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 关于数字基带传输的编码方式，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 曼彻斯特编码每个比特的正中间必有一次电平跳变，该跳变可用作时钟同步</div>
+<div class="opt" data-k="B">B. 采用曼彻斯特编码时，波特率是比特率的 2 倍</div>
+<div class="opt" data-k="C">C. 不归零制编码包含丰富的电平跳变，接收方很容易从中提取时钟信号</div>
+<div class="opt" data-k="D">D. 差分曼彻斯特编码用"码元开始处有无跳变"表示数据（常见约定：有跳变为 0、无跳变为 1）</div>
+<div class="exp" hidden><b>答案 ABD。</b>曼彻斯特/差分曼彻斯特都是自同步编码，且波特率 = 2×比特率；C 恰好说反——NRZ 长串相同比特时电平长时间不变，<b>没有自同步能力</b>，这正是需要自同步编码或额外传时钟的原因。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① dB 换倍数：20dB=100、30dB=1000、3dB≈2、6dB≈4；把 10·lg 当成 lg（忘乘 10）是最常见错；② 奈氏管波特（2W）、香农管比特（C），双重限制取 min；V 只影响奈氏一侧，S/N 只影响香农一侧；③ 曼彻斯特波特率 = 2×比特率：10Mb/s → 20MBaud；"波特率"单位是 Baud，别写成 b/s；④ "0.5 比特/码元"= 编码效率 50%，与"V=2 可带 log₂2=1 比特"不矛盾——只是没用满；⑤ CDMA 同频同时靠正交码片区分，不是频分也不是时分；统计 TDM 时隙不固定、需带地址；⑥ 曼彻斯特跳变方向有两种相反约定，考研只考"中间必跳变 + 波特率翻倍"，方向看题目给的图。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

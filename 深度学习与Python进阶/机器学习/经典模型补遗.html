@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经典模型补遗：KNN/朴素贝叶斯/KMeans/PCA/EM · 深度学习与Python进阶/机器学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 机器学习</div>
+<h1>经典模型补遗：KNN/朴素贝叶斯/KMeans/PCA/EM</h1>
+<div class="meta">适用岗位：AI/算法笔试选择题 ｜ 关联页：<a href="评价指标与样本不平衡.html">评价指标</a> ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：KNN 懒学习无训练、靠距离（特征必须标准化，k 小过拟合 k 大欠拟合）；朴素贝叶斯条件独立 + 拉普拉斯平滑防零概率（生成式）；KMeans 对初值敏感、只认球状簇（KMeans++ 改初始化，肘部法/轮廓系数选 k）；PCA 无监督降维 = 协方差矩阵特征分解、按方差排序保主成分；EM 交替「E 算隐变量后验、M 更新参数」，单调收敛但只到局部最优（GMM 是标准例）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>KNN（K 近邻）</b>：不训练，预测时找最近的 k 个样本多数表决（回归取均值）。三个旋钮：距离（欧氏/曼哈顿/余弦——文本用余弦）、k 值（小 → 模型复杂、对噪声敏感，大 → 决策边界平滑、欠拟合，常交叉验证选）、加权（按距离倒数）。特征<b>必须标准化</b>（量纲大会淹没小尺度特征）。暴力检索 O(nd)，KD 树/球树加速低维场景。生成 vs 判别：它是判别式的极端——连概率模型都不建。</p>
+<p><b>朴素贝叶斯</b>：贝叶斯定理 + 「给定类别，特征条件独立」的强假设：$P(y\mid x)\propto P(y)\prod_i P(x_i\mid y)$。<b>拉普拉斯平滑</b>：计数加 1（分母加取值数 K），避免某个取值没在训练集出现过把整个连乘打成 0。优点：小样本能跑、快；缺点：独立性假设常不成立。它是<b>生成式</b>（建模联合分布 $P(x,y)$），LR 是<b>判别式</b>（直接建模 $P(y\mid x)$）——经典对比组。</p>
+<p><b>KMeans</b>：① 随机选 k 个初始质心 → ② 每点归最近质心 → ③ 质心移到簇均值 → 重复 ②③ 至收敛（必停：每步目标函数单调下降，但<b>只保证局部最优</b>，对初值和离群点敏感）。<b>KMeans++</b> 让初始质心尽量互相远离。选 k：肘部法（SSE 拐点）、轮廓系数。局限：只适合凸（球状）簇、要指定 k，密度聚类（DBSCAN 一句）可解非凸。</p>
+<p><b>PCA（主成分分析）</b>：无监督降维。找一组互相正交的方向，使投影方差最大（等价于最小化重构误差）：对中心化后的协方差矩阵 $\Sigma=\frac{1}{m}X^\top X$ 做特征分解（或对 X 做 SVD），取特征值最大的前 d 个特征向量为主成分；第 i 主成分解释方差占比 = $\lambda_i/\sum\lambda_j$，实务按「累计贡献率 ≥ 95%」选 d。作用：去相关、压缩、可视化；副产品是白化。注意 scaler/PCA 都要<b>只在训练集 fit</b>。同门对比：LDA 是有监督降维（类间/类内方差比最大化），最多降到 k−1 维。</p>
+<p><b>EM（期望最大化）</b>：含隐变量模型的最大似然框架。E 步：固定参数，算隐变量后验（GMM 里是每个点属于各高斯的责任 $\gamma_{ik}$）；M 步：固定后验，更新参数（重新算均值/协方差/混合系数）。可证明每次迭代似然单调不减 → 收敛到驻点（局部最优），对初始化敏感、多跑几组取最好。GMM/KMeans（硬分配版）/HMM 训练都是 EM 家族。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p>这页是「选择题弹药库」，五张脸都要认得：① KNN 的 k 与标准化影响；② 拉普拉斯平滑为什么存在（连乘零概率）；③ KMeans 的收敛性表述陷阱（「必收敛到全局最优」是错的）、KMeans++ 改什么；④ PCA 的方差占比计算与「无监督/线性/只认主方向」定位；⑤ 生成式 vs 判别式举例（朴素贝叶斯 vs LR）；⑥ EM 两步各干什么、为什么单调。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>1.</b> 关于 KNN 中 k 的选择，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. k 越大模型越复杂，越容易过拟合</div>
+<div class="opt" data-k="B">B. k 越小决策边界越平滑</div>
+<div class="opt" data-k="C">C. k 取训练样本总数时泛化最好</div>
+<div class="opt" data-k="D">D. k 小 → 模型复杂易过拟合；k 大 → 边界平滑易欠拟合，用交叉验证选</div>
+<div class="exp" hidden><b>答案 D。</b>k=1 时每个点自己说了算（复杂、过拟合）；k=全体时永远输出多数类（欠拟合）。A/B 方向说反。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 朴素贝叶斯要做拉普拉斯平滑，直接原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 让概率分布满足归一性</div>
+<div class="opt" data-k="B">B. 训练集里某特征取值在某类别下没出现过，条件概率为 0，连乘把整个后验打成 0</div>
+<div class="opt" data-k="C">C. 特征之间不独立</div>
+<div class="opt" data-k="D">D. 加快训练速度</div>
+<div class="exp" hidden><b>答案 B。</b>平滑 = 分子加 1、分母加取值数，把「没见过」从 0 抬成小概率，缓解零概率而非解决不独立。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 KMeans 与 PCA，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. KMeans 每轮目标函数单调下降故必停止，但只能保证局部最优，KMeans++ 用于改善初始化</div>
+<div class="opt" data-k="B">B. KMeans 隐含假设簇是凸（球状）的，对非凸簇基本失效</div>
+<div class="opt" data-k="C">C. PCA 是有监督降维，需要用标签指导主成分方向</div>
+<div class="opt" data-k="D">D. PCA 第 i 主成分的方差占比 = 对应特征值 / 全部特征值之和，实务按累计贡献率选维数</div>
+<div class="exp" hidden><b>答案 ABD。</b>PCA 无监督不碰标签；有监督降维是 LDA，C 错。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、示例题目</h2>
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> PCA 前三个特征值为 $\lambda_1=6,\ \lambda_2=3,\ \lambda_3=1$。前两个主成分的累计方差占比是多少？降到 2 维丢了多少信息？</p>
+<details><summary>解答</summary>
+<p>总方差 $=6+3+1=10$；前两个占比 $(6+3)/10=90\%$，丢失 $10\%$。若要求累计 ≥ 85%，降到 2 维即可。来源：AI 岗笔试高频。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 训练集中特征「天气」在类别「运动」下：晴 3 次、雨 0 次。求拉普拉斯平滑前后 $P(\text{雨}\mid\text{运动})$。</p>
+<details><summary>解答</summary>
+<p>平滑前 $0/3=0$——任何含「雨」的样本后验直接归零。平滑后（取值数 K=2）：$(0+1)/(3+2)=1/5=0.2$，「没见过」被抬成小概率。来源：面试高频改编。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">口述</span><b>3.</b> 生成式模型和判别式模型的区别？各举一例，并说明朴素贝叶斯「朴素」在哪。</p>
+<details><summary>解答</summary>
+<p>生成式建模联合分布 $P(x,y)$（或 $P(x\mid y)P(y)$），能「造数据」，可还原后验；例：朴素贝叶斯、GMM、HMM。判别式直接建模 $P(y\mid x)$ 或判别函数，通常分类精度更高；例：LR、SVM、树模型。「朴素」指给定类别时特征条件独立这一强假设——它大幅简化了 $P(x\mid y)$ 的估计（连乘），也是主要误差来源。来源：面试高频改编。</p>
+</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① KMeans「必收敛」对，「收敛到全局最优」错；② KMeans++ 改的是初始化分布，不是迭代公式；③ PCA 前必须中心化（sklearn 自动做），降维后特征不可解释要能说出来；④ EM 单调不减的是似然，不是「必到全局最优」；⑤ KNN 无训练过程不代表没有超参数——k 与距离度量都要验证集调；⑥ 朴素贝叶斯的「条件独立」是给定 y 下的独立，不是边际独立。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

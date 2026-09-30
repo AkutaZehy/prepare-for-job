@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设计模式与手写单例 · 编程题与Java基础/生态</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 生态</div>
+<h1>设计模式与手写单例</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（单例手写是白板必考） ｜ 形态：手写代码 + 模式对照 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：单例五种——饿汉、懒汉加锁、<b>双检锁（必须 volatile：防 new 三步重排序出现"半成品对象"）</b>、<b>静态内部类（利用类加载 clinit 线程安全，推荐）</b>、<b>枚举（Effective Java 首选：防反射防反序列化）</b>；面试答模式的标准姿势是<b>说出 Spring 里谁在用</b>：工厂=BeanFactory、代理=AOP、模板=JdbcTemplate、观察者=事件监听、策略=Resource 加载、责任链=Filter 链。</div>
+
+<section class="card k">
+<h2>一、手写单例五种（背到能默写）</h2>
+<span class="lang">Java</span>
+<pre><code>// ① 饿汉：类加载即创建。简单线程安全；缺点：不管用不用都占内存、不能延迟加载
+class Singleton1 { private static final Singleton1 I = new Singleton1();
+    private Singleton1() {} public static Singleton1 get() { return I; } }
+
+// ② 懒汉+同步方法：延迟加载，但每次 get 都抢锁，性能差
+class Singleton2 { private static Singleton2 i;
+    private Singleton2() {}
+    public static synchronized Singleton2 get() { if (i == null) i = new Singleton2(); return i; } }
+
+// ③ 双检锁 DCL：两次判空 + 锁类对象。volatile 必不可少！
+class Singleton3 {
+    private static volatile Singleton3 i;            // volatile：禁止 new 的重排序
+    private Singleton3() {}
+    public static Singleton3 get() {
+        if (i == null) {                             // 第一次判空：多数情况免抢锁
+            synchronized (Singleton3.class) {
+                if (i == null) i = new Singleton3(); // 第二次判空：锁内再确认
+            }
+        }
+        return i;
+    }
+}
+// new 并非原子：①分配内存 ②调用构造初始化 ③引用指向内存。
+// 无 volatile 时 ②③ 可能重排——另一线程在第一次判空时拿到"已赋引用但未初始化"的半成品。</code></pre>
+<pre><code>// ④ 静态内部类：加载 Singleton4 时不加载 Holder，首次 get 才触发 Holder 类初始化——
+// JVM 的 &lt;clinit&gt; 自带加锁，天然线程安全 + 懒加载（利用类加载机制，推荐）
+class Singleton4 {
+    private Singleton4() {}
+    private static class Holder { static final Singleton4 I = new Singleton4(); }
+    public static Singleton4 get() { return Holder.I; }
+}
+
+// ⑤ 枚举：Effective Java 首选。防反射（构造反射直接抛异常）、防反序列化破坏、写法最短
+enum Singleton5 { INSTANCE;
+    public void doWork() { }
+}
+// 使用：Singleton5.INSTANCE.doWork();</code></pre>
+<div class="tip">五种横评：饿汉最简单 / DCL 展示并发功底（面试手写它要主动讲 volatile）/ 静态内部类是"工程正确答案" / 枚举是"理论完备答案"。被问"双检锁为什么加 volatile"答出 new 三步重排序即可封神。</div>
+
+<section class="card k" style="margin-top:20px">
+<h2>二、常用设计模式 × Spring 场景对照</h2>
+<table>
+<tr><th>模式</th><th>一句话</th><th>Spring / JDK 里的原型</th></tr>
+<tr><td>工厂方法/抽象工厂</td><td class="l">把"new 什么"交给工厂决定</td><td class="l">BeanFactory/ApplicationContext、FactoryBean</td></tr>
+<tr><td>单例</td><td class="l">全局唯一实例</td><td class="l">Bean 默认作用域 singleton</td></tr>
+<tr><td>代理</td><td class="l">增强目标而不改其代码</td><td class="l">AOP（JDK 接口代理/CGLIB 子类代理）</td></tr>
+<tr><td>模板方法</td><td class="l">骨架固定，步骤留给子类填</td><td class="l">JdbcTemplate、HttpServlet.service、RestTemplate</td></tr>
+<tr><td>观察者</td><td class="l">一对多状态联动</td><td class="l">ApplicationEvent/ApplicationListener、GUI 监听器</td></tr>
+<tr><td>策略</td><td class="l">同一接口多实现可切换，消 if-else</td><td class="l">Resource 加载策略、线程池拒绝策略（本身就是）</td></tr>
+<tr><td>责任链</td><td class="l">请求沿处理器链依次传递</td><td class="l">Servlet Filter、Spring Interceptor、Netty Pipeline</td></tr>
+<tr><td>适配器</td><td class="l">转换接口使其可用</td><td class="l">SpringMVC 的 HandlerAdapter</td></tr>
+</table>
+<p><b>六大设计原则</b>（一句版）：开闭（对扩展开放对修改关闭）、单一职责、里氏替换（子类可无缝替换父类）、依赖倒置（依赖抽象不依赖具体）、接口隔离（接口小而专）、迪米特（少交朋友、只和直接朋友说话）。开闭原则是灵魂，其余都是它的实现路径。</p>
+<p><b>策略模式消 if-else 模板</b>（面试常要求白板）：</p>
+<span class="lang">Java</span>
+<pre><code>interface Pay { void pay(int amount); }
+@Component("wx")  class WxPay implements Pay { public void pay(int a) { /*...*/ } }
+@Component("ali") class AliPay implements Pay { public void pay(int a) { /*...*/ } }
+
+@Service
+public class PayService {
+    private final Map&lt;String, Pay&gt; pays;             // Spring 注入 key=Bean 名
+    public PayService(Map&lt;String, Pay&gt; pays) { this.pays = pays; }
+    public void pay(String channel, int amount) {    // "wx"/"ali" 直达实现
+        Pay p = pays.get(channel);
+        if (p == null) throw new IllegalArgumentException("渠道不支持");
+        p.pay(amount);
+    }
+}</code></pre>
+<p>Python 对照：单例常用模块级实例或 <code>__new__</code> 重写，策略用"函数字典"直接映射——面试 Python 岗说"我不用类也能消 if-else"即可。</p>
+</section>
+
+<section class="card p">
+<h2>三、考点说明</h2>
+<p><span class="tag">机试手写</span><span class="tag">笔试选择</span><span class="tag">面试口述</span></p>
+<ul>
+<li>手写单例（双检锁/静态内部类/枚举任选，写完主动讲并发细节）。</li>
+<li>笔试：双检锁 volatile 原因、枚举单例特性、模式-Spring 场景匹配。</li>
+<li>面试：策略/责任链消灭 if-else 的工程实践、六大原则各一句。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 口述题先自答）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 双检锁单例中，实例引用必须用 volatile 修饰的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 保证可见性的同时保证原子性</div>
+<div class="opt" data-k="B">B. 禁止 new 的"分配内存→初始化→赋引用"三步重排序，防止其他线程拿到未初始化的半成品对象</div>
+<div class="opt" data-k="C">C. 让单例对象不进入老年代</div>
+<div class="opt" data-k="D">D. 为了让第二次判空更快</div>
+<div class="exp" hidden><b>答案 B。</b>new 三步可能重排成"分配→赋引用→初始化"，另一线程恰好在第一次判空时读到非空引用，直接使用未初始化字段。volatile 禁重排（同时保证可见性，但"防半成品"是本题主因）。A 错——volatile 不保证原子性。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于各种单例写法，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 饿汉式依赖类加载机制，天然线程安全</div>
+<div class="opt" data-k="B">B. 静态内部类式在外部类加载时就会创建单例实例</div>
+<div class="opt" data-k="C">C. 枚举单例可以防止反射攻击与反序列化破坏</div>
+<div class="opt" data-k="D">D. 双检锁的两次判空分别为了减少抢锁与锁内兜底</div>
+<div class="exp" hidden><b>答案 ACD。</b>B 错——静态内部类的价值就是<b>懒加载</b>：外部类加载不触发内部类初始化，首次调用 get() 才创建。枚举由 JVM 保证实例唯一，反射 new 与反序列化都被禁止。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> Spring 的 AOP 通知、Servlet 的 Filter 链、Netty 的 Pipeline，共同体现的设计模式是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 责任链模式</div>
+<div class="opt" data-k="B">B. 观察者模式</div>
+<div class="opt" data-k="C">C. 工厂模式</div>
+<div class="opt" data-k="D">D. 模板方法模式</div>
+<div class="exp" hidden><b>答案 A。</b>三者都是"请求沿处理器链依次传递、每个节点决定放行或拦截"。观察者是多对多状态联动、模板方法是骨架+填空——对照表是答题钥匙。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>4.</b> 一个支付接口有微信/支付宝/银联三种实现，业务代码里大段 if-else 判断渠道，最合适消除它的模式是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 单例模式</div>
+<div class="opt" data-k="B">B. 观察者模式</div>
+<div class="opt" data-k="C">C. 装饰器模式</div>
+<div class="opt" data-k="D">D. 策略模式（Spring 中注入 Map&lt;渠道, 实现&gt; 直达实现）</div>
+<div class="exp" hidden><b>答案 D。</b>策略+Map 注入让"新增渠道"只加一个实现类（符合开闭原则），不碰老代码。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 白板手写双检锁单例，并解释每一行的作用。</p>
+<details><summary>参考回答</summary>按第四节代码 ③ 默写：私有构造器（防外部 new）、volatile 静态引用（防 new 三步重排序）、两次判空（外层判空让大多数请求免抢锁、内层判空防止两个线程同时通过外层判空重复创建）、synchronized 锁类对象。写完主动补：工程上更推荐静态内部类或枚举（懒加载/防反射），DCL 的价值主要是考并发理解。这一句"自降一档"反而加分。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>6.</b> "对扩展开放、对修改关闭"，新增一种功能时优先加新代码而不是改老代码——这是哪个原则？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 单一职责原则</div>
+<div class="opt" data-k="B">B. 开闭原则</div>
+<div class="opt" data-k="C">C. 迪米特法则</div>
+<div class="opt" data-k="D">D. 接口隔离原则</div>
+<div class="exp" hidden><b>答案 B。</b>开闭是六大原则的灵魂，策略模式、工厂模式、插件化都是它的落地。单一职责管"一个类只干一件事"、迪米特管"少和陌生人说话"。来源：牛客经典题。</div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 双检锁没有 volatile 就是错的，面试手写漏写直接扣分；② 静态内部类单例"懒加载"来自"内部类不随外部类加载"，别答成"类加载就创建"；③ 单例构造器必须 private——忘写 private 全盘作废；④ Spring 的 singleton 是"容器内唯一"不是"JVM 全局唯一"（同 JVM 多容器/同容器 prototype 都会有多实例）；⑤ 讲设计模式必带"Spring 里谁在用"，只背 UML 图是减分项。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

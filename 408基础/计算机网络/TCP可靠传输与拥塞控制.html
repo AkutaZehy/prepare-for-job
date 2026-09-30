@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP可靠传输与拥塞控制 · 408基础/计算机网络</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机网络</div>
+<h1>TCP 可靠传输与拥塞控制</h1>
+<div class="meta">适用岗位：全部（窗口变化计算是笔试高频，四算法是面试必问） ｜ 形态：概念 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：可靠 = <b>序号 + 确认（累积确认）+ 超时重传</b>；超时定时器 RTO 依据加权平均 RTTs = (1−α)×RTTs + α×新样本；<b>发送窗口 = min(拥塞窗口 cwnd, 接收窗口 rwnd)</b>；慢启动每轮翻倍、到 ssthresh 转拥塞避免每轮 +1；<b>超时：ssthresh = cwnd/2，cwnd 重置为 1</b>；快重传 = 收到 <b>3 个重复 ACK</b> 立即重传，快恢复 = ssthresh 减半后 cwnd 直接从新 ssthresh 开始线性。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>可靠传输三件套</b>：①序号——每个字节编号，SYN/FIN 各耗一个序号；②确认——<b>累积确认</b>，ACK n 表示"n 之前全部收到，期望收 n"；③重传——超时重传（RTO 由 RTT 估计）与快重传。校验和伪首部另计。</p>
+<p><b>加权平均 RTT</b>（RFC 常取 α=1/8）：RTTs = (1−α)×旧RTTs + α×新RTT样本；RTO 略大于 RTTs，超时未确认就重传。</p>
+<p><b>停等 / GBN / SR 对比</b>（408 数据链路层同样考这套窗口公式，n 位编号）：</p>
+<table>
+<tr><th>协议</th><th>发送窗口</th><th>接收窗口</th><th>要点</th></tr>
+<tr><td>停等</td><td>1</td><td>1</td><td class="l">信道利用率最低；可靠但慢</td></tr>
+<tr><td>GBN 回退 N</td><td>≤ 2ⁿ−1</td><td>1</td><td class="l">接收方只按序收，失序一律丢弃；出错从出错处<b>整批重传</b></td></tr>
+<tr><td>SR 选择重传</td><td>≤ 2ⁿ⁻¹</td><td>≤ 2ⁿ⁻¹</td><td class="l">接收方缓存失序帧，<b>只重传真正丢的</b>；窗口超半数会序号歧义</td></tr>
+</table>
+<p><b>TCP 流量控制</b>：接收方通过 rwnd 字段通告剩余缓冲；发送窗口 = min(cwnd, rwnd)。rwnd=0 时发送方停发但启动<b>零窗口探测计时器</b>，防止"再打-notch 唤醒报文丢失"造成双向死等。</p>
+<p><b>拥塞控制四算法</b>（发送方维护 cwnd 与慢启动门限 ssthresh）：</p>
+<table>
+<tr><th>阶段</th><th>动作</th><th>增长形态</th></tr>
+<tr><td>慢启动</td><td class="l">cwnd 从 1 起，每收到一轮确认 cwnd 翻倍（指数）；<b>到 ssthresh 就切换</b></td><td class="l">1→2→4→8…</td></tr>
+<tr><td>拥塞避免</td><td class="l">cwnd ≥ ssthresh 后每轮只加 1 MSS</td><td class="l">8→9→10…线性</td></tr>
+<tr><td>超时（网络严重拥塞）</td><td class="l"><b>ssthresh = cwnd/2，cwnd = 1</b>，重新慢启动</td><td class="l">打回起点</td></tr>
+<tr><td>快重传+快恢复（轻度丢包）</td><td class="l">收到 <b>3 个重复 ACK</b> 立即重传丢失报文；ssthresh = cwnd/2，<b>cwnd = 新 ssthresh</b>，直接进入拥塞避免</td><td class="l">减半续跑，不打回 1</td></tr>
+</table>
+<p>经典演化表（初始 cwnd=1，ssthresh=8，单位 MSS）：</p>
+<table>
+<tr><th>轮次</th><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td></tr>
+<tr><th>cwnd</th><td>1</td><td>2</td><td>4</td><td>8</td><td>9</td><td>10</td><td>11</td><td>12</td></tr>
+<tr><th>说明</th><td colspan="8">第 4 轮到达 ssthresh=8 转入拥塞避免（有的教材当轮即按线性加 1，轮次口径以题为准）；若第 6 轮超时：ssthresh=5，cwnd=1 重来</td></tr>
+</table>
+<p><b>面试引申</b>：拥塞控制是<b>全局</b>保护网络，流量控制是<b>点对点</b>匹配接收方；TCP 拥塞控制在传输层靠丢包/延迟推断拥塞（没有路由器显式通知，ECN 是补充）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">计算题</span><span class="tag">笔试选择</span><span class="tag">面试必问</span></p>
+<ul>
+<li>cwnd 演化计算：给初始值和 ssthresh，问第几轮达到某值 / 超时或三重复 ACK 后的 cwnd 与 ssthresh——注意区分"超时"与"快恢复"两条不同支路。</li>
+<li>RTTs 加权平均的计算（一个公式代入）。</li>
+<li>GBN/SR 窗口大小公式与序号位数（m 位编号）计算。</li>
+<li>发送窗口 = min(cwnd, rwnd) 的取值判断。</li>
+<li>面试口述：四算法串讲、为什么快重传要等 3 个重复 ACK（区分乱序与丢包）、拥塞控制与流量控制区别。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 计算题先自算）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> TCP 连接初始 cwnd = 1 MSS，ssthresh = 8。第几轮传输结束时 cwnd 首次达到 12？若第 5 轮发生<b>超时</b>，ssthresh 与 cwnd 各变为多少？</p>
+<details><summary>先自己算，再展开对答案</summary>慢启动 1→2→4→8（第 4 轮到达 ssthresh），之后拥塞避免每轮 +1：9、10、11、12 → <b>第 7 轮首次达到 12</b>。第 5 轮超时（此时 cwnd=9）：ssthresh = ⌊9/2⌋ = <b>4</b>（教材口径直接取 cwnd/2），cwnd = <b>1</b> 重新慢启动。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 快重传的触发条件是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. RTO 计时器超时仍未收到确认</div>
+<div class="opt" data-k="B">B. 接收方发来 1 个重复 ACK</div>
+<div class="opt" data-k="C">C. 连续收到 3 个重复 ACK，立即重传对应的报文段</div>
+<div class="opt" data-k="D">D. 收到 ACK 后 cwnd 减半</div>
+<div class="exp" hidden><b>答案 C。</b>3 个重复 ACK 才基本排除"报文乱序到达"的偶然，判定为真丢包；随后走快恢复（cwnd 减半继续）而不是超时（打回 1）——这正是快重传+快恢复比超时"温和"的原因。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 某 TCP 连接旧 RTTs = 100ms，新测得 RTT 样本 = 80ms，α = 1/8。求新 RTTs（保留一位小数）。</p>
+<details><summary>先自己算，再展开对答案</summary>RTTs = (1−1/8)×100 + (1/8)×80 = 87.5 + 10 = <b>97.5ms</b>。若新样本大于旧值结果会变大，公式本质是指数加权滑动平均。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> 使用 3 比特对帧编号的 GBN 协议，发送窗口的最大值为（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 8</div>
+<div class="opt" data-k="B">B. 7</div>
+<div class="opt" data-k="C">C. 4</div>
+<div class="opt" data-k="D">D. 15</div>
+<div class="exp" hidden><b>答案 B。</b>GBN 发送窗口 ≤ 2ⁿ−1 = 7：若取满 8，0~7 号帧全部发出后，全部确认丢失时接收方无法区分"新 0 号帧"与"重传的旧 0 号帧"。SR 则两边都 ≤ 2ⁿ⁻¹ = 4。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 关于拥塞控制与流量控制，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 拥塞控制防止注满整个网络，流量控制防止压垮接收方</div>
+<div class="opt" data-k="B">B. 发送窗口恒等于拥塞窗口 cwnd</div>
+<div class="opt" data-k="C">C. rwnd = 0 后发送方仍会周期性发送探测报文</div>
+<div class="opt" data-k="D">D. 慢启动"慢"指的是起点低增长快，不是增速慢</div>
+<div class="exp" hidden><b>答案 ACD。</b>发送窗口 = <b>min(cwnd, rwnd)</b>，B 错在只取其一；C 是零窗口探测，防止"恢复窗口的通知丢失"导致双向死等；D 是字面陷阱——慢启动指数增长其实很猛。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 超时与快恢复是两条支路：<b>超时 cwnd=1 重来，快恢复 cwnd=新 ssthresh 续跑</b>——题目只说"丢包"时要看丢包判定方式；② cwnd 计数的"轮次"口径各教材有出入（到达 ssthresh 当轮算线性还是下轮起），以题面给的表格口径为准；③ GBN 是 2ⁿ−1、SR 是 2ⁿ⁻¹，背反是最高频失分点；④ 累积确认下"收到 ACK 200"不代表"200 号包刚到"，只代表 200 之前全部到齐；⑤ 发送窗口取 min 时别忘 rwnd 也可能成为瓶颈。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

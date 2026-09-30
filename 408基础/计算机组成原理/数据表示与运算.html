@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据表示与运算 · 408基础/计算机组成原理</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机组成原理</div>
+<h1>数据表示与运算</h1>
+<div class="meta">适用岗位：全部（笔试计算硬通货，测开/嵌入式尤其爱问） ｜ 形态：公式 + 手算过程 + 代码对照 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>8 位补码范围 $-128\sim+127$，负数多一个（10000000 规定为 $-128$）</b>；<b>溢出判断：双符号位 01 正溢、10 负溢；或最高位进位 $\oplus$ 次高位进位 $=1$ 则溢出</b>；负数补码算术移位<b>左移补 0、右移补 1</b>；<b>IEEE754 单精度 1+8+23（偏移 127）、双精度 1+11+52（偏移 1023），规格化形如 $1.M\times 2^{E}$，整数位 1 隐藏不占位数</b>；浮点加减五步：<b>对阶（小阶向大阶）→ 尾数加减 → 规格化 → 舍入 → 溢出判断</b>；x86 是小端（低位字节放低地址），Java 的 ByteBuffer 默认按大端。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>四种机器码</b>：原码 = 符号位 + 绝对值；反码：正数同原码，负数数值位按位取反；补码：正数同原码，负数 = 反码 + 1；移码 = 补码符号位取反（即 $[x]_{移}=2^{n-1}+x$），浮点阶码专用——移码大 ⇔ 真值大，便于直接按无符号比较阶的大小。</p>
+<table>
+<tr><th class="l">x（8 位）</th><th>[x]原</th><th>[x]反</th><th>[x]补</th><th>[x]移</th></tr>
+<tr><td class="l">+1</td><td>0000 0001</td><td>0000 0001</td><td>0000 0001</td><td>1000 0001</td></tr>
+<tr><td class="l">−1</td><td>1000 0001</td><td>1111 1110</td><td>1111 1111</td><td>0111 1111</td></tr>
+<tr><td class="l">+127</td><td>0111 1111</td><td>0111 1111</td><td>0111 1111</td><td>1111 1111</td></tr>
+<tr><td class="l">−128</td><td>不存在</td><td>不存在</td><td>1000 0000</td><td>0000 0000</td></tr>
+</table>
+<p><b>8 位补码范围 $-2^{7}\sim 2^{7}-1$ 即 $-128\sim+127$，为什么负数多一个</b>：补码中 0 只有一个编码（全 0），原码里"±0"占用的 10000000 空了出来，规定它表示 $-128$——所以 $-128$ 有补码、没有对应的原码/反码。n 位补码统一为 $-2^{n-1}\sim 2^{n-1}-1$。快速求负数补码：符号位不变，数值位从右往左找到第一个 1，它及其右边照抄，左边数值位全部取反。</p>
+<p><b>补码加减法与溢出判断</b>：补码加法统一——$[x+y]_补=[x]_补+[y]_补 \pmod{2^n}$，减法化为加负数的补码，符号位直接参与运算。溢出只可能发生在<b>同号相加</b>（或异号相减）且结果超界时。两种判断法：</p>
+<ul>
+<li><b>双符号位（变形补码）</b>：运算后两位符号位 00 为正、11 为负（未溢出）；<b>01 正溢、10 负溢</b>（第一位才是真正的符号）。</li>
+<li><b>单符号位进位异或</b>：最高位（符号位）进位 $C_7$ 与次高位（最高数值位）进位 $C_6$ 异或，$C_7\oplus C_6=1$ 即溢出。</li>
+</ul>
+<p><b>算术移位（符号位不变，补什么看码制）</b>：</p>
+<table>
+<tr><th class="l">数据类型</th><th>左移补</th><th>右移补</th></tr>
+<tr><td class="l">正数（原/反/补）</td><td>0</td><td>0</td></tr>
+<tr><td class="l">负数原码</td><td>0</td><td>0</td></tr>
+<tr><td class="l">负数反码</td><td>1</td><td>1</td></tr>
+<tr><td class="l"><b>负数补码</b></td><td><b>0</b></td><td><b>1</b></td></tr>
+</table>
+<p style="margin-top:-4px">口诀：负数补码"左 0 右 1"。对照：逻辑移位（无符号数）一律补 0。</p>
+<p><b>IEEE754 浮点标准</b>：单精度 float 32 位 = 1 位符号 + 8 位阶码（偏移 127）+ 23 位尾数，值 $=(-1)^s\times 1.f\times 2^{e-127}$；双精度 double 64 位 = 1 + 11（偏移 1023）+ 52。<b>隐藏位</b>：规格化二进制数必形如 $1.xxx$，最高位的 1 不存储，相当于尾数白赚一位精度（单精度实际 24 位有效尾数）。阶码真值范围 $-126\sim+127$：e 全 0 表示 ±0 与非规格化小数，e 全 1 表示 $\pm\infty$（f=0）与 NaN（f≠0）。单精度规格化数范围 $\pm 2^{-126}\sim\pm(2-2^{-23})\times 2^{127}$（约 $\pm 3.4\times 10^{38}$）。</p>
+<p><b>大小端（面试也问）</b>：多字节数据在内存中的字节序。<b>大端</b>（big-endian）：高位字节放低地址，符合人的书写顺序（网络字节序、Java 默认）；<b>小端</b>（little-endian）：低位字节放低地址（x86 默认）。以 <code>int 0x12345678</code> 从低地址到高地址排布为例：</p>
+<pre><code>大端：  12 34 56 78      （12 是最高位字节，放在最低地址）
+小端：  78 56 34 12      （78 是最低位字节，放在最低地址）</code></pre>
+<span class="lang">Java</span>
+<pre><code>import java.nio.ByteBuffer;
+
+public class EndianDemo {
+    public static void main(String[] args) {
+        ByteBuffer buf = ByteBuffer.allocate(4);  // Java 默认 BIG_ENDIAN
+        buf.putInt(0x12345678);
+        for (int i = 0; i &lt; 4; i++) {
+            System.out.printf("byte[%d]=%02X%n", i, buf.get(i));
+        }
+        // 输出 byte[0]=12 byte[1]=34 byte[2]=56 byte[3]=78 → 大端
+        // 本机真实字节序用 ByteOrder.nativeOrder() 查看
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import struct, sys
+
+big = struct.pack("&gt;I", 0x12345678)     # 强制大端打包
+little = struct.pack("&lt;I", 0x12345678)  # 强制小端打包
+print(big.hex(" "))      # 12 34 56 78
+print(little.hex(" "))   # 78 56 34 12 ← x86 真机内存就是这个字节序
+print(sys.byteorder)     # little（x86 与多数 ARM 默认）</code></pre>
+<p><b>浮点加减法五步骤</b>：① <b>对阶</b>——求阶差，<b>小阶向大阶</b>对齐（小阶的尾数右移，每移一位阶码加 1）；② <b>尾数加减</b>（用补码、双符号位，便于判溢出）；③ <b>规格化</b>——尾数不在 $[\frac12,1)$ 时：左规（尾数左移、阶码减 1）或右规（尾数右移、阶码加 1）；④ <b>舍入</b>（0 舍 1 入、恒置 1 等）；⑤ <b>溢出判断</b>——看<b>阶码</b>是否溢出：阶码上溢才算浮点溢出（中断/置 $\infty$），阶码下溢按机器零处理。为什么小阶向大阶：尾数右移丢失的是低位、精度损失小；若大阶向小阶，尾数要左移，丢失高位直接出错，还可能移出寄存器。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：补码/移码的真值互推、溢出判断（双符号位或进位异或）、算术移位补位规则、IEEE754 字段划分与特殊值、对阶原则、大小端辨析。</li>
+<li>计算：十进制 ↔ 8 位补码（原→反→补三步）、十进制数写成 IEEE754 十六进制形式（符号/规格化/阶码三步）、补码加减运算并判溢出。</li>
+<li>面试口述：为什么补码能把减法变加法、−128 为什么存在、为什么小阶向大阶、Java 的 int 溢出为什么"静默回绕"、大小端对网络编程的影响（htons/ntohl）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 求 $-100$ 的 8 位补码，写出原码 → 反码 → 补码的变换过程，并给出十六进制形式。</p>
+<details><summary>先自己算，再展开对答案</summary>100 = 64+32+4 = 1100100₂。<br>原码：符号 1 + 1100100 = <b>1110 0100</b>；<br>反码：符号位不变、数值位取反 = <b>1001 1011</b>；<br>补码：反码 +1 = <b>1001 1100</b>，即 9CH。<br>验算：1001 1100 = 128+16+8+4 = 156 = 256−100 ✓（负数补码按无符号读就是 $2^8+ x$）。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 用双符号位（变形补码）计算：$[x]_补=00\ 1100100$（即 100），$[y]_补=00\ 0110010$（即 50），则 $[x+y]_补$ 与溢出情况是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 结果为 00 1001011，无溢出</div>
+<div class="opt" data-k="B">B. 结果符号位为 01，发生正溢出</div>
+<div class="opt" data-k="C">C. 结果符号位为 10，发生负溢出</div>
+<div class="opt" data-k="D">D. 结果符号位为 11，无溢出</div>
+<div class="exp" hidden><b>答案 B。</b>00 1100100 + 00 0110010 = <b>01 0010110</b>。双符号位 01 → <b>正溢出</b>（真值 150 超出 8 位补码上限 127）。用进位法验证：次高位进位 $C_6=1$、最高位进位 $C_7=0$，$1\oplus 0=1$ → 溢出，且两正数相加结果符号变负特征 → 正溢。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 把十进制数 $-12.5$ 写成 IEEE754 单精度（float）的二进制位串，并给出十六进制形式。要求按"符号位 → 尾数规格化 → 阶码"逐步写出。</p>
+<details><summary>先自己算，再展开对答案</summary>① 符号：负数 → s = <b>1</b>。<br>② 尾数规格化：$12.5 = 1100.1_2 = 1.1001_2\times 2^{3}$ → 尾数小数部分 f = 1001 后补 0 至 23 位：1001 0000 0000 0000 0000 000（整数位 1 隐藏不存）。<br>③ 阶码：真阶 3 + 偏移 127 = 130 = <b>1000 0010</b>₂。<br>拼接：<b>1 | 10000010 | 10010000000000000000000</b>。<br>按 4 位一组转十六进制：1100 0001 0100 1000 0000 0000 0000 0000 = <b>0xC1480000</b>。来源：面试高频改编。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 阅读上面 Java 与 Python 两段代码（不运行），写出各自注释处的输出，并回答：x86 机器上 int 0x12345678 从低地址到高地址的内存字节序列是什么？如何判断本机字节序？</p>
+<details><summary>先自己算，再展开对答案</summary>Java：ByteBuffer 默认 <b>BIG_ENDIAN</b>，输出 byte[0]=12、byte[1]=34、byte[2]=56、byte[3]=78——高位字节在低地址。Python：struct.pack("&gt;I") 得 12 34 56 78；struct.pack("&lt;I") 得 <b>78 56 34 12</b>。<br>x86 是小端：0x12345678 内存低→高为 <b>78 56 34 12</b>（低位字节在低地址）。<br>判断本机字节序：Python <code>sys.byteorder</code>（'little'/'big'）；Java <code>ByteOrder.nativeOrder()</code>。工程意义：网络字节序是大端，跨机传输多字节数值要 htons/ntohl 这类转换。来源：牛客经典题。</details>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>5.</b> 两个浮点数相加，阶码不同，对阶的正确做法是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 小阶向大阶对齐，小阶的尾数右移</div>
+<div class="opt" data-k="B">B. 大阶向小阶对齐，大阶的尾数左移</div>
+<div class="opt" data-k="C">C. 两个阶码同时取中间值</div>
+<div class="opt" data-k="D">D. 直接把两尾数相加，不必对阶</div>
+<div class="exp" hidden><b>答案 A。</b>对阶必须<b>小阶向大阶</b>：小阶尾数右移只丢低位、精度损失小；若大阶向小阶，尾数左移会丢失高位有效数字，甚至左移出寄存器，错误严重。对阶后才能按位对齐相加，D 不对阶必错。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>6.</b> 已知 $[x]_补 = 1110\ 1100$，则真值 $x$ 等于（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. −20</div>
+<div class="opt" data-k="B">B. −19</div>
+<div class="opt" data-k="C">C. +20</div>
+<div class="opt" data-k="D">D. −116</div>
+<div class="exp" hidden><b>答案 A。</b>符号位 1 → 负数。求真值：数值位取反加 1（或对整个补码再取补）：1110 1100 → 取反 0001 0011 → +1 → 0001 0100 = 20，故 x = <b>−20</b>。选 B 是"取反忘了 +1"（0001 0011 = 19）——最常见的丢分点。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 负数补码"反码 +1"，忘加 1 结果就差 1（−20 算成 −19）；② 补码 1000 0000 是 −128 不是 −0，且它没有对应的原码/反码；③ 溢出只发生在同号相加（异号相减）——异号相加永远不会溢出；④ IEEE754 还原数值时记得把隐藏的整数位 1 加回（是 $1.f$ 不是 $0.f$），阶码先减偏移再当指数；⑤ 二进制转十六进制按 4 位一组（八进制才是 3 位一组）；⑥ 浮点"溢出"指<b>阶码</b>上溢，尾数加减的进位只需右规；⑦ Java 的 int 溢出不报错、按补码回绕（面试口述点），float/double 严格遵循 IEEE754。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>散列查找与冲突处理 · 408基础/数据结构</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>散列查找与冲突处理</h1>
+<div class="meta">适用岗位：全部（计算题：逐个插入 + ASL 手算；概念题：堆积、装填因子） ｜ 形态：散列表手算 + 方法对比 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：除留余数 <b>H(key) = key % p，p 取不超过表长的最大素数</b>。线性探测：简单但<b>易堆积</b>（非同义词争夺连续地址）；<b>删除必须打标记，不能置空</b>。平方探测 ±k²：缓解聚集，表长取 4k+3 素数可探满。链地址法：无堆积、删除方便、α 可超 1。<b>装填因子 α = 元素数/表长，ASL 只跟 α 和探测方法挂钩</b>，与存了哪些数、多少个无直接关系。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>散列思想</b>：用函数 H(key) 直接把关键码算成地址，理想 O(1)。但定义域往往大于地址空间，不同 key 映到同一地址叫<b>冲突</b>（这两个 key 互为<b>同义词</b>）；不同散列值的 key 落到同一批地址也会撞——冲突不可避免，只能选好的散列函数 + 好的处理办法。</p>
+<p><b>除留余数法</b>：H(key) = key mod p，<b>p 取不超过表长 m 的最大素数</b>——质数让余数分布最均匀、冲突最少。表长 m=10 → p=7；m=13 → p=13；m=16 → p=13？注意 16 以内最大素数是 13，别顺手写 15（合数）。</p>
+<p><b>开放定址法</b>：冲突就按探测序列在表内另找空位。<b>线性探测</b> d = 0, 1, 2, …：实现最简单，但冲突的元素连成一片，把别人（哪怕是不同散列值的 key）的初始地址也占掉，越滚越大——这就是<b>堆积（一次聚集）</b>；<b>删除不能把单元置空</b>，否则截断了后面元素的探测链，必须放"已删除"标记，查找遇到标记要继续往下走。<b>平方探测</b> d = 0, 1, −1, 4, −4, …（±k²）：跳着放、显著缓解聚集；<b>表长取 4k+3 型素数时能探测到全部位置</b>（考选择会拿这句出判断）。</p>
+<p><b>链地址法</b>：每个地址挂一条同义词链（Java 里就是数组套链表 / HashMap 的原理）。没有堆积（不同散列值互不干扰）、删除方便（真删结点）、<b>装填因子可以超过 1</b>；代价是指针占空间、结点动态申请释放、缓存局部性不如连续数组。</p>
+<p>示例（p=7，插入 8、15、22、30、7）：H(8)=H(15)=H(22)=1，同义词 8→15→22 串一条链：</p>
+<pre class="ascii-fallback"><code>桶0 ─→ 7 ─→ 空
+桶1 ─→ 8 ─→ 15 ─→ 22 ─→ 空     (H(8)=H(15)=H(22)=1)
+桶2 ─→ 30 ─→ 空
+桶3..桶9 空</code></pre>
+<pre class="mermaid">
+flowchart LR
+    b0["桶 0"] --> c0["7"] --> z0["∅"]
+    b1["桶 1"] --> c1["8"] --> c2["15"] --> c3["22"] --> z1["∅"]
+    b2["桶 2"] --> c4["30"] --> z2["∅"]
+    b3["桶 3～9（空）"]
+</pre>
+<p><b>装填因子与 ASL</b>：α = 表中元素个数 / 表长。开放定址要求 α ≤ 1，链地址无此限制。<b>ASL（平均查找长度）取决于 α 和冲突处理方法：α 越大越挤、期望比较越多；与具体存了哪些数、元素绝对个数没有直接关系</b>——两张 α 相同的表，规模差一倍，期望 ASL 也一样。</p>
+<pre><code>static final int M = 10, P = 7;    // 表长 10, 除数取不超过 10 的最大素数 7
+static int[] table = new int[M];
+static int[] st = new int[M];      // 0 空 / 1 占用 / 2 已删(删除标记)
+
+static int h(int key) { return key % P; }
+
+static boolean insert(int key) {
+    int i = h(key);
+    while (st[i] == 1) {                    // 被占: 线性探测下一格
+        if (table[i] == key) return false;  // 已存在
+        i = (i + 1) % M;
+    }
+    table[i] = key;
+    st[i] = 1;
+    return true;
+}
+
+static int search(int key) {                // 返回比较次数, -1 表示不存在
+    int i = h(key), cnt = 1;
+    while (st[i] != 0) {                    // 遇到真"空"才停; 遇"已删"要继续走
+        if (st[i] == 1 &amp;&amp; table[i] == key) return cnt;
+        i = (i + 1) % M;
+        cnt++;
+        if (cnt &gt; M) break;                 // 绕一圈没找到
+    }
+    return -1;
+}</code></pre>
+<pre><code>from collections import defaultdict
+
+buckets = defaultdict(list)          # 链地址法: 每个桶挂一条同义词链
+
+def h(key):
+    return key % 7
+
+def insert(key):
+    if key not in buckets[h(key)]:
+        buckets[h(key)].append(key)  # 冲突就往链尾挂, 无堆积
+
+def search(key):
+    for i, k in enumerate(buckets[h(key)], 1):
+        if k == key:
+            return i                 # 返回比较次数
+    return -1</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算大题</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：p 的取法、线性/平方探测规则、堆积的成因、删除标记、α 与 ASL 的关系。</li>
+<li>计算：给 key 序列逐个插入画散列表（写每个 key 的比较次数）、求成功/失败 ASL、算装填因子。</li>
+<li>面试口述：链地址法 vs 开放定址的取舍（能联系 HashMap 为什么用链地址就赢麻了）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 散列表表长 m=10，散列函数 H(key) = key % 7，用<b>线性探测</b>处理冲突，依次插入 7、8、30、11、18、9。① 画出最终散列表；② 写出每个 key 插入时的比较次数；③ 求查找成功的 ASL。</p>
+<details><summary>先自己算，再展开对答案</summary>逐个插入：H(7)=0 → 空位，1 次；H(8)=1 → 1 次；H(30)=2 → 1 次；H(11)=4 → 1 次；H(18)=4 被占 → 探 5，2 次；H(9)=2 被占 → 探 3，2 次。<br>
+<table>
+<tr><th>地址</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td></tr>
+<tr><th>key</th><td>7</td><td>8</td><td>30</td><td>9</td><td>11</td><td>18</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><th>比较次数</th><td>1</td><td>1</td><td>1</td><td>2</td><td>1</td><td>2</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+</table>
+③ ASL(成功) = (1+1+1+1+2+2)/6 = 8/6 = <b>4/3</b>。装填因子 α = 6/10 = 0.6。注意 9 放进的是 3 号而不是自己的 2 号，它的比较次数按"初始地址到实际位置"数 = 2。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 表 A 长 16、已存 12 个元素；表 B 长 32、已存 24 个元素，两表都用同样的散列函数和冲突处理方法。① 求两表的装填因子；② 两表的期望平均查找长度谁大？为什么？</p>
+<details><summary>先自己算，再展开对答案</summary>① α(A) = 12/16 = <b>0.75</b>；α(B) = 24/32 = <b>0.75</b>。② 一样大。ASL 的期望只由 α 和冲突处理方法决定，α 相同则"挤的程度"相同——B 表元素多一倍但格子也多一倍，冲突概率分布不变。这正是"ASL 与 α 有关、与元素绝对个数无直接关系"的考点；考选择时若问"想让 ASL 变小最直接的手段"，答<b>扩大表长降低 α</b>。来源：面试高频改编。</details>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于散列冲突的处理方法，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 线性探测法实现简单，但容易产生堆积（一次聚集）</div>
+<div class="opt" data-k="B">B. 平方探测能缓解堆积；表长取 4k+3 型素数时能探测到整个表</div>
+<div class="opt" data-k="C">C. 链地址法插入删除方便，装填因子可以超过 1</div>
+<div class="opt" data-k="D">D. 开放定址法删除元素时，直接把该单元置空即可</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：中间置空会<b>截断探测链</b>——后来查找落在链尾的元素会提前撞到"空"、误判不存在；必须放"已删除"标记，查找遇到标记得继续走，插入遇到标记可复用。A、B、C 是三种方法的标准画像：线性简单易聚、平方跳着放、链地址彻底隔离冲突。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>4.</b> 线性探测法中的"堆积（聚集）现象"指的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 散列函数的计算太慢</div>
+<div class="opt" data-k="B">B. 同义词之间发生冲突</div>
+<div class="opt" data-k="C">C. 表中装填因子必然超过 1</div>
+<div class="opt" data-k="D">D. 非同义词争夺同一批连续地址，冲突簇越滚越大</div>
+<div class="exp" hidden><b>答案 D。</b>堆积的本质：<b>不同散列值</b>的 key 被迫共用同一段探测序列——哪怕 H(key) 互不相同，只要初始地址落进那条"连续被占带"，就得一路探到底。B 只是普通冲突，同义词冲突不可避免、不叫堆积；堆积是线性探测特有的病，平方探测、链地址法就是冲着它去的。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 链地址法有什么优缺点？Java 的 HashMap 为什么选它而不是开放定址？</p>
+<details><summary>参考回答</summary>优点：① <b>无堆积</b>——非同义词各挂各的链，互不干扰；② <b>删除方便</b>，真删结点，不用删除标记；③ 动态性好，<b>装填因子可以超过 1</b>，元素数量不设上限；④ 增删频繁的场景依然稳定。缺点：① 指针占额外空间，存储密度低；② 结点动态申请释放有开销；③ 同义词全撞一条链时仍退化为 O(n) 顺序查找；④ 链式结构缓存局部性不如连续数组。HashMap 选它：删除频繁且真实、扩容 rehash 时链表/树迁移逻辑清晰，且 Java 8 起链长超阈值转红黑树，把"同义词全撞一起退化成 O(n)"的缺点也堵上了。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① p 是"不超过表长的最大素数"，不是表长本身（m=16 → p=13）；② 线性探测删除必须打标记，查找遇标记继续走、插入可复用标记位；③ ASL 只跟 α 和探测方法挂钩，"元素多一倍 ASL 变大一倍"是典型错误选项；④ 平方探测不保证探满全表，除非表长是 4k+3 型素数；⑤ 成功 ASL 的比较次数 = 从初始哈希地址数到实际位置（含初始那次），别从 0 数起；⑥ 堆积说的是"非同义词抢地盘"，同义词冲突本身不算堆积。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

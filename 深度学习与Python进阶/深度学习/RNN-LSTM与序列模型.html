@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RNN/LSTM 与序列模型 · 深度学习与Python进阶/深度学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习</div>
+<h1>RNN/LSTM 与序列模型</h1>
+<div class="meta">适用岗位：AI/Agent 开发（NLP 前置知识） ｜ 形态：公式 + 图示 + 八股 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：RNN 梯度问题的根源是 BPTT 的<b>连乘项</b> $\prod W_{hh}^\top\mathrm{diag}(\tanh')$——小于 1 指数消失、大于 1 指数爆炸；裁剪治爆炸、结构改造治消失；LSTM 靠三门一态，<b>细胞态加法更新</b> $C_t=f_t\odot C_{t-1}+i_t\odot\tilde C_t$ 使 $\partial C_t/\partial C_{t-1}=f_t$，f≈1 时梯度近恒等直传（高速通道）；GRU 两门更省参数；seq2seq 定长向量是瓶颈 → attention 兜底 → Transformer 干脆去掉循环。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>1. RNN 展开与 BPTT</b>：每步用同一组权重（权重共享）：</p>
+<p style="text-align:center">$$h_t=\tanh(W_{xh}x_t+W_{hh}h_{t-1}+b),\qquad y_t=W_{hy}h_t$$</p>
+<p>沿时间展开后是一张"权重共享的深层网络"，训练用 BPTT（沿时间反向传播）——梯度要沿时间步一步步往回乘。</p>
+
+<p><b>2. 梯度消失/爆炸的根源：连乘项</b></p>
+<p style="text-align:center">$$\frac{\partial h_t}{\partial h_k}=\prod_{i=k+1}^{t}W_{hh}^{\top}\,\mathrm{diag}\big(\tanh'(\cdot)\big)$$</p>
+<p>$T-k$ 项连乘：谱半径小于 1 → 指数消失（远距离依赖学不到），大于 1 → 指数爆炸；$\tanh'\le 1$ 又压一手。<b>梯度裁剪一句</b>：爆炸用范数裁剪（超过阈值就等比缩放，Pascanu 2013），消失裁剪救不了，只能改结构——这就是 LSTM 的动机。</p>
+
+<p><b>3. LSTM 三门一态（LSTM 论文 1997，Hochreiter &amp; Schmidhuber）</b></p>
+<p style="text-align:center">$$f_t=\sigma(W_f[h_{t-1},x_t]),\quad i_t=\sigma(W_i[h_{t-1},x_t]),\quad \tilde C_t=\tanh(W_C[h_{t-1},x_t])$$</p>
+<p style="text-align:center">$$C_t=f_t\odot C_{t-1}+i_t\odot\tilde C_t,\qquad o_t=\sigma(W_o[h_{t-1},x_t]),\qquad h_t=o_t\odot\tanh(C_t)$$</p>
+<ul>
+<li><b>遗忘门 $f_t$</b>：旧记忆 $C_{t-1}$ 的保留比例；</li>
+<li><b>输入门 $i_t$</b>：新记忆 $\tilde C_t$ 的写入量；</li>
+<li><b>输出门 $o_t$</b>：$h_t$ 输出多少（<b>不影响细胞态</b>）；</li>
+<li><b>细胞态 $C_t$</b>：长期记忆主干，加法更新。</li>
+</ul>
+<pre class="ascii-fallback"><code>x(t), h(t-1) ─┬─ σ ──→ f(t) 遗忘门：C(t-1) 保留多少
+              ├─ σ ──→ i(t) 输入门：新记忆写入多少
+              ├─ tanh → C~(t) 候选记忆
+              └─ σ ──→ o(t) 输出门：h(t) 输出多少
+
+C(t-1) ──×f(t)──→ ⊕ ──→ C(t) ──tanh──→ ⊙ ──→ h(t)
+                   ↑                    ↑
+C~(t) ───×i(t)─────┘        o(t) ────────┘
+（C 的更新是加法：∂C(t)/∂C(t-1) = f(t)，f≈1 时梯度近似恒等直传）</code></pre>
+<pre class="mermaid">
+flowchart LR
+    IN["x(t) 与 h(t-1)"] --> F["遗忘门 f(t) = σ(·)"]
+    IN --> I["输入门 i(t) = σ(·)"]
+    IN --> G["候选记忆 C̃(t) = tanh(·)"]
+    IN --> O["输出门 o(t) = σ(·)"]
+    C0["细胞态 C(t-1)"] -->|"× f(t)"| ADD["加法 ⊕"]
+    G -->|"× i(t)"| ADD
+    ADD --> C1["细胞态 C(t)"]
+    C1 -->|"tanh"| MUL["输出 ⊙"]
+    O -->|"× o(t)"| MUL
+    MUL --> H1["隐态 h(t)"]
+</pre>
+
+<p><b>4. 为什么细胞态是梯度高速通道</b>：$C_t=f_t\odot C_{t-1}+i_t\odot\tilde C_t$ 中只有第一项依赖 $C_{t-1}$，且系数就是 $f_t$——$\dfrac{\partial C_t}{\partial C_{t-1}}=f_t$，没有 $W_{hh}$ 和 $\tanh'$ 的反复缩放。$f_t$ 是网络自己学的：需要长期记忆时输出接近 1，梯度就近似恒等地流过许多时间步（恒定误差传送带）。对比 RNN：每步乘 $W_{hh}^\top\mathrm{diag}(\tanh')$，连乘指数衰减。这与 ResNet 的恒等映射是同一思想（加法高速通道），LSTM 早了 18 年。</p>
+
+<p><b>5. GRU 简化（Cho 等 2014）</b>：两个门——更新门 $z_t$（融合遗忘与输入，$1-z_t$ 对偶分配）、重置门 $r_t$；不区分细胞态与隐态：$h_t=(1-z_t)\odot h_{t-1}+z_t\odot\tilde h_t$。矩阵 3 组 vs LSTM 4 组，参数少约 1/4，多数任务效果与 LSTM 相当。</p>
+
+<p><b>6. 双向与多层</b>：BiRNN 把前向、后向隐态拼接，$t$ 时刻可见全句——分类/序列标注强，但<b>不能用于自回归生成与实时流</b>（要用未来）。多层堆叠：上层吃下层的隐态序列，逐层抽象。</p>
+
+<p><b>7. seq2seq 瓶颈 → attention → Transformer</b>：encoder 把变长序列压成定长向量 $c$，长句信息全挤在一个向量里（瓶颈，Sutskever 2014）；attention（Bahdanau 2014）让 decoder 每步对 encoder 全部隐态加权取用，缓解瓶颈；再进一步把循环也去掉、全靠注意力并行——Transformer（Vaswani 2017），详见 <a href="Self-Attention与Transformer.html">Self-Attention与Transformer</a> 页。</p>
+
+<p><b>连乘项与裁剪（伪代码）</b></p>
+<pre><code>h = torch.tanh(Wx @ x_t + Wh @ h_prev + b)   # 每步乘一次 Wh 与 tanh'(·)
+# ∂h_t/∂h_k = ∏ Wh^T · diag(tanh')  —— T-k 项连乘 → 指数消失/爆炸
+torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)   # 裁剪治爆炸</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">面试必问</span><span class="tag">笔试选择</span><span class="tag">演进叙事</span></p>
+<ul>
+<li>LSTM 三门分工、细胞态为什么缓解梯度消失——NLP/AI 岗八股必问，答法要能落到 $\partial C_t/\partial C_{t-1}=f_t$。</li>
+<li>RNN 梯度消失/爆炸的数学根源（连乘项）与对策分工（裁剪治爆炸、结构治消失）。</li>
+<li>RNN/LSTM/GRU 对比：门数、参数量、各自适用；双向 RNN 为什么不能做生成。</li>
+<li>演进叙事：seq2seq 瓶颈 → attention → Transformer，一句话讲清动机链（衔接 Self-Attention 页）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> LSTM 中，决定上一时刻细胞态 $C_{t-1}$ 有多少被保留进当前细胞态 $C_t$ 的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 输入门</div>
+<div class="opt" data-k="B">B. 遗忘门</div>
+<div class="opt" data-k="C">C. 输出门</div>
+<div class="opt" data-k="D">D. tanh 候选层</div>
+<div class="exp" hidden><b>答案 B。</b>$C_t=f_t\odot C_{t-1}+i_t\odot\tilde C_t$：$f_t$（遗忘门）管保留、$i_t$（输入门）管写入、$o_t$（输出门）只管 $h_t$ 的输出、不碰细胞态。三个门分工一句话：留多少、写多少、吐多少。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> RNN 长程依赖难学的直接数学根源是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 参数量太少，模型容量不足</div>
+<div class="opt" data-k="B">B. 输入序列没有做归一化</div>
+<div class="opt" data-k="C">C. BPTT 沿时间的梯度是连乘项 $\prod W_{hh}^\top\mathrm{diag}(\tanh')$，模长小于 1 指数消失、大于 1 指数爆炸</div>
+<div class="opt" data-k="D">D. 损失函数不可微</div>
+<div class="exp" hidden><b>答案 C。</b>每展开一步梯度就乘一次 $W_{hh}^\top$ 与 $\tanh'(\cdot)$（≤1），$T-k$ 项连乘按模长指数缩放。A 是容量问题、B 是工程问题，都不是长程依赖的结构性根源；爆炸用裁剪治，消失要改结构（LSTM）。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 RNN、LSTM、GRU 的对比，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. LSTM 细胞态用加法更新 $C_t=f\odot C_{t-1}+i\odot\tilde C$，梯度可近似恒等地沿时间回传</div>
+<div class="opt" data-k="B">B. GRU 用更新门与重置门两个门，矩阵 3 组 vs LSTM 4 组，参数更少，效果常与 LSTM 相当</div>
+<div class="opt" data-k="C">C. LSTM 彻底解决了梯度消失和梯度爆炸问题</div>
+<div class="opt" data-k="D">D. 双向 RNN 在 t 时刻的表示包含未来信息，不适合自回归逐 token 生成</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：LSTM 缓解的是消失（加法通道），爆炸依然存在（连乘结构还在），常规仍配梯度裁剪；双向 RNN 适合理解类任务，生成类不行（D 成立的原因）。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> 细胞态为什么能缓解梯度消失？</p>
+<details><summary>参考回答</summary>关键在"加法更新"。$C_t=f_t\odot C_{t-1}+i_t\odot\tilde C_t$ 中只有第一项依赖 $C_{t-1}$，系数就是 $f_t$——$\partial C_t/\partial C_{t-1}=f_t$，没有 $W_{hh}$ 和 $\tanh'$ 的反复缩放。$f_t$ 是网络自己学的：需要长期记忆时输出接近 1，梯度近似恒等地流过许多时间步（LSTM 论文 1997 称之为恒定误差传送带）。对比 RNN：$\partial h_t/\partial h_{t-1}=W_{hh}^\top\mathrm{diag}(\tanh')$，连乘指数衰减。加分点：这与 ResNet 恒等映射是同一思想（加法高速通道），但 LSTM 早了 18 年；且 $f_t$ 可门控，"哪些时间步保梯度"是学出来的。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① LSTM 4 组权重（f/i/C/o）、GRU 3 组，数参数题常考；② 输出门不影响 $C_t$，只管 $h_t$；③ 梯度裁剪治爆炸不治消失，别答反；④ 双向 ≠ 生成；⑤ attention 对 RNN 的替代逻辑接 <a href="Self-Attention与Transformer.html">Self-Attention与Transformer</a> 页，两页配对着复习。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

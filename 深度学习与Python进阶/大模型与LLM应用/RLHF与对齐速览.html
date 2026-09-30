@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RLHF 与对齐速览 · 深度学习与Python进阶/大模型与LLM应用</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 大模型与LLM应用</div>
+<h1>RLHF 与对齐速览</h1>
+<div class="meta">适用岗位：AI/Agent 开发（对齐八股） ｜ 形态：三阶段流程 + 公式 + 对比表 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：预训练只会续写所以"不听话"；InstructGPT（2022）三阶段 = <b>SFT 指令微调 → 训练奖励模型 RM（人类排序对，Bradley-Terry）→ PPO 优化（KL 惩罚防跑飞）</b>；DPO（2023）跳过 RM 与在线采样，把偏好对变成分类损失；对齐有代价（对齐税 / 创造力下降 / sycophancy 谄媚）；幻觉源于"像真的 ≠ 是真的"，事实类问题用 RAG 缓解。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>预训练模型为什么不会"听话"</b>：预训练目标只有一个——预测下一个 token（续写）。问它"怎么炸鸡蛋"，它可能接着生成"那怎么煮鸡蛋？怎么蒸鸡蛋？"（示意）——因为在语料里这是最顺的续写。<b>会补全 ≠ 会服从指令，更 ≠ 有帮助、无害、诚实</b>。把"会续写"变成"会对话"，就是对齐（alignment）要解决的事。</p>
+<p><b>InstructGPT（2022）三阶段</b>：</p>
+<pre class="ascii-fallback"><code>预训练模型（只会续写）
+  ↓
+① SFT 指令微调（人工示范，学会按指令作答的格式）
+  ↓
+② 训练奖励模型 RM（同一 prompt 多个输出 → 人工排序）
+  ↓
+③ PPO 优化（RM 打分 + KL 惩罚锚住参考模型）
+  ↓
+对齐后的对话模型</code></pre>
+<pre class="mermaid">
+flowchart LR
+    S0[预训练模型 只会续写] --&gt; S1[① SFT 指令微调]
+    S1 --&gt; S2[② 训练奖励模型 RM]
+    S2 --&gt; S3[③ PPO 优化 KL 惩罚]
+    S3 --&gt; OUT[对齐后的对话模型]
+</pre>
+<ul>
+<li><b>① SFT 指令微调</b>：用标注员写的"指令 → 高质量回答"示范做监督微调，先学会"按指令作答的格式"。</li>
+<li><b>② 训练奖励模型 RM</b>：同一 prompt 采样多个输出，人工<b>排序</b>；用成对偏好训练一个打分模型。<b>Bradley-Terry 一句</b>：把偏好对变成概率 $P(y_w\succ y_l)=\sigma\big(r(y_w)-r(y_l)\big)$，从排序学出标量奖励 $r(\cdot)$。</li>
+<li><b>③ PPO 优化</b>：以 RM 为奖励信号做强化学习更新 SFT 模型，同时加 KL 惩罚。工程上这一步要同时挂着策略、参考、RM、价值四个模型——又贵又难训的原因之一。</li>
+</ul>
+<p><b>KL 惩罚的作用</b>：实际奖励 = $r(x,y)-\beta\,\mathrm{KL}\big(\pi_\theta\,\|\,\pi_{\text{ref}}\big)$。RM 只是人类偏好的<b>代理目标</b>，会被钻空子——策略可能输出 RM 打分高但空洞、模板化的文本（<b>reward hacking</b>）；KL 项把策略拴在参考模型附近，防止语言能力与多样性崩掉。</p>
+<p><b>DPO（Direct Preference Optimization，2023）</b>：从 RLHF 目标推出闭式解——奖励可以用策略与参考模型的对数概率比表示（隐式奖励 $\beta\log\frac{\pi_\theta}{\pi_{\text{ref}}}$），于是<b>不需要单独训 RM、不需要在线采样与 PPO 循环</b>，直接在偏好对上做类似分类的损失：</p>
+<p style="text-align:center">$$\mathcal{L}_{\text{DPO}} = -\,\mathbb{E}\left[\log \sigma\!\left(\beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}\right)\right]$$</p>
+<p>工程上更稳、更省资源；拿掉的是"RM + 在线采样"两件重装备，<b>偏好数据本身仍然必需</b>。</p>
+<p><b>RLHF（PPO 版）vs DPO</b>：</p>
+<table>
+<tr><th class="l">维度</th><th>RLHF（PPO 版）</th><th>DPO（2023）</th></tr>
+<tr><td class="l">奖励模型</td><td>要显式训练 RM</td><td>不需要（隐式奖励）</td></tr>
+<tr><td class="l">采样方式</td><td>在线采样 + PPO 训练循环</td><td>离线偏好对，监督学习式</td></tr>
+<tr><td class="l">训练稳定性</td><td>超参敏感、工程重</td><td>类分类损失，稳、省资源</td></tr>
+<tr><td class="l">共同点</td><td colspan="2">都需要人类偏好数据；都受对齐税、谄媚等问题影响</td></tr>
+</table>
+<p><b>对齐的代价</b>：① <b>对齐税</b>——部分基准能力下降；② 输出趋于保守、模板化，<b>创造力与多样性下降</b>；③ <b>sycophancy（谄媚）</b>——为了迎合评价/偏好倾向顺着用户说（RM 从人类偏好里学出来的副作用）。</p>
+<p><b>幻觉来源与缓解</b>：来源——① 预训练目标奖励"像真的续写"而非"是真的"，流畅 ≠ 正确；② 知识截止，训练数据没有的事可能硬编；③ RM 可能偏好自信流利的表述，变相鼓励编造。缓解——事实类问题用 RAG 限定"仅依据检索片段作答"并可溯源，见 <a href="RAG从原理到落地.html">RAG 从原理到落地</a>；配合"允许说不知道"的指令与引用标注。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">面试必问</span><span class="tag">八股速览</span><span class="tag">AI 岗笔试</span></p>
+<ul>
+<li>三阶段顺序与各阶段的数据形态（示范 / 排序对 / RM 打分的在线采样）。</li>
+<li>KL 惩罚与 reward hacking——答出"代理目标会被钻空子"是亮点。</li>
+<li>RLHF vs DPO 差异（RM、采样、稳定性）与共同点（都要偏好数据）。</li>
+<li>对齐的副作用：对齐税、创造力下降、谄媚。</li>
+<li>追问：为什么 SFT 之后还要 RLHF（SFT 学格式模仿，RLHF 学"哪个更好"的排序粒度）；幻觉与 RAG 的关系。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> InstructGPT（2022）对齐三阶段的正确顺序是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. SFT 指令微调 → 训练奖励模型 RM → PPO 强化学习优化</div>
+<div class="opt" data-k="B">B. 训练 RM → SFT → PPO</div>
+<div class="opt" data-k="C">C. PPO → SFT → RM</div>
+<div class="opt" data-k="D">D. RM → PPO → SFT</div>
+<div class="exp" hidden><b>答案 A。</b>先用人工示范 SFT 学会"按指令作答的格式"；再对同一 prompt 的多个输出做人工排序训练 RM；最后 PPO 以 RM 为奖励信号优化、KL 惩罚锚住 SFT 参考模型。逻辑链是"会答 → 会打分 → 会变好"，顺序背反即错。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> RLHF 的 PPO 阶段加入 KL 惩罚的主要目的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 防止策略为刷高奖励而偏离参考模型太远（reward hacking），保住语言能力与多样性</div>
+<div class="opt" data-k="B">B. 让奖励模型的打分更准确</div>
+<div class="opt" data-k="C">C. 减少训练显存占用</div>
+<div class="opt" data-k="D">D. 增大探索随机性，加快收敛</div>
+<div class="exp" hidden><b>答案 A。</b>RM 只是人类偏好的代理目标，存在被钻空子的空间——策略可能输出 RM 打分高但空洞模板化的文本；实际奖励改为 $r-\beta\cdot\mathrm{KL}(\pi_\theta\|\pi_{\text{ref}})$，把策略拴在参考模型附近。B 错——KL 惩罚管的是策略，管不了 RM 本身的质量。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 RLHF（PPO 版）与 DPO（2023）的对比，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. DPO 不需要单独训练一个奖励模型</div>
+<div class="opt" data-k="B">B. DPO 不需要训练中的在线采样与 PPO 循环，把偏好对变成分类式损失直接优化</div>
+<div class="opt" data-k="C">C. DPO 仍然需要成对的偏好数据（chosen / rejected）</div>
+<div class="opt" data-k="D">D. DPO 训练时需要在线采样新输出并用 RM 打分</div>
+<div class="exp" hidden><b>答案 ABC。</b>DPO 的两件"省"正是 A、B——把奖励写成 $\beta\log(\pi_\theta/\pi_{\text{ref}})$ 的隐式形式，离线偏好对上直接优化；但偏好数据照旧要人工标注（C）。D 与 A 矛盾且正是 DPO 省掉的东西。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> 为什么需要训练一个奖励模型，而不直接用规则打分？</p>
+<details><summary>参考回答</summary>"回答得好"是开放域的主观判断——帮助性、真实性、语气——很难写成可枚举的规则；规则只能覆盖表面模式（长度、关键词），很快被策略钻空子（reward hacking）。RM 从大量人类偏好排序中压缩出一个可泛化的标量打分函数（Bradley-Terry：把排序对变成 $P(y_w\succ y_l)=\sigma(r(y_w)-r(y_l))$），把"人觉得哪个好"规模化地变成可优化的信号——这是人类判断接入训练的桥梁。加分：RM 也只是代理目标，所以要配 KL 惩罚防跑飞；DPO 则干脆绕开显式 RM。来源：面试高频改编。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 大模型的幻觉从哪来？工程上怎么缓解？</p>
+<details><summary>参考回答</summary>来源有三：① 预训练目标是"像真的续写"而非"是真的"——流畅 ≠ 正确；② 知识截止——训练数据之后的事它可能硬编；③ 解码随机性 + RLHF 的 RM 可能偏好"自信流利"的表述，变相鼓励编造。缓解：事实类问题首选 RAG——检索相关片段拼进 Prompt、限定模型"仅依据资料作答"并可标注引用溯源，详见同子夹「RAG 从原理到落地」页；辅以"允许说不知道"的指令、要求给出处、降低 temperature 等手段。要点：幻觉的根子在训练目标与数据，RLHF 与 RAG 是缓解不是根除。来源：AI 岗笔试高频。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 顺序别背反：SFT 在前（学格式）、RM 在中（学打分）、PPO 在后（用打分优化）；② KL 惩罚是"防跑飞/防刷分"，不是"防过拟合"；③ DPO 不是"无监督对齐"——偏好数据照旧要标，它省的是 RM 与在线采样；④ 谄媚（sycophancy）是对齐的已知副作用，别把它当成"模型有礼貌"；⑤ "SFT 之后为什么还要 RLHF"：SFT 只会模仿示范，RLHF 提供比示范更细的"哪个更好"的排序信号；⑥ 幻觉题记得把矛头指向预训练目标，再落到 RAG 缓解——只答"编造"不得分。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>推理加速：KV Cache/量化/vLLM · 深度学习与Python进阶/大模型与LLM应用</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 大模型与LLM应用</div>
+<h1>推理加速：KV Cache/量化/vLLM</h1>
+<div class="meta">适用岗位：AI/Agent 开发（推理部署方向） ｜ 形态：显存算式 + 机制拆解 + 对比表 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：因果注意力让历史 K/V 永不变 → <b>KV cache</b> 每步只算增量；显存 = 2×层数×KV头×head_dim×seq×batch×字节（7B/fp16/4096 上下文 ≈ 2GB，GQA 8 组降到 512MB）；<b>MQA 全部 Q 共享 1 组 KV、GQA 分组共享</b>；量化三层面：权重量化（INT8/INT4，算法记 GPTQ/AWQ 各一句）+ KV cache 量化；<b>vLLM 两大件：PagedAttention 分页管 KV 显存防碎片 + continuous batching 迭代级调度提吞吐</b>（均 2023）；投机解码 = 小模型起草、大模型验证，不改输出分布。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>KV cache 为什么能成立</b>：因果注意力下，位置 i 的 K/V 只由 ≤i 的前缀决定——token 一旦生成，它的 K/V <b>永不再变</b>。于是把历史 K/V 全部缓存，每步只算新 token 的 Q/K/V 并与缓存拼接做注意力，单步从"重算整段前缀"降为"只算增量"（注意力机制细节见 <a href="../深度学习/Self-Attention与Transformer.html">Self-Attention 与 Transformer</a>）。双向结构做不到这一点——这也是 decoder-only 的推理红利。</p>
+<p><b>显存估算式</b>（笔试计算题模板）：</p>
+<p style="text-align:center">$$M_{\text{KV}} = 2 \times L \times H_{\text{kv}} \times d_{\text{head}} \times s \times b \times c$$</p>
+<p>2 = K 与 V 两份；L 层数；H_kv KV 头数；d_head 每头维度；s 序列长度；b batch；c 每元素字节数（fp16=2、INT8=1）。<b>7B 数字例</b>（LLaMA-7B 规格：32 层、32 头、head_dim=128，fp16，单条 b=1，4096 上下文）：每 token 约 512KB，整条 4096 上下文约 <b>2GB</b>；换成 GQA（8 组 KV 头）降到约 512MB。上下文越长 KV 越大——它直接决定单卡能塞多少并发、能拼多少检索片段（RAG 链路见 <a href="RAG从原理到落地.html">RAG 从原理到落地</a>）。</p>
+<pre><code># KV 显存（字节）= 2 * 层数 * kv头数 * head_dim * 序列长 * batch * 每元素字节
+L, Hkv, dh, s, bz, c = 32, 32, 128, 4096, 1, 2   # LLaMA-7B fp16 MHA
+kv = 2 * L * Hkv * dh * s * bz * c
+print(kv / 2**30)      # 2.0 GiB —— 约 512 KB/token
+print(kv / 4 / 2**30)  # 0.5 GiB —— GQA 8 组 KV 头，缩到 1/4</code></pre>
+<p><b>MQA / GQA：省 KV 的头</b>：</p>
+<table>
+<tr><th class="l">方案</th><th>KV 头数</th><th>KV cache 大小</th><th class="l">质量与使用</th></tr>
+<tr><td class="l">MHA（标准多头）</td><td>= Q 头数</td><td>基准</td><td class="l">质量基准，cache 最大</td></tr>
+<tr><td class="l">GQA（分组查询，2023）</td><td>分成若干组共享（如 8 组）</td><td>按组数等比缩小</td><td class="l">质量接近 MHA，主流大模型标配（LLaMA-2 70B、LLaMA-3）</td></tr>
+<tr><td class="l">MQA（多查询，2019）</td><td>全部 Q 共享 1 组</td><td>最省</td><td class="l">质量损失最明显</td></tr>
+</table>
+<p><b>量化三层面</b>：</p>
+<table>
+<tr><th class="l">层面</th><th class="l">做法</th><th class="l">代表 / 说明</th></tr>
+<tr><td class="l">权重量化</td><td class="l">权重存成 INT8/INT4，降显存也降访存</td><td class="l">PTQ 训练后量化免重训；配合反量化算子推理</td></tr>
+<tr><td class="l">量化算法</td><td class="l">逐层压量化误差</td><td class="l"><b>GPTQ</b>：基于 Hessian 的逐层误差补偿；<b>AWQ</b>：激活感知，保护少数重要通道</td></tr>
+<tr><td class="l">KV cache 量化</td><td class="l">KV 存成 INT8/FP8</td><td class="l">长上下文时 KV 是显存大头，直接砍半到四分之一；注意 KV 数值分布不稳的精度问题</td></tr>
+</table>
+<p>此外还有激活量化（W8A8 等）与"权重+激活同量化"的组合，思路同源：拿数值精度换显存与带宽。</p>
+<p><b>vLLM 两大件（2023）</b>：</p>
+<ul>
+<li><b>PagedAttention</b>：传统实现按"最大长度"给每条请求预分配<b>连续</b> KV 显存 → 内部碎片（预留没用满）+ 外部碎片（释放后零散难复用）+ 无法共享。借鉴操作系统虚拟内存分页：KV 切成固定大小 block，逻辑连续、物理离散，按需分配 + 页表映射；相同前缀还能共享物理块（prefix sharing）。显存利用率和吞吐大幅提升。</li>
+<li><b>continuous batching</b>：传统 static batching 要一批全部生成完才换下一批，短请求干等长请求、GPU 空转；continuous batching 做<b>迭代级调度</b>——完成的请求即时退出、排队的新请求随时插入，GPU 始终满载，吞吐显著提升。</li>
+<li><b>投机解码（speculative decoding，2023）一句</b>：小模型（draft）快速起草若干候选 token，大模型一次前向<b>并行验证</b>，按接受/拒绝采样修正——输出分布与大模型单独解码一致，是"抽查"不是"换答案"。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">面试必问</span><span class="tag">计算题</span><span class="tag">推理部署</span></p>
+<ul>
+<li>KV cache 为什么能缓存——答"因果性"才算懂；给模型规格会算显存。</li>
+<li>MQA/GQA 在省什么、代价是什么、哪些模型在用。</li>
+<li>量化三层面别混：权重量化 / 量化算法（GPTQ、AWQ 各一句）/ KV cache 量化。</li>
+<li>vLLM 两大件各自解决什么：PagedAttention 管显存碎片、continuous batching 管吞吐。</li>
+<li>追问：投机解码为什么加速却不改输出分布；PagedAttention 为什么还能帮 beam search/并行采样省显存（前缀共享物理块）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 自回归生成时可以把历史 token 的 K、V 缓存复用，其根本原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 注意力得分矩阵是对称矩阵，可存一半算一半</div>
+<div class="opt" data-k="B">B. 因果注意力下，位置 i 的 K/V 只由前缀决定，前缀生成完就不再变化</div>
+<div class="opt" data-k="C">C. 推理阶段模型参数固定不变，所有中间结果都可复用</div>
+<div class="opt" data-k="D">D. softmax 归一化之后不需要再计算</div>
+<div class="exp" hidden><b>答案 B。</b>causal mask 保证每个位置的表示只依赖自己与左侧；token 一旦生成，它的 K/V 永久不变 → 每步只需算新 token 的 Q/K/V 并与缓存拼接。A 错（注意力矩阵不要求对称）；C 的参数不变与"中间结果能复用"是两回事。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> GQA（分组查询注意力）的做法与收益是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 多个 Q 头共享一组 K/V 头，KV cache 与访存显著变小，效果介于 MHA 与 MQA 之间</div>
+<div class="opt" data-k="B">B. 把 Q 头分成多组，各组用不同的模型分别计算再融合</div>
+<div class="opt" data-k="C">C. 只缓存 Q 不缓存 K/V，从而省下大部分显存</div>
+<div class="opt" data-k="D">D. 用分组卷积替代注意力计算</div>
+<div class="exp" hidden><b>答案 A。</b>MHA 的 KV 头数 = Q 头数、cache 最大；MQA 全部 Q 共享 1 组 KV、省到极致但质量有损；GQA 折中，是 LLaMA-2 70B / LLaMA-3 等主流模型的标配。注意 Q 头数不变、变的是 KV 头数。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 LLM 推理加速手段，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. PagedAttention 用分页方式管理 KV 显存，减少碎片、提高显存利用率</div>
+<div class="opt" data-k="B">B. continuous batching 按迭代级调度请求，完成即退、新请求随时插入，提高吞吐</div>
+<div class="opt" data-k="C">C. 权重量化（INT8/INT4）降低权重显存与访存开销</div>
+<div class="opt" data-k="D">D. 投机解码会改变模型的输出分布，上线前需要重新校准</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错——投机解码是"小模型起草、大模型并行验证"，通过接受/拒绝采样保证输出分布与大模型单独解码一致，加速不改分布。A、B 是 vLLM 两大件（管显存 vs 管调度），C 是量化家族。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 某模型规格：32 层、32 个 KV 头、head_dim=128、fp16。单条请求（batch=1）、上下文 4096 时，KV cache 占多少显存？若改用 GQA 只保留 8 组 KV 头呢？</p>
+<details><summary>先自己算，再展开对答案</summary>每 token 每层 KV = 2×32×128×2字节 = 16,384 B；全模型 = ×32 层 = 524,288 B/token（512 KB）；×4096 token = <b>2 GiB</b>。GQA 8 组：KV 头数缩到 1/4 → 128 KB/token → <b>512 MiB</b>。检查方法：公式里"2"（K/V 两份）和"×32 层"最容易漏，单位先统一成字节最后再换 GiB。来源：牛客经典题。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> PagedAttention 解决什么问题？一句话讲清它的机制。</p>
+<details><summary>参考回答</summary>解决 KV cache 显存的管理问题：传统实现按最大长度给每条请求预分配<b>连续</b>显存，产生内部碎片（预留没用满）和外部碎片（释放后零散块难复用），批量服务时利用率很低。机制（vLLM，2023）：借操作系统虚拟内存分页——KV 切成固定大小的 block，逻辑上连续、物理上离散，按需分配、页表映射，还能让相同前缀的请求共享物理块（prefix sharing）。它与 continuous batching 互补：一个管显存、一个管调度，共同把吞吐打上去。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① KV 显存公式里的"2"是 K/V 两份、还要"×层数"，两头最容易漏；单位先算字节再换 GiB；② GQA 省的是 KV 头数，Q 头数不变——别答成"减少注意力头"；③ 量化省显存也省带宽，但精度损失要按任务敏感度评估，不是无脑 INT4；④ PagedAttention 是"管理方式"的革命：不减少 KV 总量，而是减少浪费；⑤ continuous batching（调度）与 PagedAttention（显存）是两件事，答成一件会露怯；⑥ 投机解码的价值主张是"分布不变地变快"，说它改输出分布直接错。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

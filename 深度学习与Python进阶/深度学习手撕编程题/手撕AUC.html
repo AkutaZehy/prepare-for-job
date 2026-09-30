@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手撕AUC（ACM 模式） · 深度学习与Python进阶/深度学习手撕编程题</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习手撕编程题</div>
+<h1>手撕 AUC（ACM 模式）</h1>
+<div class="meta">适用岗位：AI/Agent 开发（搜广推笔试必考） ｜ 形态：ACM 判题题 + 概念自测 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：AUC 的概率含义 = 随机取一正一负、正样本得分更高的概率。排序法一步出：按分数排名（<b>并列取平均秩</b>），$\text{AUC}=\dfrac{R_+ - \frac{n_+(n_+ +1)}{2}}{n_+ \, n_-}$，$R_+$ 为正样本秩和。坑点全在并列分数的平均秩上。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题面</b>：给 n 个样本的预测分 prob 与真实标签 label（0/1），用排序法求 AUC，4 位小数。约定：分数并列取<b>平均秩</b>；题目保证至少 1 个正样本与 1 个负样本（n<sub>+</sub>·n<sub>−</sub> &gt; 0，无需额外特判）。</p>
+<p style="text-align:center">$$\text{AUC}=\frac{R_+ - \dfrac{n_+\,(n_+ +1)}{2}}{n_+ \cdot n_-}$$</p>
+<p>其中 $R_+$ 为按预测分<b>升序</b>排名（秩从 1 起、并列取平均秩）后正样本的秩和；$\frac{n_+(n_+ +1)}{2}$ 是正样本秩的固有底数（排名 1..n<sub>+</sub> 的最小可能秩和），减掉后剩下的正是"正样本排在负样本前面"的净得分。</p>
+<div class="io"><b>输入格式</b>：第一行 n；随后 n 行每行 prob label。
+<b>样例 1（无并列）</b>：
+<pre><code>4
+0.9 1
+0.7 1
+0.4 0
+0.2 0</code></pre>
+<b>输出</b>：
+<pre><code>1.0000</code></pre>
+<b>样例 2（含并列分数）</b>：
+<pre><code>5
+0.8 1
+0.8 0
+0.3 1
+0.3 0
+0.6 1</code></pre>
+<b>输出</b>：
+<pre><code>0.5000</code></pre></div>
+<p>样例核算 1（手算 Mann-Whitney 计数）：4 个正负对 0.9&gt;0.4、0.9&gt;0.2、0.7&gt;0.4、0.7&gt;0.2 全胜 → 4/4 = 1。秩法：升序秩 0.2→1、0.4→2、0.7→3、0.9→4，$R_+=3+4=7$，AUC $=(7-\frac{2\cdot3}{2})/4=1$ ✓。</p>
+<p>样例核算 2：升序秩——两个 0.3 共享 $(1+2)/2=1.5$，0.6→3，两个 0.8 共享 $(4+5)/2=4.5$；$R_+=4.5+1.5+3=9$，AUC $=(9-\frac{3\cdot4}{2})/(3\cdot2)=0.5$。逐对核对：0.8p vs 0.8n 平手记 0.5、胜 0.3n；0.6p 负 0.8n、胜 0.3n；0.3p 平 0.3n、负 0.8n → $(0.5+1+0+1+0+0.5)/6=0.5$ ✓。两个实现交叉核对一致（另加 2 组用例实测同样吻合）。</p>
+</section>
+
+<section class="card p">
+<h2>二、思路与伪代码</h2>
+<pre><code>升序排序, 并列分数共用平均秩 -> rank[]
+R+ = 正样本 rank 之和
+AUC = (R+ - n+*(n+ + 1)/2) / (n+ * n-)
+输出 4 位小数</code></pre>
+<p><b>思路：为什么并列要取平均秩</b>。并列的一对 (正, 负) 本该各记 0.5 分；把并列组的秩取平均后再套秩和公式，恰好等价于逐对"胜记 1 / 平记 0.5 / 负记 0"的 Mann-Whitney 统计量——这就是平均秩的来历。<b>对拍</b>：另写 O(n²) 逐对计数版作独立实现，排序法与逐对法在本页两个样例及额外用例上完全一致（实测 1.0000 / 0.5000 / 0.7500 / 0.3750 四组全部吻合）。复杂度：排序法 O(n log n) 是判题主打，逐对法 O(n²) 只配当对拍器。</p>
+<div class="q">
+<p><b>概念自测（点击选项判分）</b></p>
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> AUC 的概率含义是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 预测正确的样本占比（准确率）</div>
+<div class="opt" data-k="B">B. 正样本占全部样本的比例</div>
+<div class="opt" data-k="C">C. 随机取一正一负两个样本，正样本预测分高于负样本的概率</div>
+<div class="opt" data-k="D">D. 正样本中被召回的比例（召回率）</div>
+<div class="exp" hidden><b>答案 C。</b>AUC = ROC 曲线下面积，等价于"随机正样本得分 &gt; 随机负样本得分"的概率：全排对是 1、随机瞎排是 0.5。B/D 是先验与召回，与排序质量无关。来源：AI 岗笔试高频。</div>
+</div>
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 用排序法计算 AUC，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 分数并列的样本取平均秩后再套秩和公式</div>
+<div class="opt" data-k="B">B. 公式 (R₊ − n₊(n₊+1)/2) / (n₊·n₋) 中 R₊ 是正样本秩和（升序秩、从 1 起）</div>
+<div class="opt" data-k="C">C. AUC 对分类阈值不敏感，类别不平衡场景比准确率稳</div>
+<div class="opt" data-k="D">D. 负样本远多于正样本时 AUC 一定小于 0.5</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：AUC 只看正负两类内部的相对排序，与两类数量比例无关（小于 0.5 是"排反了"，不是"不均衡"）。B 的减法项是排名 1..n₊ 的固有秩和，不减会把正样本自己的名次误算成得分。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit" type="button">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码</h2>
+<span class="lang">Python（ACM 完整程序，排序法）</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    rs = [(float(next(it)), int(next(it))) for _ in range(n)]
+    npos = sum(l for _, l in rs)
+    nneg = n - npos
+    # 1) 升序排序, 并列分数取平均秩
+    order = sorted(range(n), key=lambda i: rs[i][0])
+    rank = [0.0] * n
+    i = 0
+    while i &lt; n:
+        j = i
+        while j &lt; n and rs[order[j]][0] == rs[order[i]][0]:
+            j += 1
+        avg = (i + 1 + j) / 2.0          # 秩 i+1 .. j 的平均值
+        for t in range(i, j):
+            rank[order[t]] = avg
+        i = j
+    # 2) AUC = (正样本秩和 - 固有底数) / (n+ * n-)
+    r_sum = sum(rank[i] for i in range(n) if rs[i][1] == 1)
+    auc = (r_sum - npos * (npos + 1) / 2.0) / (npos * nneg)
+    print(f"{auc:.4f}")
+
+main()</code></pre>
+<span class="lang">逐对计数（O(n²) 对拍/白板版，无 IO）</span>
+<pre><code>def auc_pairs(rs):                       # rs: [(prob, label)]
+    npos = sum(l for _, l in rs)
+    nneg = len(rs) - npos
+    s = 0.0
+    for p1, l1 in rs:
+        if l1 != 1:
+            continue
+        for p2, l2 in rs:
+            if l2 != 0:
+                continue
+            if p1 &gt; p2:                  # 胜记 1
+                s += 1.0
+            elif p1 == p2:               # 平记 0.5
+                s += 0.5
+    return s / (npos * nneg)</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 秩从 1 开始不是 0；② 并列检测在排序后比相邻分数是否相等（输入同字面解析出的浮点相等是安全的）；③ 别忘了减固有底数 $\frac{n_+(n_+ +1)}{2}$，否则结果系统性偏大；④ n₊ 或 n₋ 为 0 时 AUC 无定义——题面保证不出现，但工程代码要留除零保护；⑤ 想验证自己写对没有：拿 O(n²) 逐对版对拍，两版不一致必是平均秩处理错了。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

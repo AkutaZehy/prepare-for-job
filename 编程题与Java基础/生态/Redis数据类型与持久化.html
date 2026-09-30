@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redis 数据类型与持久化 · 编程题与Java基础/生态</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 生态</div>
+<h1>Redis 数据类型与持久化</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开、后端 ｜ 形态：类型编码 + 持久化对比 + 架构演进 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：五大类型各配一套底层编码与场景（String 缓存计数 / List 队列 / Hash 对象属性 / Set 去重交集 / ZSet 排行榜，ZSet = <b>skiplist + dict 双结构</b>）；持久化 <b>RDB 快照恢复快但会丢、AOF 追加命令丢得少但文件大（重写压缩、4.0 起混合持久化）</b>；过期删除 = 惰性 + 定期采样；内存淘汰默认 <b>noeviction 报错</b>；快 = 纯内存 + 单线程无锁 + IO 多路复用，<b>6.0 起网络 IO 多线程、命令执行仍单线程</b>；架构三级：主从复制 → 哨兵 → Cluster（16384 slot 分片）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>五大类型：底层编码 + 典型场景 + 常用命令</b>（一张表背完）：</p>
+<table>
+<tr><th>类型</th><th>底层编码</th><th>典型场景</th><th>常用命令</th></tr>
+<tr><td><b>String</b></td><td class="l">SDS 简单动态字符串（O(1) 拿长度、空间预分配、二进制安全）</td><td class="l">缓存对象（JSON 串）、计数器、分布式锁</td><td class="l"><code>SET / GET / INCR / SETNX</code></td></tr>
+<tr><td><b>List</b></td><td class="l">quicklist（3.2 起默认；节点内 7.0 起由 listpack 取代 ziplist）</td><td class="l">简单消息队列（lpush+rpop）、最新动态列表</td><td class="l"><code>LPUSH / RPOP / LRANGE</code></td></tr>
+<tr><td><b>Hash</b></td><td class="l">元素少且短用 listpack（7.0 前 ziplist），超阈值转 hashtable</td><td class="l">对象属性分组存、购物车（field=商品，value=数量）</td><td class="l"><code>HSET / HGETALL / HINCRBY</code></td></tr>
+<tr><td><b>Set</b></td><td class="l">全为整数用 intset，否则 hashtable</td><td class="l">去重（点赞/签到）、共同好友（交集）、抽奖</td><td class="l"><code>SADD / SISMEMBER / SINTER / SRANDMEMBER</code></td></tr>
+<tr><td><b>ZSet</b></td><td class="l">元素少用 listpack，多则 <b>skiplist + dict 双结构</b>：跳表管排序与范围，dict 管 O(1) 按成员查分</td><td class="l">排行榜、延迟队列（score=执行时间）</td><td class="l"><code>ZADD / ZRANGE / ZREVRANGE / ZSCORE</code></td></tr>
+</table>
+
+<p><b>跳表 vs 红黑树（ZSet 为什么选跳表，一句话版）</b>：跳表底层是有序链表，范围查询沿链表顺序走即可、定位 O(logn)，而红黑树范围查询要中序遍历上下来回爬；跳表实现简单（无旋转调色），还天然支持按排名 rank 定位，编码维护成本低——所以 ZSet 用跳表不用红黑树。</p>
+
+<p><b>过期删除策略</b>：<b>惰性删除</b>（key 被访问时才检查，过期即删——冷 key 可能长期占内存）+ <b>定期删除</b>（默认每 100ms 随机抽样一批设置了过期时间的 key，删掉其中过期的，限制时长防阻塞主线程）两者<b>组合</b>使用，互补短板。</p>
+
+<p><b>内存淘汰 8 种（maxmemory-policy，内存满触发）</b>：</p>
+<table>
+<tr><th>策略</th><th>范围</th><th>规则</th></tr>
+<tr><td><b>noeviction</b>（默认）</td><td>—</td><td class="l">不淘汰，内存满后写命令直接<b>报错</b>（读不受影响）</td></tr>
+<tr><td>allkeys-lru / volatile-lru</td><td class="l">全部 key / 仅设了过期时间的 key</td><td class="l">淘汰<b>最久未使用</b>的（近似 LRU：采样而非全局精确链表）</td></tr>
+<tr><td>allkeys-lfu / volatile-lfu</td><td class="l">同上两个范围</td><td class="l">淘汰<b>访问频率最低</b>的（4.0 起；计数+随时间衰减）</td></tr>
+<tr><td>allkeys-random / volatile-random</td><td class="l">同上两个范围</td><td class="l">随机淘汰</td></tr>
+<tr><td>volatile-ttl</td><td class="l">仅设了过期时间的 key</td><td class="l">淘汰剩余存活时间最短的</td></tr>
+</table>
+<p>LRU vs LFU 一句话：LRU 看"最近有没有用"（偶发批量扫描会污染）；LFU 看"用得多不多"（按频率计数并衰减），偶发扫描场景 LFU 更稳。</p>
+
+<p><b>持久化：RDB vs AOF 大对比</b>：</p>
+<table>
+<tr><th>维度</th><th>RDB（快照）</th><th>AOF（追加日志）</th></tr>
+<tr><td>原理</td><td class="l">把某时刻全量数据以二进制落盘；<code>save</code> 阻塞主线程（别用），<b><code>bgsave</code> fork 子进程 + 写时复制 COW</b>（主进程继续改，子进程按 fork 瞬间的快照写）</td><td class="l">追加记录每条<b>写命令</b>；<b>写后日志</b>（先执行命令再记日志，防记录错误命令、不阻塞当前写，代价是宕机可能丢最后一条）</td></tr>
+<tr><td>刷盘三档</td><td class="l">按 save 配置定时间隔</td><td class="l"><code>appendfsync</code>：<b>always</b> 每条命令都 fsync（最安全最慢）/ <b>everysec</b>（默认，最多丢约 1 秒）/ <b>no</b> 交给操作系统（最快最不安全）</td></tr>
+<tr><td>体积与恢复</td><td class="l">二进制紧凑、<b>恢复快</b></td><td class="l">文本命令文件大、恢复慢；<b>AOF 重写 <code>bgrewriteaof</code></b>：fork 子进程按当前内存数据反推最小命令集压缩体积，重写期间新命令进"AOF 重写缓冲区"最后补上</td></tr>
+<tr><td>数据安全</td><td class="l">两次快照之间的宕机会<b>丢一段</b></td><td class="l">everysec 下最多丢约 1 秒</td></tr>
+</table>
+<p><b>4.0 起混合持久化</b>（aof-use-rdb-preamble）：AOF 重写后的文件 = <b>RDB 全量二进制做头 + 之后增量 AOF 追加做尾</b>——恢复速度向 RDB 看齐、丢数据向 AOF 看齐，4.0+ 推荐。</p>
+
+<p><b>Redis 为什么快</b>：①纯内存操作；②<b>命令执行单线程</b>——无锁竞争、无线程上下文切换；③<b>IO 多路复用</b>（epoll），单线程就能管理大量连接；④数据结构高效（SDS、跳表、listpack 等都是为内存与速度定制）。<b>版本注</b>：Redis 6.0 起网络 IO（读取、解析、回写）改多线程，但<b>命令执行仍是单线程</b>——面试别说成"6.0 后整体多线程"。</p>
+
+<p><b>高可用三级架构（各一句）</b>：<b>主从复制</b>——主写从读、读写分离，首次全量 RDB 同步 + 之后异步命令传播（异步就有丢失窗口）；<b>哨兵 Sentinel</b>——监控主库健康，主观下线→多数派确认客观下线，自动选举新主并故障转移、通知客户端，哨兵自身至少 3 节点防误判；<b>Cluster 集群</b>——数据按 <b>key 的 CRC16 值 % 16384 定位 slot</b> 分片到各主节点（各管一部分槽），内置主从与故障转移。加分点：slot 定 16384 是心跳包体积的权衡（65536 的心跳头太大，8K 槽又不够分片规模）。</p>
+
+<span class="lang">Java</span>
+<pre><code>// Jedis 风格示例：String 计数器 + ZSet 排行榜（两大高频场景落地）
+long hits = jedis.incr("pv:article:1001");        // 原子自增
+if (hits == 1) jedis.expire("pv:article:1001", 86400);  // 首次访问才设过期
+
+jedis.zadd("rank:game", 980, "player:7");          // 更新玩家积分
+jedis.zincrby("rank:game", 20, "player:7");        // 加 20 分
+Set&lt;String&gt; top = jedis.zrevrange("rank:game", 0, 99);  // 前 100 名（跳表负责）
+Double score = jedis.zscore("rank:game", "player:7");   // O(1) 查分（dict 负责）</code></pre>
+<p>用 Redis 做分布式锁（<code>SETNX</code> 一族）是另一条主线，坑与解法见同目录 <a href="缓存穿透击穿雪崩与分布式锁.html">缓存穿透、击穿、雪崩与分布式锁</a>。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：类型选型（场景给类型）、编码细节（intset/quicklist/skiplist+dict）、appendfsync 三档、默认淘汰策略、过期删除组合。</li>
+<li>面试："ZSet 为什么用跳表不用红黑树"、"RDB 和 AOF 怎么选"、"bgsave 期间数据被改怎么办"（COW）、"Redis 为什么快"（带 6.0 版本注）、"主从哨兵集群怎么演进"。</li>
+<li>追问链：持久化 → fork + COW → 大实例 fork 开销 → 混合持久化 → 上线配置怎么给，一环扣一环。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 要实现游戏排行榜：按积分排序取前 100 名、随时更新某玩家积分、并要求 O(1) 查询某玩家的积分。最合适的 Redis 数据类型是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. List，LRANGE 分页取名次</div>
+<div class="opt" data-k="B">B. Hash，field 存玩家名 value 存积分</div>
+<div class="opt" data-k="C">C. ZSet，score 存积分，skiplist + dict 双结构同时满足排序与点查</div>
+<div class="opt" data-k="D">D. Set，天然去重存玩家集合</div>
+<div class="exp" hidden><b>答案 C。</b>ZSet 的双结构正好对上两个需求：跳表管 <code>ZREVRANGE</code> 排序取前 N，dict 管 <code>ZSCORE</code> 的 O(1) 点查。Hash 没法按值排序；List 排序要全量扫。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于 RDB 与 AOF，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. bgsave 靠 fork 子进程 + 写时复制实现，基本不阻塞主线程（fork 瞬间除外）</div>
+<div class="opt" data-k="B">B. appendfsync everysec 是默认配置，宕机最多丢约 1 秒的数据</div>
+<div class="opt" data-k="C">C. AOF 重写按当前内存数据反推最小命令集，能大幅压缩文件体积</div>
+<div class="opt" data-k="D">D. RDB 文件的恢复速度比 AOF 慢</div>
+<div class="exp" hidden><b>答案 ABC。</b>RDB 是二进制全量快照，直接载入内存即可，<b>恢复比 AOF 快</b>，D 反了。AOF 恢复要逐条重放命令，所以才有了重写压缩和 4.0 的"RDB 头 + AOF 尾"混合格式。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>3.</b> 金融类业务要求 Redis 宕机时几乎不丢数据，AOF 的 appendfsync 应配置为（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. no，交给操作系统调度</div>
+<div class="opt" data-k="B">B. everysec，每秒刷一次</div>
+<div class="opt" data-k="C">C. always，每条命令都 fsync</div>
+<div class="opt" data-k="D">D. 关掉 AOF 只用 RDB</div>
+<div class="exp" hidden><b>答案 C。</b>always 每条命令都落盘，性能最差但最安全；everysec 默认，最多丢约 1 秒；no 交给 OS，窗口不可控。只配 RDB 会丢两次快照之间的全部数据。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>4.</b> Redis 纯作缓存使用（key 未统一设置过期时间），内存已打满但仍需继续写入，希望淘汰任意 key 中"最久未被使用"的，应配置（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. noeviction</div>
+<div class="opt" data-k="B">B. volatile-lru</div>
+<div class="opt" data-k="C">C. allkeys-lru</div>
+<div class="opt" data-k="D">D. volatile-ttl</div>
+<div class="exp" hidden><b>答案 C。</b>volatile 系只在<b>设置了过期时间</b>的 key 里淘汰——纯缓存未必都设 TTL，样本可能为空导致写入报错；全量范围 + LRU 语义 = allkeys-lru。默认策略是 noeviction（只报错不淘汰）。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> ZSet 底层为什么用跳表而不是红黑树？两句话说清。</p>
+<details><summary>参考回答</summary>第一，范围查询：跳表的底层是有序链表，找到起点后沿链表顺序走就是ZRANGE/ZREVRANGE，天然高效；红黑树做范围查询要中序遍历，指针上下来回爬。第二，工程实现：跳表靠随机层数维持平衡，没有旋转和变色，实现和调试都简单，还容易支持按排名 rank 查询；配合 dict 就能做到按成员 O(1) 查分数。加分点：说清 ZSet 是 skiplist + dict 双结构，以及元素少时先用 listpack 省内存。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① volatile 系淘汰只作用于设了过期时间的 key——纯缓存要选 allkeys 系；Redis 的 LRU 是采样近似 LRU，不是全局精确链表；② <code>save</code> 阻塞主线程，生产用 <code>bgsave</code>（fork + COW）；③ AOF 是<b>写后日志</b>（先命令后日志），与 redo log 的先日志后数据（WAL）方向相反，别背串；④ 6.0 的多线程只管网络 IO，<b>命令执行永远单线程</b>；⑤ 版本锚点：quicklist 是 3.2 起 List 默认；listpack 替换 ziplist 是 7.0；LFU 与混合持久化是 4.0；⑥ 惰性 + 定期是"过期删除"，内存满触发的是"淘汰策略"——两套机制别混。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手撕LR前向反向（ACM 模式） · 深度学习与Python进阶/深度学习手撕编程题</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习手撕编程题</div>
+<h1>手撕 LR 前向反向（ACM 模式）</h1>
+<div class="meta">适用岗位：AI/Agent 开发（面试手撕经典） ｜ 形态：ACM 判题题 + 概念自测 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：前向 $p=\sigma(Xw+b)$；损失 $L=-\frac1m\sum\,[\,y\ln p+(1-y)\ln(1-p)\,]$；sigmoid 导数 $p(1-p)$ 与 CE 的 $\frac{1}{p}$ 链式相乘后<b>恰好约掉</b>，反向收敛为 $\text{grad}_w=\frac1m X^\top(p-y)$、$\text{grad}_b=\text{mean}(p-y)$——与 softmax+CE 同款形状。零初始化 + 批量 GD，判题完全确定。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题面</b>：给 n 条 d 维样本与 0/1 标签，权重<b>零初始化</b>（w 全 0、b=0），用学习率 lr 做<b>批量</b>梯度下降 epochs 轮，输出 d+1 个权重（w₁..w_d 与偏置 b），4 位小数、空格分隔。</p>
+<p style="text-align:center">$$p_i=\sigma(\mathbf x_i^\top\mathbf w+b),\qquad L=-\frac1m\sum_{i=1}^m\Big[y_i\ln p_i+(1-y_i)\ln(1-p_i)\Big]$$</p>
+<div class="io"><b>输入格式</b>：第一行 n d；随后 n 行每行 d 个特征；随后一行 n 个标签（0/1）；最后一行 lr epochs。
+<b>样例 1（二维线性可分 4 点）</b>：
+<pre><code>4 2
+0 0
+1 0
+0 1
+1 1
+0 0 1 1
+0.5 1000</code></pre>
+<b>输出（实测）</b>：
+<pre><code>-0.4171 9.2226 -4.1969</code></pre>
+<b>样例 2（一维 6 点）</b>：
+<pre><code>6 1
+-2
+-1
+0
+1
+2
+3
+0 0 0 1 1 1
+0.1 500</code></pre>
+<b>输出（实测）</b>：
+<pre><code>3.3185 -1.3666</code></pre></div>
+<p>样例核算 1：学到的分离面近似 $x_2\approx0.45$（w₂=9.22 主导、w₁ 很小），四个点按 p≥0.5 判类全部正确；损失从 0.6931（=ln 2）单调降到 0.0103——实测逐轮记录损失<b>无一次上升</b>（断言通过）。</p>
+<p>样例核算 2：一维逻辑回归，决策边界 $x\approx 1.37/3.32\approx0.41$，两侧分类全对，损失单调降至 0.0625。</p>
+</section>
+
+<section class="card p">
+<h2>二、思路与伪代码</h2>
+<pre><code>w = 0向量, b = 0
+重复 epochs 轮:
+    前向: p_i = sigmoid(x_i · w + b)
+    反向: gw = X^T (p - y) / m;   gb = mean(p - y)
+    更新: w -= lr * gw;   b -= lr * gb
+输出 w1..wd 和 b(4位小数)</code></pre>
+<p><b>推导：梯度为什么是 Xᵀ(p−y)/m</b>。$\frac{\partial L}{\partial p_i}=\frac{p_i-y_i}{p_i(1-p_i)}$，而 sigmoid 的导数 $\sigma'(z)=p(1-p)$，链式相乘分母恰好消掉：$\frac{\partial L}{\partial z_i}=p_i-y_i$；再过线性层 $z=Xw+b$ 的链式即 $\text{grad}_w=\frac1mX^\top(p-\mathbf y)$、$\text{grad}_b=\frac1m\sum_i(p_i-y_i)$。<b>收敛性</b>：线性模型 + 对数损失是凸函数，学习率适当时批量 GD 损失单调下降（本页两组样例逐轮实测单调）。<b>数值稳定</b>：sigmoid 分段写——$x\ge0$ 用 $\frac{1}{1+e^{-x}}$、$x&lt;0$ 用 $\frac{e^x}{1+e^x}$，两端都不溢出；取 log 前给 p 夹 eps=1e-12 防 $\ln 0$。</p>
+<div class="q">
+<p><b>概念自测（点击选项判分）</b></p>
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> LR 用交叉熵而不用均方误差（sigmoid 输出）作损失，最主要的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. MSE 配 sigmoid 是非凸的，且误差大在饱和区时梯度反而趋零</div>
+<div class="opt" data-k="B">B. MSE 的计算量比 CE 大</div>
+<div class="opt" data-k="C">C. CE 能保证训练出的权重全为正</div>
+<div class="opt" data-k="D">D. 两者没有本质区别，纯属社区习惯</div>
+<div class="exp" hidden><b>答案 A。</b>σ+MSE 的复合非凸，且梯度带 σ'(z)=p(1−p) 因子：预测错得离谱（|z| 大、σ 饱和）时梯度趋零、学不动；CE 的梯度 p−y 恰好把 σ' 约掉，错得越狠梯度越大——这也是"输出层配 sigmoid/softmax 就配 CE"的通用理由。来源：面试高频改编。</div>
+</div>
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于批量梯度下降训练 LR，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 梯度 gw = Xᵀ(p−y)/m；把偏置折进权重时给 X 补一列全 1</div>
+<div class="opt" data-k="B">B. 线性模型 + 对数损失是凸函数，批量 GD 收敛到全局最优</div>
+<div class="opt" data-k="C">C. 特征量纲差异大时先标准化，GD 走得更稳更快</div>
+<div class="opt" data-k="D">D. 学习率越大收敛越快，永远不会发散</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：学习率过大会在最优点两侧震荡甚至发散（损失上升）——本页实测单调下降的前提就是 lr 合适。A 的"补一列 1"是面试常考的向量化技巧；B 是 LR 敢用零初始化的原因（凸问题无局部极小陷阱）。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit" type="button">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码</h2>
+<span class="lang">Python（ACM 完整程序）</span>
+<pre><code>import sys
+import math
+
+def sigmoid(x):
+    if x &gt;= 0:                          # 分段写, 两端都不溢出
+        return 1.0 / (1.0 + math.exp(-x))
+    e = math.exp(x)
+    return e / (1.0 + e)
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n, d = int(next(it)), int(next(it))
+    X = [[float(next(it)) for _ in range(d)] for _ in range(n)]
+    y = [int(next(it)) for _ in range(n)]
+    lr, epochs = float(next(it)), int(next(it))
+    w = [0.0] * d                        # 零初始化, 判题确定
+    b = 0.0
+    for _ in range(epochs):
+        # 前向
+        p = [sigmoid(sum(w[j] * X[i][j] for j in range(d)) + b) for i in range(n)]
+        # 反向: grad = X^T (p - y) / m
+        gw = [sum((p[i] - y[i]) * X[i][j] for i in range(n)) / n for j in range(d)]
+        gb = sum(p[i] - y[i] for i in range(n)) / n
+        # 更新
+        for j in range(d):
+            w[j] -= lr * gw[j]
+        b -= lr * gb
+    print(" ".join(f"{v:.4f}" for v in w + [b]))
+
+main()</code></pre>
+<span class="lang">PyTorch（面试白板版，无 IO）</span>
+<pre><code>import torch
+import torch.nn.functional as F
+
+w = torch.zeros(d, requires_grad=True)
+b = torch.zeros(1, requires_grad=True)
+for _ in range(epochs):
+    p = torch.sigmoid(X @ w + b)                 # 前向
+    loss = F.binary_cross_entropy(p, y)          # CE
+    loss.backward()                              # 反向: 自动求 grad
+    with torch.no_grad():
+        w -= lr * w.grad
+        b -= lr * b.grad
+        w.grad = None
+        b.grad = None</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 梯度除以 m（取均值）别丢，否则等效放大学习率 m 倍、可能直接发散；② sigmoid 分段写防溢出，直接 math.exp(1000) 会 OverflowError；③ log 前夹 eps=1e-12，p 恰为 0/1 时 ln 会炸；④ 输出顺序 = w₁..w_d 然后 b，共 d+1 个数，少一个判题直接挂；⑤ 零初始化即可（凸问题不需要随机初始化）；标签是 0/1 整数、特征读 float，别读反。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

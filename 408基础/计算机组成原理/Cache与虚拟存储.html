@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cache 与虚拟存储 · 408基础/计算机组成原理</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机组成原理</div>
+<h1>Cache 与虚拟存储</h1>
+<div class="meta">适用岗位：全部（408 计算大题 + 后端面试存储三连问） ｜ 形态：映射计算 + 公式 + 对比表 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>时间局部性 = 刚访问过的很可能再来；空间局部性 = 相邻地址很可能被访问</b>——这是 Cache 有效的根源；<b>组相联：组号 = 主存块号 mod 组数，主存地址切成 tag + 组号 + 块内偏移</b>；<b>$EAT=H\times t_c+(1-H)\times(t_c+t_m)$</b>；<b>写直达每次同步写主存（无需脏位），写回只在替换脏行时写回（需脏位）</b>；虚地址 = 页号 + 页内偏移 → 查页表得物理框号 → 框号拼接偏移；<b>TLB 缓存热点页表项，命中省一次访存；缺页中断由 OS 调页</b>；分页有内部碎片无外部碎片，分段相反。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>局部性与存储层次</b>：<b>时间局部性</b>——刚被访问的信息，不久后很可能再次被访问（循环体、热点函数、频繁读写的字段）；<b>空间局部性</b>——某地址被访问后，其附近地址很可能被访问（数组顺序遍历、指令顺序执行）。层次结构：寄存器 → Cache → 主存 → 辅存，越往上越快、越贵、越小。Cache 对程序员<b>透明</b>（硬件自动管理）；虚拟存储由<b>操作系统 + 硬件</b>配合管理。</p>
+<p><b>三种映射方式</b>（主存块进 Cache 时放哪儿）：</p>
+<table>
+<tr><th class="l">方式</th><th class="l">放置规则</th><th class="l">优点</th><th class="l">缺点</th></tr>
+<tr><td class="l">直接相联</td><td class="l">Cache 行号 = 主存块号 mod Cache 行数</td><td class="l">硬件最简，只需比对一个 tag</td><td class="l">冲突集中，行利用率低</td></tr>
+<tr><td class="l">全相联</td><td class="l">任意主存块放任意行</td><td class="l">最灵活，命中率最高</td><td class="l">需全部行并行比较 tag（相联存储器），成本高</td></tr>
+<tr><td class="l">组相联（n 路）</td><td class="l">组号 = 主存块号 mod 组数，组内任意放</td><td class="l">折中：冲突率远低于直接相联，硬件可控</td><td class="l">仍有组内冲突；替换需策略（LRU 最常考）</td></tr>
+</table>
+<p><b>地址划分位数计算（大题套路）</b>：设主存地址共 m 位、块大小 $2^o$ 字节、Cache 行数 ÷ 路数 = 组数 $2^g$，则</p>
+<p style="text-align:center">主存地址 = <b>tag（m−g−o 位）</b> + <b>组号（g 位）</b> + <b>块内偏移（o 位）</b></p>
+<ul>
+<li>块内偏移位数 $o=\log_2(\text{块大小})$；组号位数 $g=\log_2(\text{组数})$；剩下全给 tag。</li>
+<li>直接相联没有独立组号段：地址 = tag + 行号 + 块内偏移；全相联：地址 = tag（块号全部）+ 块内偏移。</li>
+<li>有效位（valid bit）判断该行是否有效；LRU 替换还需每行维护计数字段或堆栈位。</li>
+</ul>
+<p><b>命中率与平均访问时间</b>：$H=\dfrac{N_c}{N_c+N_m}$。串联访问口径（408 主流）：</p>
+<p style="text-align:center">$$EAT=H\times t_c+(1-H)\times(t_c+t_m)$$</p>
+<p>未命中也要先花 $t_c$ 查 Cache（失败）再花 $t_m$ 访主存——这就是 $(t_c+t_m)$ 的来历。若系统支持同时访问 Cache 与主存（并行口径），则 $EAT=H\times t_c+(1-H)\times t_m$；做题先看题干给的口径。</p>
+<p><b>写策略</b>：<b>写直达 write-through</b>——CPU 写命中时同时写 Cache 和主存，一致性简单、无脏位，但写主存开销大，常配写缓冲（write buffer）缓解；<b>写回 write-back</b>——只写 Cache 行并置<b>脏位（dirty bit）</b>，该行被替换且脏位为 1 时才写回主存，显著减少主存写流量，但一致性管理复杂（多核/DMA 场景，面试延伸点）。写不命中时的分配策略（写分配/非写分配）了解即可。</p>
+<p><b>页式虚拟存储</b>：程序按页（典型 4KB = $2^{12}$ B）划分，虚地址 = <b>虚拟页号 VPN</b> + <b>页内偏移</b>。页表记录 VPN → 物理框号 + 有效位。访问流程：</p>
+<pre><code>CPU 发虚地址 (页号 p, 偏移 d)
+   ├─ 查 TLB ──命中──→ 得框号 f → 物理地址 = f × 页大小 + d → 访存取数
+   └─ TLB 未命中 → 查页表（多一次访存）
+        ├─ 有效位 1 → 得框号 f → 合成物理地址 → 访存取数
+        └─ 有效位 0 → <b>缺页中断</b> → OS 调页（必要时按 LRU/Clock 置换）→ 重新走上面</code></pre>
+<p>访存次数：TLB 命中 → 1 次访存取数（TLB 检索在 CPU 内、时间另计）；TLB 缺失但页在内存 → 2 次访存（查页表 + 取数）；缺页 → 还要磁盘 IO 调页。<b>TLB</b>（快表）是 CPU 内的相联存储器，缓存热点页表项——程序的时间局部性让小 TLB 也能有高命中率。</p>
+<p><b>分页 vs 分段 vs 段页式</b>：</p>
+<table>
+<tr><th class="l">维度</th><th>分页</th><th>分段</th><th>段页式</th></tr>
+<tr><td class="l">划分粒度</td><td>固定大小的页（物理划分）</td><td>逻辑单位段（可变长）</td><td>先分段，段内再分页</td></tr>
+<tr><td class="l">地址空间</td><td>一维（页号+偏移拼接）</td><td>二维（段号+段内偏移）</td><td>二维</td></tr>
+<tr><td class="l">碎片</td><td>内部碎片（最后一页装不满）</td><td>外部碎片（段间空隙）</td><td>内部碎片</td></tr>
+<tr><td class="l">对程序员</td><td>透明</td><td>可见（按逻辑结构划分）</td><td>可见段、透明页</td></tr>
+</table>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：三种映射方式的规则与优缺点、写策略与脏位、TLB/页表/Cache 层级关系、缺页中断与 TLB 缺失的区别、分页分段的碎片类型。</li>
+<li>计算：地址划分（给主存位数/块大小/组数，逐段算 tag、组号、偏移位数并定位某地址）、EAT 与命中率、虚地址 → 物理地址手算、含 TLB 的平均访问时间。</li>
+<li>面试口述：为什么 Cache 有效（局部性）、写直达 vs 写回的取舍、NUMA/多核下 Cache 一致性（MESI 提一句即可）、页表为什么配 TLB、多级页表解决什么。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 某计算机主存地址 24 位，块大小 64B，Cache 数据区 4096 行、4 路组相联。求：① 地址中 tag、组号、块内偏移各占多少位；② 主存地址 0x123456 映射到第几组？tag 是多少？</p>
+<details><summary>先自己算，再展开对答案</summary>① 偏移 = log₂64 = <b>6 位</b>；组数 = 4096 ÷ 4 = 1024 → 组号 = <b>10 位</b>；tag = 24−10−6 = <b>8 位</b>。<br>② 0x123456 = 0001 0010 0011 0100 0101 0110（24 位），按 8|10|6 切：<br>tag = 00010010 = <b>0x12</b>；组号 = 0011010001₂ = <b>209</b>；块内偏移 = 010110₂ = <b>22</b>。<br>即该主存块固定映射到第 209 组，具体占组内 4 行中的哪一行由替换策略决定，命中时按 tag 比对。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 某系统 Cache 访问时间 $t_c=10\text{ns}$，主存访问时间 $t_m=100\text{ns}$，Cache 命中率 $H=95\%$（先查 Cache、未命中再访主存的串联口径）。求平均访问时间 EAT。</p>
+<details><summary>先自己算，再展开对答案</summary>$EAT=H\times t_c+(1-H)\times(t_c+t_m)=0.95\times 10+0.05\times(10+100)=9.5+5.5=$ <b>15ns</b>。<br>关键点：未命中的那次访问也要先花 $t_c$ 查 Cache 失败、再花 $t_m$ 访主存，所以括号里是 $(t_c+t_m)$。若题目说明是"同时访问 Cache 与主存"的并行口径，才用 $0.95\times 10+0.05\times 100=10.95\text{ns}$。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 页大小 4KB，部分页表如下（页号 → 物理框号）：0→8，1→3，2→5。求虚地址 0x2F6A 与 0x1C00 对应的物理地址，写出手算过程。</p>
+<details><summary>先自己算，再展开对答案</summary>页大小 4KB = $2^{12}$ → 页内偏移占低 12 位（十六进制低 3 位），高位是页号。<br>0x2F6A：页号 = 0x2 = 2，偏移 = 0xF6A；查页表 2→5 → 物理地址 = 5×0x1000 + 0xF6A = <b>0x5F6A</b>。<br>0x1C00：页号 = 0x1，偏移 = 0xC00；查页表 1→3 → 物理地址 = <b>0x3C00</b>。<br>口诀：<b>页号换框号，偏移原样搬</b>。若页表项有效位为 0，则触发缺页中断而不是得到物理地址。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于 Cache 写策略，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 写回法（write-back）只在该行被替换且脏位为 1 时才写回主存</div>
+<div class="opt" data-k="B">B. 写直达法（write-through）每次写都同步更新主存，无需脏位</div>
+<div class="opt" data-k="C">C. 写回法能显著减少对主存的写次数</div>
+<div class="opt" data-k="D">D. 采用写回法时，Cache 与主存在任何时刻都保持一致</div>
+<div class="exp" hidden><b>答案 ABC。</b>A、B 是两种策略的定义；C 正是写回法的动机——多次写同一行最终只写回主存一次。D 错：写回法下脏行与主存不一致（这正是需要脏位记录"谁脏"的原因），只有写直达才时刻一致（代价是写慢）。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>5.</b> 关于 TLB（快表）、页表、Cache 的层级关系，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. TLB 命中时可直接得到物理框号，无需再访问主存中的页表</div>
+<div class="opt" data-k="B">B. TLB 缺失就意味着发生缺页中断</div>
+<div class="opt" data-k="C">C. TLB 中存放的是最近访问过的数据块</div>
+<div class="opt" data-k="D">D. TLB 位于主存中，由操作系统维护</div>
+<div class="exp" hidden><b>答案 A。</b>TLB 缓存的是<b>页表项</b>（VPN→框号），命中即免查页表。B 错：TLB 缺失只是要去主存查页表，页表项有效就正常合成地址；缺页是页表项<b>有效位为 0</b>，两者独立。C 错：TLB 存页表项不是数据，数据块是 Cache 存的。D 错：TLB 在 CPU 内（相联存储器），页表才在主存中。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>6.</b> 某系统 TLB 检索时间 20ns，访问主存一次 100ns，TLB 命中率 90%。假设不缺页、不考虑 Cache、TLB 检索与页表访问串行进行。求访存一次（取一个数据）的平均时间。</p>
+<details><summary>先自己算，再展开对答案</summary>TLB 命中（90%）：TLB 检索 20 + 访存取数 100 = <b>120ns</b>；<br>TLB 缺失（10%）：20 + 查页表访存 100 + 访存取数 100 = <b>220ns</b>。<br>$EAT=0.9\times 120+0.1\times 220=108+22=$ <b>130ns</b>。<br>对比：无 TLB 时每次 200ns——TLB 的价值就是把"每次都查页表"变成"90% 的情况免查"。来源：牛客经典题。</details>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 组号 = 主存<b>块号</b> mod 组数，不是拿主存地址直接取模；② 位数切割顺序：先定块内偏移（看块大小），再定组号（看组数），剩下全给 tag；③ 三件事互相独立：TLB 缺失 ≠ 缺页 ≠ Cache 缺失，别在选择题里被混搭；④ 内部碎片属于分页/段页式（页内装不满），外部碎片属于分段——反了就错；⑤ EAT 公式先看口径：串联 $(t_c+t_m)$、并行 $t_m$，题干给"先查 Cache 未命中再访主存"就是串联；⑥ 脏位只属于写回法，写直达不需要；⑦ 虚地址转物理地址只换页号部分，页内偏移原样保留。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>异常体系与 finally 陷阱 · 编程题与Java基础/Java语言基础</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / Java语言基础</div>
+<h1>异常体系与 finally 陷阱</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开 ｜ 形态：概念 + 输出判断（finally 是笔试重灾区） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：Throwable 分 Error（OOM、StackOverflow，程序不捕获）与 Exception；Exception 分 <b>checked（编译器强制处理）</b>与 <b>unchecked（RuntimeException 及子类）</b>；catch 自上而下匹配，<b>子类在前父类在后</b>，反了编译错；<b>finally 在 return 表达式求值后、真正返回前执行</b>——改局部变量不影响返回值，finally 里 return 会覆盖；JDK7 起 try-with-resources 自动关闭资源、close 的异常被抑制。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>异常家族树</b>（口述按这个层次报）</p>
+<ul>
+<li><b>Throwable → Error</b>：OutOfMemoryError、StackOverflowError、NoClassDefFoundError——JVM 级严重问题，程序不应捕获处理。</li>
+<li><b>Throwable → Exception</b>，按编译器态度分两派：
+<ul>
+<li><b>checked 受检异常</b>：编译器强制 try-catch 或 throws，否则编译不过——IOException、SQLException、ClassNotFoundException、InterruptedException，多为外部资源意外。</li>
+<li><b>unchecked 非受检异常</b>：RuntimeException 及其子类，编译器不强制——NullPointerException、ArrayIndexOutOfBoundsException、ClassCastException、ArithmeticException、IllegalArgumentException，多为程序 bug。</li>
+</ul>
+</li>
+</ul>
+<blockquote>一句话区分：checked 是"外部世界的不确定"（文件、网络、数据库），unchecked 是"自己代码的 bug"（空指针、越界）。</blockquote>
+
+<p><b>try-catch 匹配规则</b>：自上而下逐个匹配，命中即止，后面的不再看；<b>子类异常必须写在父类前面</b>，父类在前会把子类分支变成不可达代码，编译器报 "has already been caught"；catch 与 finally 至少有其一。</p>
+
+<p><b>finally 执行时机（笔试核心）</b>：只要进了 try，finally 一定执行——例外：System.exit()、JVM 崩溃/断电、try 里死循环出不来。时机 = try/catch 里 return 的表达式<b>先求值并暂存</b>，然后执行 finally，最后才真正返回。三条推论：</p>
+<ul>
+<li>finally 改局部变量（含基本类型与引用变量本身）→ 返回值不变；</li>
+<li>finally 改引用指向的<b>对象内容</b> → 生效（同一对象）；</li>
+<li>finally 里写 return → 覆盖 try/catch 已暂存的返回值，还可能吞掉异常（严禁）；finally 里抛异常 → 顶掉原异常。</li>
+</ul>
+<span class="lang">Java</span>
+<pre><code>public class FinallyDemo {
+    static int f1() {
+        int x = 1;
+        try {
+            return x;              // ① 返回值 1 已求值暂存
+        } finally {
+            x = 99;                // ② 改的是局部变量，动不了暂存的返回值
+        }
+    }
+
+    static int f2() {
+        try {
+            return 1;
+        } finally {
+            return 99;             // finally 里的 return 直接覆盖 try 的返回值
+        }
+    }
+
+    static StringBuilder f3() {
+        StringBuilder sb = new StringBuilder("a");
+        try {
+            return sb;             // 引用已暂存，指向同一对象
+        } finally {
+            sb.append("b");        // 改对象内容 → 生效
+        }
+    }
+
+    public static void main(String[] args) {
+        System.out.println(f1());  // 1
+        System.out.println(f2());  // 99
+        System.out.println(f3());  // ab
+    }
+}</code></pre>
+
+<p><b>try-with-resources（JDK7 引入）</b>：try 后跟括号声明资源，资源类必须实现 <code>AutoCloseable</code>，语句块结束（含异常退出）时自动调用 close，多个资源按声明逆序关闭。close 抛出的异常会被<b>抑制（suppressed）</b>、挂在主异常上（getSuppressed() 可取），主异常不被顶掉——比手写嵌套 try-finally 干净且安全。JDK9 起括号里可直接用 effectively final 的资源变量。</p>
+<span class="lang">Python</span>
+<pre><code>def f():
+    try:
+        return 1
+    finally:
+        print("finally 先执行，再真正返回")
+
+# with 语句 ≈ Java try-with-resources
+with open("a.txt", encoding="utf-8") as fp:
+    data = fp.read()   # 块正常结束或异常退出都会自动 close</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断：finally + return 组合是绝对主力——改值、改对象、finally 里 return 三种套路要一眼分清。</li>
+<li>概念选择：checked/unchecked 归类、catch 顺序编译错、Error 与 Exception 的边界。</li>
+<li>面试口述：finally 执行时机与陷阱、try-with-resources 相比手写 try-finally 的好处（带上 suppressed 异常是加分项）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>static int test() {
+    int x = 10;
+    try {
+        return x;
+    } finally {
+        x = 20;
+    }
+}
+// main 中：System.out.println(test());</code></pre>
+<div class="opt" data-k="A">A. 10</div>
+<div class="opt" data-k="B">B. 20</div>
+<div class="opt" data-k="C">C. 0</div>
+<div class="opt" data-k="D">D. 编译报错：finally 中不能修改变量</div>
+<div class="exp" hidden><b>答案 A。</b>执行到 <code>return x</code> 时先把 10 求值暂存，再执行 finally，x=20 只改了局部变量，动不了暂存的返回值。若 finally 里写 <code>return 20</code> 才会输出 20（覆盖式写法，严禁）。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 以下代码的编译运行结果是（&nbsp;&nbsp;）</p>
+<pre><code>try {
+    int[] a = new int[3];
+    a[3] = 1;
+} catch (Exception e) {
+    System.out.println("E");
+} catch (ArrayIndexOutOfBoundsException e) {
+    System.out.println("AIOOBE");
+}</code></pre>
+<div class="opt" data-k="A">A. 输出 E</div>
+<div class="opt" data-k="B">B. 输出 AIOOBE</div>
+<div class="opt" data-k="C">C. 编译错误：子类异常分支永远捕获不到，已被父类捕获</div>
+<div class="opt" data-k="D">D. 先输出 E 再输出 AIOOBE</div>
+<div class="exp" hidden><b>答案 C。</b>catch 自上而下匹配，Exception 在前会把 ArrayIndexOutOfBoundsException 的分支变成不可达代码，编译器报 "already been caught"。正确顺序是子类在前、父类在后。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 下列异常中属于 unchecked（RuntimeException 体系）的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. NullPointerException</div>
+<div class="opt" data-k="B">B. IOException</div>
+<div class="opt" data-k="C">C. ClassCastException</div>
+<div class="opt" data-k="D">D. ArithmeticException</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ACD。</b>B 的 IOException 是 checked 异常，编译器强制处理。unchecked 全在 RuntimeException 体系下，常见还有 ArrayIndexOutOfBoundsException、IllegalArgumentException、NumberFormatException。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> 什么是 try-with-resources？相比手写 try-finally 好在哪？</p>
+<details><summary>参考回答</summary>JDK7 引入的语法糖：try 后跟括号声明资源，资源类必须实现 AutoCloseable，语句块结束（含异常退出）时自动调用 close，多个资源按声明逆序关闭。三个好处：① 代码短——不用手写"嵌套 finally、先判空、再置 null"三件套；② 安全——手写 finally 里 close 再抛异常会把业务异常"顶掉"，try-with-resources 把 close 的异常作为 suppressed 异常挂在主异常上（getSuppressed() 可取），主异常不被吞；③ JDK9 起括号里可以直接复用 effectively final 的资源变量。来源：JavaGuide 收录题型。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> finally 一定执行吗？什么时候执行？finally 里写 return 会发生什么？</p>
+<details><summary>参考回答</summary>① 几乎一定执行，例外只有 System.exit()、JVM 崩溃/断电、try 里死循环出不来这类极端情况。② 时机：try 或 catch 里执行到 return 时，先把返回表达式求值并暂存，然后执行 finally，最后才真正返回——所以 finally 改局部变量不影响返回值（基本类型和引用变量都一样），但改引用指向的对象内容会生效。③ finally 里写 return 会直接覆盖 try/catch 已暂存的返回值，此时若还有未处理异常还会把异常吞掉，IDE 会警告——严禁这样写。加分点：报出"return 求值暂存 → finally → 真正返回"三段式，并举改值不变、改对象内容生效两个例子。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① finally 改不动"值"、改得动"对象内容"——记住返回值在 finally 之前已暂存；② finally 里 return 或抛异常是一票否决写法（覆盖返回值/顶掉原异常）；③ catch 顺序从小到大，子类在前；④ Error 不是给业务 catch 的，catch (Throwable) 连 OOM 都吞是反面教材；⑤ 口述 try-with-resources 时带上 AutoCloseable、逆序关闭、suppressed 三个词。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

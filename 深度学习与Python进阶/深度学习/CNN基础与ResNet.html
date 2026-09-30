@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CNN 基础与 ResNet · 深度学习与Python进阶/深度学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习</div>
+<h1>CNN 基础与 ResNet</h1>
+<div class="meta">适用岗位：AI/软开通用（笔试计算必考） ｜ 形态：公式 + 手算 + 对比表 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：输出尺寸 $O=\lfloor(W-K+2P)/S\rfloor+1$（整除向下取整）；参数量 $K^2 C_{in}C_{out}+C_{out}$（别忘 bias）；两层 3×3 = 感受野 5×5 但参数更省；1×1 卷积只动通道不动空间；ResNet 解的是<b>退化问题</b>（训练误差随深度升高，不是过拟合），恒等映射 $H(x)=F(x)+x$ 让最差情况退化为恒等，梯度经 +1 直通支路回浅层。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>1. 卷积三件套与输出尺寸</b>：卷积核 K（局部连接 + 权重共享）、步长 S（顺手下采样）、填充 P（保尺寸、保边缘信息）。输出尺寸公式（必背，整除向下取整）：</p>
+<p style="text-align:center">$$O=\left\lfloor\frac{W-K+2P}{S}\right\rfloor+1$$</p>
+<p>手算例（ResNet stem 的真实数字）：输入 224×224，7×7 卷积 stride=2、padding=3：$O=\lfloor(224-7+6)/2\rfloor+1=112$；再接 3×3 最大池化 stride=2、padding=1：$O=\lfloor(112-3+2)/2\rfloor+1=56$。</p>
+<pre><code>def conv_out(W, K, P, S):
+    return (W - K + 2*P) // S + 1     # 注意：整除向下取整
+
+conv_out(224, 7, 3, 2)   # 112   ResNet stem 第一层
+conv_out(112, 3, 1, 2)   # 56</code></pre>
+
+<p><b>2. 参数量与感受野</b></p>
+<ul>
+<li>卷积层参数量：$K\times K\times C_{in}\times C_{out}+C_{out}$（偏置别忘）。例：3×3、64→128 含偏置 = 9×64×128 + 128 = 73,856。</li>
+<li>感受野：一个激活值能"看到"的输入区域。逐层递推 $RF_l=RF_{l-1}+(K_l-1)\times\prod_{i&lt;l}S_i$；stride=1 时两层 3×3 → 5×5，三层 → 7×7。</li>
+<li>VGG 的经验：两个 3×3 堆叠替代一个 5×5——感受野相同，参数从 $25C^2$ 降到 $18C^2$，还多一次非线性。</li>
+</ul>
+
+<p><b>3. 池化与 1×1 卷积</b>：max/avg 池化<b>无参数</b>，做下采样 + 小平移鲁棒（常用 2×2、S=2）。1×1 卷积不看空间、只在通道维做线性组合（可加激活）：升降维省参数（GoogLeNet 的 Inception、ResNet 的 bottleneck 都靠它）、跨通道信息融合，且不改变 H、W。</p>
+
+<p><b>4. 经典演进一句话</b>：LeNet（1998，手写数字）→ AlexNet（2012，ReLU + Dropout + GPU，深度学习复兴起点）→ VGG（2014，全 3×3 堆深）→ GoogLeNet（2014，Inception 多尺度分支 + 1×1 降维）→ ResNet（2015，残差学习，152 层可训）。</p>
+
+<p><b>5. ResNet（ResNet 论文，arXiv 2015 / CVPR 2016，He 等）</b></p>
+<ul>
+<li><b>退化问题（degradation）</b>：plain 网络加深后，连<b>训练误差</b>都更高（论文实验：56 层 vs 20 层）——不是过拟合（过拟合是训练低测试高），是优化变难了。</li>
+<li><b>恒等映射</b>：让层学残差 $H(x)=F(x)+x$。最差情况下把 $F$ 学成 0，块退化为恒等映射——加深至少无害；学"修正量"比直接重造恒等映射容易得多。</li>
+<li><b>梯度视角</b>：$\dfrac{\partial H}{\partial x}=\dfrac{\partial F}{\partial x}+1$，常数 1 的直通支路让梯度可几乎无衰减地流回浅层，缓解梯度消失。</li>
+<li><b>两种残差块</b>：</li>
+</ul>
+<table>
+<tr><th>残差块</th><th>结构</th><th>用在</th><th>特点</th></tr>
+<tr><td>Basic Block</td><td>3×3 → 3×3（通道不变）</td><td>ResNet-18 / 34</td><td>结构简单，参数多</td></tr>
+<tr><td>Bottleneck</td><td>1×1 降维（C/4）→ 3×3 → 1×1 升维</td><td>ResNet-50 / 101 / 152</td><td>两端 1×1 省 3×3 的参数与 FLOPs</td></tr>
+</table>
+<p>维度不匹配（通道数变化 / 步长 2）时，shortcut 上加 1×1 卷积做投影对齐（论文的 option B）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试计算必考</span><span class="tag">面试八股</span></p>
+<ul>
+<li>计算三模板：输出尺寸（给 K/S/P 手算）、参数量（含 bias）、感受野（多层 + stride 累积）——笔试出镜率最高的三个。</li>
+<li>概念区分：过拟合 vs 退化（训练误差谁高）、池化 vs 卷积（有无参数）、1×1 卷积的作用（动通道不动空间）。</li>
+<li>面试三连问：退化问题是什么、恒等映射为什么可行、bottleneck 里 1×1 在干嘛。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 输入 224×224 的 RGB 图像，依次经过：① 7×7 卷积，stride=2，padding=3，输出通道 64；② 3×3 最大池化，stride=2，padding=1。写出每一步输出尺寸的计算过程与最终特征图尺寸。</p>
+<details><summary>先自己算，再展开对答案</summary>① $O_1=\lfloor(224-7+2\times3)/2\rfloor+1=\lfloor223/2\rfloor+1=111+1=112$ → <b>112×112×64</b>；② $O_2=\lfloor(112-3+2\times1)/2\rfloor+1=\lfloor111/2\rfloor+1=55+1=56$ → <b>56×56×64</b>。注意两点：分子整除<b>向下取整</b>（223/2=111.5 取 111）；这就是 ResNet stem 的 224→112→56，背熟当模板。来源：AI 岗笔试高频。</details>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 一个 3×3 卷积层，输入通道 64、输出通道 128，含偏置的参数量是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 73,856</div>
+<div class="opt" data-k="B">B. 73,728</div>
+<div class="opt" data-k="C">C. 204,928</div>
+<div class="opt" data-k="D">D. 18,464</div>
+<div class="exp" hidden><b>答案 A。</b>参数量 = $K^2\cdot C_{in}\cdot C_{out}+C_{out}$ = 9×64×128 + 128 = 73,728 + 128。B 忘了偏置；C 是同规格 5×5 卷积的参数量（25×64×128 + 128 = 204,928）——这正是"两个 3×3 堆叠省参数"的对比数字；D 数量级不对。顺带记感受野：两层该结构（stride=1）感受野 5×5。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 ResNet 的残差连接，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 解决深层 plain 网络的退化问题：加深后训练误差反而升高的现象</div>
+<div class="opt" data-k="B">B. 最差情况下多余层学成 F(x)=0，块退化为恒等映射，加深至少无害</div>
+<div class="opt" data-k="C">C. 彻底消除了梯度消失与梯度爆炸，深层网络不再需要任何其他技巧</div>
+<div class="opt" data-k="D">D. 反向传播时梯度可经恒等支路直达浅层，∂H/∂x = ∂F/∂x + 1 中的常数 1 保证梯度直通</div>
+<div class="exp" hidden><b>答案 ABD。</b>退化是优化问题不是过拟合——升的是训练误差（A 正是题眼）。C 错在"彻底/不再需要"：残差<b>缓解</b>梯度消失，梯度爆炸仍需裁剪，BN、合理初始化照常要配。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> 残差连接为什么让深网络好训练了？</p>
+<details><summary>参考回答</summary>三层答案：① <b>优化视角</b>——恒等映射兜底：深层只需学残差修正 $F(x)$，学不动就趋近 0，块退化为恒等，深度至少无害，解决"加深反而更差"的退化问题；② <b>梯度视角</b>——$H(x)=x+F(x)$ 的 $\partial H/\partial x=1+\partial F/\partial x$，常数 1 的直通支路让梯度可几乎无损地回传浅层，缓解连乘衰减；③ <b>集成视角</b>（加分）——带残差的网络近似许多浅层子网络的隐式集成（Veit 等 2016）。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 输出尺寸整除<b>向下取整</b>，别四舍五入；② 参数量别忘 bias，感受野要把沿途 stride 累乘进去；③ 池化层无参数，1×1 卷积不改变 H、W 只动通道；④ ResNet 解决的是退化（优化问题）不是过拟合；⑤ He 初始化与 ReLU 配套正是 ResNet 论文的组合——见 <a href="训练三件套激活函数优化器与初始化.html">训练三件套页</a>。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

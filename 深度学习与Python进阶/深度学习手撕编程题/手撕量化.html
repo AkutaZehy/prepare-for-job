@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手撕量化（ACM 模式） · 深度学习与Python进阶/深度学习手撕编程题</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习手撕编程题</div>
+<h1>手撕 INT8 量化（ACM 模式）</h1>
+<div class="meta">适用岗位：AI/Agent 开发（推理部署方向高频） ｜ 形态：ACM 判题题×2 + 概念自测 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：对称 INT8：$\text{scale}=\max|x|/127$，零点固定 0；非对称：$\text{scale}=(\max-\min)/255$，$\text{zp}=\text{clip}(\text{round}(-\min/\text{scale}),0,255)$ 记录"浮点 0 的位置"。反量化统一 $\hat x=(q-\text{zp})\cdot\text{scale}$——<b>推理端只需要 scale 和 zero_point 两个标量</b>。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题 A（对称量化 INT8）</b>：第一行 n；第二行 n 个实数。约定 $\text{scale}=\max|x|/127$，$q=\text{clip}(\text{round}(x/\text{scale}),-127,127)$，反量化 $\hat x=q\cdot\text{scale}$。舍入用 Python 的 <code>round</code>（银行家舍入，.5 取偶）。输出三行：scale（4 位小数）；n 个量化值（整数、空格分隔）；反量化最大绝对误差（4 位小数）。</p>
+<div class="io"><b>输入</b>：
+<pre><code>4
+-1.0 0 0.5 2.0</code></pre>
+<b>输出（实测）</b>：
+<pre><code>0.0157
+-64 0 32 127
+0.0079</code></pre></div>
+<p>核算（可手算）：scale $=2.0/127\approx0.0157$；$x/\text{scale}=[-63.5,\ 0,\ 31.75,\ 127]$。round 按银行家舍入：round(−63.5) 取偶得 −64、31.75 → 32。误差 = $\max|q\cdot\text{scale}-x|$：$|{-64}\cdot\frac{2}{127}+1|=\frac{1}{127}\approx0.0079$、$|32\cdot\frac{2}{127}-0.5|\approx0.0039$、其余为 0，最大 0.0079。</p>
+<p><b>题 B（非对称量化 INT8）</b>：同输入格式。约定 $\text{scale}=(\max-\min)/255$，$\text{zp}=\text{clip}(\text{round}(-\min/\text{scale}),0,255)$，$q=\text{clip}(\text{round}(x/\text{scale})+\text{zp},0,255)$，反量化 $\hat x=(q-\text{zp})\cdot\text{scale}$。输出三行：scale（4 位小数）与 zero_point（整数）同行；n 个量化值；最大绝对误差。</p>
+<div class="io"><b>输入</b>：
+<pre><code>3
+-1.0 0.5 2.5</code></pre>
+<b>输出（实测）</b>：
+<pre><code>0.0137 73
+0 109 255
+0.0059</code></pre></div>
+<p>核算：scale $=3.5/255\approx0.0137$；$-\min/\text{scale}=255/3.5\approx72.857\to\text{zp}=73$。$x/\text{scale}\approx[-72.86,\ 36.43,\ 182.14]$，round 后加 zp、裁剪到 [0,255] 得 [0, 109, 255]。误差：$|0-73|\cdot\text{scale}$ 对应 $\approx0.0020$、$|36\cdot 3.5/255-0.5|\approx0.0059$、$|182\cdot 3.5/255-2.5|\approx0.0020$，最大 0.0059。</p>
+</section>
+
+<section class="card p">
+<h2>二、思路与伪代码</h2>
+<pre><code>对称:   scale = max|x|/127;  zp = 0
+        q    = clip(round(x/scale), -127, 127)
+非对称: scale = (max-min)/255
+        zp   = clip(round(-min/scale), 0, 255)
+        q    = clip(round(x/scale) + zp, 0, 255)
+反量化: x̂ = (q - zp) * scale;  误差 = max|x̂ - x|</code></pre>
+<p><b>思路：为什么推理端只要 scale 和 zero_point</b>。反量化只是一次线性变换 $\hat x=(q-\text{zp})\cdot\text{scale}$：<b>scale 编码"一个 int8 步长值多少浮点"，zero_point 编码"浮点 0 落在哪个 int8 值上"</b>。推理时卷积/矩阵乘直接在 int8 上做、累加成 int32，最后统一反量化一次；权重只需存量化整数 q 加这两个标量，原始浮点矩阵可以扔掉——显存与带宽立省约 4 倍。<b>对称 vs 非对称怎么选</b>：分布关于 0 大致对称（多数权重层）用对称，省掉 zp 运算；ReLU 后激活落在 $[0,+\infty)$ 这类偏分布用非对称，否则负半轴 127 个档位全浪费、等效步长翻倍、误差变大。</p>
+<div class="q">
+<p><b>概念自测（点击选项判分）</b></p>
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> 对一组实数做对称 INT8 量化，scale 应取（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. max|x| / 127</div>
+<div class="opt" data-k="B">B. max|x| / 255</div>
+<div class="opt" data-k="C">C. (max − min) / 127</div>
+<div class="opt" data-k="D">D. max|x| / 128</div>
+<div class="exp" hidden><b>答案 A。</b>int8 有符号范围取 [−127, 127]（工程上弃用 −128，让零点严格对称），把 |x| 的最大值映到 127 即 scale = max|x|/127；B 是 uint8 的分母；C 把整个跨度塞进有符号范围会浪费负半轴。来源：面试高频改编。</div>
+</div>
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于 INT8 量化，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 非对称量化用 zero_point 记录浮点 0 的位置，适合 ReLU 后的偏分布激活</div>
+<div class="opt" data-k="B">B. 反量化 x̂ = (q − zero_point) × scale，对称量化可视为 zero_point = 0 的特例</div>
+<div class="opt" data-k="C">C. 推理端只需 scale 与 zero_point 两个标量即可完成 int8 到浮点的还原</div>
+<div class="opt" data-k="D">D. 量化后模型精度理论上不变，只是体积变小</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：量化是有损压缩，档位有限必然引入误差（本页实测误差 0.0079 / 0.0059 就是损失），校准不当还会明显掉点。C 即思路节结论——int8 推理 = 整数权重 + 两个标量参数。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit" type="button">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码</h2>
+<span class="lang">题 A · Python（ACM 完整程序）</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    xs = [float(next(it)) for _ in range(n)]
+    scale = max(abs(x) for x in xs) / 127.0        # 对称: scale = max|x| / 127
+    q = [max(-127, min(127, round(x / scale))) for x in xs]
+    err = max(abs(q[i] * scale - xs[i]) for i in range(n))
+    print(f"{scale:.4f}")
+    print(" ".join(map(str, q)))
+    print(f"{err:.4f}")
+
+main()</code></pre>
+<span class="lang">题 B · Python（ACM 完整程序）</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    xs = [float(next(it)) for _ in range(n)]
+    lo, hi = min(xs), max(xs)
+    scale = (hi - lo) / 255.0                      # 非对称: scale = (max-min) / 255
+    zp = max(0, min(255, round(-lo / scale)))      # zero_point: 浮点 0 的位置
+    q = [max(0, min(255, round(x / scale) + zp)) for x in xs]
+    err = max(abs((q[i] - zp) * scale - xs[i]) for i in range(n))
+    print(f"{scale:.4f} {zp}")
+    print(" ".join(map(str, q)))
+    print(f"{err:.4f}")
+
+main()</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① clip 范围：对称 [−127, 127]（弃 −128 保零点对称）、非对称 [0, 255]；顺序是先 round、再加 zp、最后 clip，顺序错会溢出；② Python 的 round 是<b>银行家舍入</b>（round(−63.5)=−64），Java 的 Math.round 是半进一——.5 边界的量化值可能差 1，判题卡边界时按平台语言来（本页样例即含 −63.5 这个边界并实测）；③ 全零张量对称量化 scale=0 会除零，工程约定取极小值如 1e-8；④ 误差拿"反量化后的值"对比原值，别拿 q 本身算；⑤ per-tensor vs per-channel：卷积权重常按输出通道各自求 scale，精度更高，手撕题一般只考 per-tensor。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

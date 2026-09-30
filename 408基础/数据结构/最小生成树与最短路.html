@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>最小生成树与最短路 · 408基础/数据结构</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>最小生成树与最短路</h1>
+<div class="meta">适用岗位：全部（408 计算大题重灾区，手算迭代表必练） ｜ 形态：选边 / 松弛手算 + 算法选型口述 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>Prim 加点</b>（O(n²) 与边数无关 → 稠密图）；<b>Kruskal 加边</b>（排序 + 并查集判环，O(e log e) → 稀疏图）；MST 树形可能不唯一但<b>权值和一定唯一</b>，各边权互不相同时 MST 唯一。<b>Dijkstra 贪心不许负权边</b>（定了的点可能被负边拉低，直接给错答案）；<b>Floyd O(n³) 允许负权边、不允许负回路</b>（负环上最短路不存在）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>最小生成树（MST）</b>：带权无向连通图中，各边权值和最小的生成树。任何生成树都恰有 n−1 条边；MST 的<b>树形可能不唯一</b>（等权边可互换、可拆可接），但<b>最小权值和唯一</b>；若各边权值互不相同，则 MST 唯一。</p>
+<p><b>Prim（加点法）</b>：从某顶点出发，每轮把"离树最近"的未入树顶点拉进树（维护每个圈外点到树的最短边）。O(n²)，开销只跟顶点数挂钩、与边数无关 → <b>稠密图首选</b>。<b>Kruskal（加边法）</b>：把边按权从小到大排序，依次试选，两端点不在同一集合（并查集判环）就选入，选满 n−1 条为止。O(e log e)，瓶颈在排序 → <b>稀疏图首选</b>。</p>
+<p><b>Dijkstra（单源最短路，贪心）</b>：dist[v] 是"当前已知最短估计"。每轮选出 dist 最小的未定顶点 u，宣布它定型（此时它不可能再被拉低——这是贪心的根基），再用 u 松弛它的出边：dist[v] = min(dist[v], dist[u]+w)。n−1 轮结束。<b>前提是无负权边</b>：若有负权边，"已定型"的点可能后来被负边改小，贪心直接产出错误答案（不报错，更隐蔽）。朴素实现 O(n²)。</p>
+<p><b>Floyd（多源最短路，DP）</b>：思想是"允许中转前 k 个顶点时 i→j 的最短路"，滚动掉一维后就是三重循环：d[i][j] = min(d[i][j], d[i][k]+d[k][j])，O(n³)，五个循环变量循环序不能乱。<b>允许负权边，不允许权值和为负的回路</b>——负环上可以无限绕圈，最短路根本不存在。</p>
+<p>本页统一用下面这个 5 顶点带权无向图做例题（7 条边）：</p>
+<pre class="ascii-fallback"><code>边表(权): v0-v1(4)  v0-v2(1)  v1-v2(2)  v1-v3(5)
+          v2-v3(8)  v3-v4(3)  v2-v4(10)
+各顶点度: v0:2  v1:3  v2:4  v3:3  v4:2
+生成树选 4 条边(n-1), Kruskal 从权最小的边开始试</code></pre>
+<pre class="mermaid">
+flowchart TD
+    v0["v0"] ---|4| v1["v1"]
+    v0 ---|1| v2["v2"]
+    v1 ---|2| v2
+    v1 ---|5| v3["v3"]
+    v2 ---|8| v3
+    v3 ---|3| v4["v4"]
+    v2 ---|10| v4
+</pre>
+<pre><code>// Kruskal: 边已按权从小到大排序, 并查集判环
+static int[] fa = new int[N];
+static int find(int x) { return fa[x] == x ? x : (fa[x] = find(fa[x])); }
+
+static long kruskal(int[][] edges, int n) {   // edges: {u, v, w}
+    for (int i = 0; i &lt; n; i++) fa[i] = i;
+    long total = 0;
+    int cnt = 0;
+    for (int[] e : edges) {
+        int ru = find(e[0]), rv = find(e[1]);
+        if (ru != rv) {            // 不在同一集合: 选这条边不成环
+            fa[ru] = rv;
+            total += e[2];
+            cnt++;
+        }
+        if (cnt == n - 1) break;   // 选满 n-1 条收工
+    }
+    return cnt == n - 1 ? total : -1;   // -1 表示图不连通
+}</code></pre>
+<pre><code>import heapq
+def dijkstra(n, g, s):             # g[u] = [(v, w), ...]
+    INF = float('inf')
+    dist = [INF] * n
+    dist[s] = 0
+    h = [(0, s)]
+    while h:
+        d, u = heapq.heappop(h)
+        if d &gt; dist[u]:            # 堆里的过期项, 跳过
+            continue
+        for v, w in g[u]:
+            if dist[u] + w &lt; dist[v]:
+                dist[v] = dist[u] + w
+                heapq.heappush(h, (dist[v], v))
+    return dist                    # 堆优化 O((n+e)log n)</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算大题</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：Prim/Kruskal 的策略与复杂度、适用稠密还是稀疏、MST 唯一性、Dijkstra 负权边、Floyd 负环。</li>
+<li>计算：给定图求 MST（列 Kruskal 选边顺序或 Prim 每轮入选点）、Dijkstra 从 v0 的 dist 迭代表——大题都要写过程。</li>
+<li>面试口述：稠密图 vs 稀疏图的算法选型（一句话讲清复杂度来源）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 对本页的 5 顶点带权图，用 Kruskal 求最小生成树：写出选边顺序（含被拒绝的边及原因）、MST 的边集与权值和。</p>
+<details><summary>先自己算，再展开对答案</summary>边按权排序：1(v0v2)、2(v1v2)、3(v3v4)、4(v0v1)、5(v1v3)、8(v2v3)、10(v2v4)。逐条试选：<br>
+<table>
+<tr><th>顺序</th><th>边(权)</th><th>判定</th><th>理由 / 连通块变化</th></tr>
+<tr><td>1</td><td>v0v2 (1)</td><td class="l">选入</td><td class="l">{v0,v2}</td></tr>
+<tr><td>2</td><td>v1v2 (2)</td><td class="l">选入</td><td class="l">{v0,v1,v2}</td></tr>
+<tr><td>3</td><td>v3v4 (3)</td><td class="l">选入</td><td class="l">{v3,v4}</td></tr>
+<tr><td>4</td><td>v0v1 (4)</td><td class="l">拒绝</td><td class="l">两端同块，选了成环</td></tr>
+<tr><td>5</td><td>v1v3 (5)</td><td class="l">选入</td><td class="l">两块合并，已选满 4 条</td></tr>
+</table>
+MST 边集：v0v2、v1v2、v3v4、v1v3，权值和 = 1+2+3+5 = <b>11</b>。本图各边权互不相同，MST 唯一。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 对同一张图，用 Dijkstra 求从 v0 出发到各顶点的最短路：写出 dist 的逐轮迭代表（含每轮选中的顶点），给出最终 dist 与到 v4 的最短路径。</p>
+<details><summary>先自己算，再展开对答案</summary>初始：dist = [v0=0, v1=4, v2=1, v3=∞, v4=∞]。逐轮：<br>
+<table>
+<tr><th>轮次</th><th>选中(定型值)</th><th>dist[v1]</th><th>dist[v2]</th><th>dist[v3]</th><th>dist[v4]</th></tr>
+<tr><td>初始</td><td>—</td><td>4</td><td>1</td><td>∞</td><td>∞</td></tr>
+<tr><td>1</td><td>v2 (1)</td><td>min(4, 1+2)=<b>3</b></td><td>—</td><td>min(∞,1+8)=<b>9</b></td><td>min(∞,1+10)=<b>11</b></td></tr>
+<tr><td>2</td><td>v1 (3)</td><td>—</td><td>—</td><td>min(9,3+5)=<b>8</b></td><td>min(11,3+8)=11</td></tr>
+<tr><td>3</td><td>v3 (8)</td><td>—</td><td>—</td><td>—</td><td>min(11,8+3)=11</td></tr>
+<tr><td>4</td><td>v4 (11)</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+</table>
+最终 dist：v1=3、v2=1、v3=8、v4=<b>11</b>；到 v4 的最短路径 v0→v2→v1→v3→v4（1+2+5+3=11）。来源：牛客经典题。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 图中存在负权边（但不存在权值和为负的回路）时，下列说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Dijkstra 算法仍能得到正确的单源最短路</div>
+<div class="opt" data-k="B">B. Floyd 算法仍能得到正确的任意两点间最短路</div>
+<div class="opt" data-k="C">C. 一切最短路算法都会失效</div>
+<div class="opt" data-k="D">D. Dijkstra 只要换一种选点顺序就能修正结果</div>
+<div class="exp" hidden><b>答案 B。</b>Floyd 是动态规划，按"允许中转的顶点集"递推，负权边不破坏递推——只要没有负回路，最短路存在且能算对。A、D 错：Dijkstra 的根基是"定型的 dist 不可能再被拉低"，负权边恰好破坏它，问题出在贪心本质，换选点顺序也救不了（此时该用 Bellman-Ford/SPFA）。C 错得离谱。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于最小生成树，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. n 个顶点的连通图的任何生成树都恰好有 n−1 条边</div>
+<div class="opt" data-k="B">B. 最小生成树的树形可能不唯一，但最小权值和一定唯一</div>
+<div class="opt" data-k="C">C. 若图中各边权值互不相同，则最小生成树唯一</div>
+<div class="opt" data-k="D">D. Prim 适合稀疏图，Kruskal 适合稠密图</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ABC。</b>D 把结论<b>说反了</b>：Prim O(n²) 只跟顶点数挂钩、不看边数，稠密图（边多）才不亏；Kruskal O(e log e) 要先排序所有边，边少才省。B 与 C 搭档记忆：互异必唯一，有等权才可能不唯一，但和永远唯一。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 拿到一张图，怎么判断该用 Prim 还是 Kruskal？最短路那边又怎么选？</p>
+<details><summary>参考回答</summary>先看<b>稠密还是稀疏</b>：边数接近 n² 的稠密图用 <b>Prim</b>——它 O(n²) 只扫顶点，边再多也不加价；边数远小于 n²（比如 O(n) 级）的稀疏图用 <b>Kruskal</b>——排序 + 并查集 O(e log e)，边少时非常快。最短路对应地选：单源、稠密图用朴素 Dijkstra O(n²)；单源、稀疏图用堆优化 Dijkstra O((n+e)log n)；要多源且 n 较小（如 n ≤ 500）直接 Floyd O(n³)，五行代码换全部点对。顺带交代前提：图里有负权边就别用 Dijkstra，有负回路则最短路本身不存在。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① Prim 加点、Kruskal 加边，别背反；② "MST 不唯一"指树形，权值和永远唯一；③ Dijkstra 遇负权边不报错、直接给错答案，笔试给个负边小图要能举反例；④ Floyd 循环 k 必须在最外层，k 是"允许中转的顶点"不是路径端点；⑤ 负回路 ⇒ 最短路不存在，不是"等于 0"也不是"随便算"；⑥ 生成树边数 n−1 与权值正负无关，负权边的 MST 照选。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

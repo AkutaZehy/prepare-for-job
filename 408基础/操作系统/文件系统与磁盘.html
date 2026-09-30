@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文件系统与磁盘 · 408基础/操作系统</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 操作系统</div>
+<h1>文件系统与磁盘</h1>
+<div class="meta">适用岗位：全部（混合索引与磁盘调度是笔试经典计算） ｜ 形态：概念 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：FCB（如 inode）= 文件控制块，目录=FCB 的有序集合，检索按<b>文件名</b>；混合索引最大文件 = (直接块数 + 1024 + 1024² + 1024³) × 块大小（4KB 块、4B 地址时）；位示图块号 = <b>字号×位长 + 位号</b>；磁盘访问时间 = <b>寻道 + 旋转延迟(半圈) + 传输</b>；寻道调度 SSTF 贪最近可能饿死远端，SCAN 电梯式单向扫、到头（或最远请求，LOOK）折返。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>文件的物理结构（分配方式）</b>：</p>
+<table>
+<tr><th>方式</th><th>实现</th><th>优点</th><th>缺点</th></tr>
+<tr><td>连续分配</td><td class="l">占连续盘块，FCB 记起始块号+长度</td><td class="l">支持随机访问、顺序读快</td><td class="l">扩展难、外部碎片</td></tr>
+<tr><td>链接分配</td><td class="l">隐式链接：每块带下一块指针；显式=FAT 表（FAT 整表常驻内存）</td><td class="l">无外部碎片、扩展易</td><td class="l">随机访问慢（隐式要逐块找）；FAT 占内存</td></tr>
+<tr><td>索引分配</td><td class="l">每文件一张索引块（块号数组）</td><td class="l">支持随机访问、易扩展</td><td class="l">小文件也要占一个索引块；大文件需链接/多层/混合索引</td></tr>
+</table>
+<p><b>混合索引（UNIX 经典，必背计算）</b>：inode 中设若干直接地址 + 一级间址 + 二级间址 + 三级间址。以<b>块 4KB、块地址 4B</b>（一块可存 4096/4 = 1024 个地址）、结构"10 直接 + 1 一级 + 1 二级 + 1 三级"为例：</p>
+<pre><code>直接:   10 块
+一级间址: 1024 块        （读 1 个索引块再定位）
+二级间址: 1024² = 1,048,576 块
+三级间址: 1024³ = 1,073,741,824 块
+最大文件 ≈ (10+1024+1024²+1024³) × 4KB ≈ 4TB
+访问盘块次数（不含读数据本身）: 直接 0 次、一级 1 次、二级 2 次、三级 3 次
+（考试口径通常：读数据共 1+间址层数 次访存）</code></pre>
+<p>小文件全走直接地址 → 访问快，这就是混合索引"兼顾大小文件"的设计动机。</p>
+<p><b>位示图管理盘块</b>：每个盘块对应一个比特（0 空闲 1 占用）。字号 i、位长 m、位号 j：块号 = <b>i×m + j</b>（从 0 起）；反算：字号 = 块号 ÷ m 取整、位号 = 块号 mod m。位示图大小 = 盘块数 ÷ 8 字节（4096 块 → 512B）。</p>
+<p><b>磁盘结构与时间</b>：盘面（磁头号）→ 磁道（柱面号）→ 扇区。读一块的时间 = <b>寻道时间（磁头移动）+ 旋转延迟（平均半圈）+ 传输时间</b>。7200rpm → 一圈 60/7200 ≈ 8.33ms → 平均旋转延迟 ≈ 4.17ms。</p>
+<p><b>磁盘调度算法</b>（只优化寻道）：</p>
+<table>
+<tr><th>算法</th><th>规则</th><th>要点</th></tr>
+<tr><td>FCFS</td><td class="l">按请求顺序</td><td class="l">公平但寻道长</td></tr>
+<tr><td>SSTF</td><td class="l">每次找最近请求</td><td class="l">平均短，但可能<b>饿死远端</b></td></tr>
+<tr><td>SCAN 电梯</td><td class="l">沿一个方向扫到磁道尽头再折返</td><td class="l">无饥饿、两端与中部响应不均</td></tr>
+<tr><td>C-SCAN</td><td class="l">单向扫，到头直接回到另一端重新扫</td><td class="l">各磁道等待更均匀</td></tr>
+<tr><td>LOOK/C-LOOK</td><td class="l">SCAN/C-SCAN 但只到最远请求处即折返</td><td class="l">实际系统常用</td></tr>
+</table>
+<p><b>RAID 一句话</b>：0 条带无冗余最快、1 镜像、5 分布式奇偶校验（坏一块可恢复）——概念级。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">计算题</span><span class="tag">笔试选择</span></p>
+<ul>
+<li>混合索引最大文件字节数（必考计算：先算每索引块地址数，再逐层乘，最后 × 块大小）。</li>
+<li>给定逻辑块号判断走直接/一级/二级间址、共访存几次。</li>
+<li>位示图：块号↔（字号，位号）互算、位示图大小。</li>
+<li>磁盘调度：给请求序列求移动道数（注意 SCAN 方向题面会给）。</li>
+<li>旋转延迟/存取时间计算（7200rpm 之类的换算）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 计算题先自算）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> UNIX 混合索引：块 4KB，块地址 4B，inode 含 10 个直接地址、1 个一级、1 个二级、1 个三级间址。求最大文件大小（估算到 TB 量级即可）。</p>
+<details><summary>先自己算，再展开对答案</summary>每块可存地址数 = 4096/4 = 1024。总块数 = 10 + 1024 + 1024² + 1024³ = 1,074,791,434 块。乘 4KB ≈ <b>4.0 TB</b>（约 4.1×10¹² 字节）。做题先在草稿写"1024/1024²/1024³"骨架再代数字。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 同上结构，访问文件的逻辑块号 <b>5000</b> 需要几次访存（含读数据）？</p>
+<details><summary>先自己算，再展开对答案</summary>直接地址覆盖 0~9；一级间址覆盖 10~1033（10+1024−1）；二级间址覆盖 1034~1049609。5000 落在<b>二级间址</b>范围。访存 = 读二级索引块 + 读一级索引块 + 读数据块 = <b>3 次</b>（若题目已把 inode 调入内存）。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 位示图字长 32 位、共 200 个字，磁盘块号 1000（从 0 编号）对应的字号与位号是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 字号 30，位号 40</div>
+<div class="opt" data-k="B">B. 字号 31，位号 8</div>
+<div class="opt" data-k="C">C. 字号 31，位号 40</div>
+<div class="opt" data-k="D">D. 字号 32，位号 8</div>
+<div class="exp" hidden><b>答案 B。</b>块号 = 字号×32 + 位号 → 1000 ÷ 32 = 31 余 8 → 字号 31、位号 8。位示图总大小 200×32/8 = 800B。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 磁道 0~199，磁头当前在 53，请求队列到达顺序：98, 183, 37, 122, 14, 124, 65, 67。分别求 <b>FCFS、SSTF、SCAN（当前向磁道增大方向、扫到 199）、LOOK（向大扫到最远请求即折返）</b>的移动道数。</p>
+<details><summary>先自己算，再展开对答案</summary>FCFS：45+85+146+85+108+110+59+2 = <b>640</b>。SSTF（贪最近）：53→65→67→37→14→98→122→124→183 = 12+2+30+23+84+24+2+59 = <b>236</b>。SCAN：53→65→67→98→122→124→183→<b>199</b>→37→14 = 12+2+31+24+2+59+16+162+23 = <b>331</b>。LOOK：53→65→67→98→122→124→183→37→14 = 12+2+31+24+2+59+146+23 = <b>299</b>。SSTF 的危险在这题里看不出来，但它会饿死远端新请求。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>5.</b> 磁盘转速 7200rpm（转/分），忽略寻道与传输，读取任意一个随机扇区的平均旋转延迟约为（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 8.33ms</div>
+<div class="opt" data-k="B">B. 2.08ms</div>
+<div class="opt" data-k="C">C. 4.17ms</div>
+<div class="opt" data-k="D">D. 16.67ms</div>
+<div class="exp" hidden><b>答案 C。</b>一圈 60000ms/7200 ≈ 8.33ms，平均旋转延迟 = 半圈 ≈ 4.17ms。A 是一整圈、B 是四分之一圈——记住"平均=半圈"。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>6.</b> 关于文件物理结构与目录，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 连续分配支持随机访问但难以动态扩展</div>
+<div class="opt" data-k="B">B. 隐式链接分配也支持高效随机访问</div>
+<div class="opt" data-k="C">C. FAT 是显式链接，表常驻内存，查块无需逐块读盘</div>
+<div class="opt" data-k="D">D. 引入索引结点（inode）后，目录项只保留文件名与 inode 号，目录变瘦检索更快</div>
+<div class="exp" hidden><b>答案 ACD。</b>B 错：隐式链接要顺着指针逐块读盘，随机访问慢；C 是 FAT（显式链接）的核心优势——整表常驻内存；D 是 inode 设计动机——目录项瘦身、按名检索时读盘更少。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 混合索引每块地址数 = 块大小 ÷ 地址长度，<b>以题设为准</b>（1KB 块 4B 地址时是 256 不是 1024）；② 位示图编号从 0 起，公式别用成 (i+1)×m；③ SCAN 方向与"扫到尽头还是最远请求"（SCAN vs LOOK）必须按题面来，答案差很多；④ 平均旋转延迟 = 半圈；⑤ FAT 是显式链接不是索引分配——两者都支持随机访问但机制不同，选择题爱混着考。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

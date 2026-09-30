@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据链路层CRC与滑动窗口 · 408基础/计算机网络</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机网络</div>
+<h1>数据链路层：CRC、滑动窗口与 CSMA/CD</h1>
+<div class="meta">适用岗位：全部（CRC 手算与最小帧长是笔试传统艺能） ｜ 形态：概念 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：CRC = 数据后补 (生成多项式位数−1) 个 0 再<b>模二除法</b>，余数即 FCS；HDLC 发送端遇到 <b>5 连 1 插一个 0</b>（比特填充）；GBN 发送窗口 ≤ 2ⁿ−1、SR ≤ 2ⁿ⁻¹（详见 <a href="TCP可靠传输与拥塞控制.html">TCP 可靠传输与拥塞控制</a> 同款窗口表）；CSMA/CD 最小帧长 = <b>2τ × 数据率</b>（争用期=2τ），10Mbps 以太网最小帧 64B；交换机靠<b>自学习</b>建 MAC 表，转发时查表、表缺则泛洪。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>封装成帧与透明传输</b>：帧定界用首尾标志（HDLC 的 01111110）。为让数据里出现标志位也不出错——字节填充（字符计数法/转义字符）与<b>比特填充</b>：发送端每遇 5 个连续 1 就插一个 0，接收端删掉。例：数据 011111101 → 发送 011111001。</p>
+<p><b>差错检测：CRC 循环冗余校验（模二除法，必考手算）</b>。约定生成多项式 P（r 位，最高位 1）：</p>
+<pre><code>① 数据 M 后补 r−1 个 0
+② 用补 0 后的数 模二除 P（异或，不进位不借位）
+③ 余数即 FCS（r−1 位），拼在 M 后发送
+④ 接收方用收到的整帧 ÷ P，余数为 0 视为无错</code></pre>
+<p>经典例（教材）：M=101001，P=1101。补 3 个 0 得 101001000，逐步异或：</p>
+<pre><code>1010 ^ 1101 = 0111 → 下拖 0：1110 ^ 1101 = 0011 → 下拖 1：0111（首位0，商0）
+下拖 0：1110 ^ 1101 = 0011 → 下拖 0：0110（首位0，商0）→ 下拖 0：1100 ^ 1101 = 0001
+余数 FCS = 001，发送帧 = 101001 001
+验证：101001001 ÷ 1101 余 0 ✓</code></pre>
+<p>注意：CRC 只能<b>检错不能纠错</b>（发现错就丢弃，重传交给上层）；链路层的可靠传输（滑动窗口）在有线网络中通常不做，可靠交给 TCP。</p>
+<p><b>流量控制与可靠传输</b>：停止-等待 / GBN / SR 三协议的窗口公式与机制与传输层同构（<a href="TCP可靠传输与拥塞控制.html">TCP 可靠传输与拥塞控制</a> 页有完整对比表），链路层语境下叫"滑动窗口机制"，考试给编号位数算窗口：GBN ≤ 2ⁿ−1，SR 双方 ≤ 2ⁿ⁻¹。</p>
+<p><b>介质访问控制 CSMA/CD（半双工以太网）</b>：先听后发、边听边发、冲突停发、<b>二进制指数退避</b>后重发。关键推导：信号往返时延 2τ 内必须还在发送（才能"边发边检测"到碰撞），所以<b>最小帧长 = 2τ × 数据率</b>。以太网取争用期 2τ = 51.2μs，10Mbps 下最小帧 = 10⁷ × 51.2×10⁻⁶ = 512bit = <b>64 字节</b>。检测到冲突后第 i 次重传：从 {0..2ⁱ−1} 随机选 k 个争用期等待（i 上限 16，超限放弃报错）。无线网不能用 CD（信号衰减大、无法边发边听），改 CSMA/CA 冲突避免。</p>
+<p><b>以太网与交换机</b>：MAC 地址 48 位；以太网 V2 帧格式 = 目的 MAC(6) + 源 MAC(6) + 类型(2) + 数据(46~1500) + FCS(4)，MTU=1500（不含首尾）。<b>交换机自学习</b>：收到帧时把"源 MAC + 入端口"写入 MAC 表；转发时查目的 MAC——表中有则定点转发，无则向除入口外所有端口<b>泛洪</b>；同一广播域内广播帧必泛洪。交换机每个端口独享带宽（对比集线器共享带宽一个大冲突域）。VLAN：把一个物理交换网络切成多个隔离的广播域（概念）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">计算题</span><span class="tag">笔试选择</span></p>
+<ul>
+<li>CRC 手算：给数据与生成多项式求 FCS，或验证接收帧——模二除法一步不能错。</li>
+<li>比特填充/删填充的转换题。</li>
+<li>最小帧长计算（给传播时延与带宽），或反向求电缆最大长度。</li>
+<li>GBN/SR 窗口大小（m 位编号）。</li>
+<li>交换机自学习表的推演（给一系列帧收发，问表内容与转发/泛洪动作）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 计算题先自算）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 数据 M=101001，生成多项式 P=1101（对应 x³+x²+1）。求 CRC 校验码 FCS 与发送帧。</p>
+<details><summary>先自己算，再展开对答案</summary>P 为 4 位 → 补 3 个 0：101001000。模二除：<br>1010^1101=0111 → 拖 0：1110^1101=0011 → 拖 1：0111（首位 0 商 0）→ 拖 0：1110^1101=0011 → 拖 0：0110（商 0）→ 拖 0：1100^1101=0001<br>余数 FCS = <b>001</b>，发送帧 = 101001<b>001</b>。校验：101001001 ÷ 1101 余 0。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 以太网争用期 2τ = 51.2μs，数据率 10Mbps。求最小帧长；若某网段传播时延单程 τ = 10μs、数据率 100Mbps，最小帧长又是多少？</p>
+<details><summary>先自己算，再展开对答案</summary>最小帧长 = 2τ × 数据率。10Mbps：10⁷ b/s × 51.2×10⁻⁶ s = 512 bit = <b>64 字节</b>（这正是以太网帧数据下限 46B+首尾凑 64B 的由来）。第二问：2τ = 20μs，100Mbps → 10⁸ × 20×10⁻⁶ = 2000 bit = <b>250 字节</b>。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> HDLC 链路层发送数据 011111101（不含首尾标志），比特填充后线上传输的序列是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 011111101（无需填充）</div>
+<div class="opt" data-k="B">B. 011111001</div>
+<div class="opt" data-k="C">C. 0111111101</div>
+<div class="opt" data-k="D">D. 011111011</div>
+<div class="exp" hidden><b>答案 B。</b>数据里出现 5 个连续 1（0<b>11111</b>01），发送端在其后自动插一个 0：0 11111 <b>0</b> 01 → 011111001。接收端遇 5 连 1 就看下一位：0 则删除还原，1 则可能是标志/错误。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>4.</b> 数据链路层采用 GBN 协议、帧序号 3 位，发送窗口的最大值是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 8</div>
+<div class="opt" data-k="B">B. 6</div>
+<div class="opt" data-k="C">C. 7</div>
+<div class="opt" data-k="D">D. 4</div>
+<div class="exp" hidden><b>答案 C。</b>GBN 发送窗口 ≤ 2ⁿ−1 = 7；若是 SR 则双方 ≤ 2ⁿ⁻¹ = 4。窗口超限会导致"新帧"与"重传旧帧"序号无法区分。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 关于以太网与交换机，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 交换机根据帧的源 MAC 地址自学习建立转发表</div>
+<div class="opt" data-k="B">B. 交换机转发表查不到目的 MAC 时直接丢弃该帧</div>
+<div class="opt" data-k="C">C. 交换机的每个端口是独立的冲突域，集线器所有端口共享一个冲突域</div>
+<div class="opt" data-k="D">D. 以太网帧的数据字段有效范围是 46~1500 字节（MTU=1500）</div>
+<div class="exp" hidden><b>答案 ACD。</b>B 错——查不到就<b>泛洪</b>（除入口外所有端口发出），这也是广播帧的处理方式；无冲突域/有冲突域的对比是集线器与交换机的本质差异。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>6.</b> 无线局域网不用 CSMA/CD 而用 CSMA/CA 的根本原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 无线带宽太小，用不起冲突检测</div>
+<div class="opt" data-k="B">B. 无线帧太短，来不及检测</div>
+<div class="opt" data-k="C">C. 无线不需要介质访问控制</div>
+<div class="opt" data-k="D">D. 无线信道信号强度衰减大，设备发送时无法可靠检测到碰撞（无法边发边听）</div>
+<div class="exp" hidden><b>答案 D。</b>CSMA/CD 的前提是"边发送边检测冲突"，无线网卡收到的自身信号远强于远处站点的碰撞信号，检测不可行——只能转向"尽量避免冲突+确认重传"（CSMA/CA）。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① CRC 的模二除法是<b>异或</b>不是减法，商的规则只看当前余数首位是 1 还是 0；② FCS 位数 = 生成多项式位数 − 1；③ 最小帧长公式里是<b>往返</b>时延 2τ，别只乘单程；④ 比特填充是"5 连 1 后插 0"，出现在考题里的常见变形是让你删填充还原数据；⑤ 交换机"查不到泛洪"与"广播必泛洪"是两件事但动作相同；⑥ CRC 检错不纠错，链路层有线网通常不做可靠传输——"链路层保证可靠交付"是错误说法。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

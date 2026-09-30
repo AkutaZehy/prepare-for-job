@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>进程与线程 · 408基础/操作系统</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 操作系统</div>
+<h1>进程与线程</h1>
+<div class="meta">适用岗位：全部（笔试选择 + 面试必问） ｜ 形态：概念 + 状态机 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>进程是资源分配的基本单位，线程是处理机调度的基本单位</b>；线程私有栈/寄存器/程序计数器，共享进程的堆、全局变量、打开文件；状态图里<b>阻塞不能直接跳到运行</b>（必须先回到就绪等调度）；进程通信里<b>共享内存最快但需要同步</b>，管道是半双工；协程在用户态切换，不进内核。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>进程</b>：程序的一次执行过程，是系统进行资源分配和保护的基本单位。PCB（进程控制块）是进程存在的唯一标志，记录：进程标识（PID）、状态、现场信息（寄存器组）、资源清单、调度信息。进程 = 程序段 + 数据段 + PCB。</p>
+<p><b>五状态模型</b>（考转换边的方向）：</p>
+<pre class="ascii-fallback"><code>创建 ──调度──→ 就绪 ──调度选中──→ 运行 ──退出──→ 终止
+                ↑↖时间片到/抢占      │等待事件(P操作)
+                │└────等待完成(V操作)── 阻塞</code></pre>
+<pre class="mermaid">
+stateDiagram-v2
+    direction LR
+    [*] --> 创建态: new
+    创建态 --> 就绪态: 启动完成
+    就绪态 --> 运行态: 被调度选中
+    运行态 --> 就绪态: 时间片到 / 被抢占
+    运行态 --> 阻塞态: 等待事件(P操作)
+    阻塞态 --> 就绪态: 事件完成(V操作唤醒)
+    运行态 --> 终止态: exit
+    终止态 --> [*]
+</pre>
+<ul>
+<li>考法是问"某条转换边是否存在"：<b>阻塞→运行、阻塞→终止 都不存在</b>——阻塞的进程必须先被唤醒回就绪队列排队；运行→阻塞是进程<b>主动</b>行为（发起系统调用），运行→就绪是<b>被动</b>被剥夺 CPU。</li>
+</ul>
+<p><b>线程：进程内的执行流</b>。引入线程后，进程只作为资源分配单位，线程才是调度单位。同一个进程内的线程切换不引起进程切换（开销小），不同进程的线程切换开销大。</p>
+<table>
+<tr><th>归属</th><th>内容</th></tr>
+<tr><td class="l"><b>线程私有</b>（切换要换的现场）</td><td class="l">栈、寄存器组、程序计数器 PC、线程控制块 TCB、状态字</td></tr>
+<tr><td class="l"><b>线程共享</b>（同进程内）</td><td class="l">地址空间（代码段、数据段、<b>堆</b>）、全局变量、打开的文件表、信号量等进程资源</td></tr>
+</table>
+<p><b>用户级线程 vs 内核级线程</b>：用户级线程由用户态线程库管理，内核看不见——切换不需要进内核（快），但<b>一个线程阻塞，整个进程都阻塞</b>，且不能利用多核；内核级线程由内核管理，可并行占多核，切换要进内核。组合方式多对多。考点：哪种线程阻塞会拖死全进程（用户级）。</p>
+<p><b>进程通信（IPC）方式对比</b>：</p>
+<table>
+<tr><th>方式</th><th>要点</th><th>特点/场景</th></tr>
+<tr><td>管道</td><td class="l">内核中的缓冲区，半双工，随进程创建销毁</td><td class="l">父子/兄弟进程（匿名管道）；有名管道可用于无亲缘进程</td></tr>
+<tr><td>消息队列</td><td class="l">消息链表，按类型收发</td><td class="l">有格式、可跨进程，速度一般</td></tr>
+<tr><td>共享内存</td><td class="l">划出一块物理内存映射进多个进程</td><td class="l"><b>最快</b>，但需要信号量等同步互斥配合</td></tr>
+<tr><td>信号量</td><td class="l">PV 原语，传信号不传数据</td><td class="l">同步互斥工具，也可做极简通信</td></tr>
+<tr><td>socket</td><td class="l">网络/本机通信统一接口</td><td class="l">跨机器也能用，最通用</td></tr>
+</table>
+<p><b>协程</b>：用户态实现的"轻量线程"，调度与切换在用户态完成，<b>不进内核、不占多线程开销</b>，一个线程内可跑成千上万个协程；遇到真 IO 阻塞时整个线程会卡住，所以适合 IO 密集场景（Python asyncio、Go goroutine 是运行时调度）。考点与 Python 岗的 GIL 问题联动。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算</span><span class="tag">面试必问</span></p>
+<ul>
+<li>状态转换边方向的判断题（408 每年常客）：给一条转换问可能不可能，给事件问转到哪个状态。</li>
+<li>线程共享/私有的判断（多选重灾区）：记住"栈和寄存器一定私有"。</li>
+<li>通信方式特点匹配：最快的（共享内存）、半双工的（管道）、可跨网络的（socket）。</li>
+<li>计算类：单核 n 个进程运行态的最大/最小个数。</li>
+<li>面试：进程 vs 线程区别（背资源分配/调度单位+共享私有+开销三条就够），什么时候用多进程（隔离性、崩溃不影响）什么时候多线程（共享数据、切换轻），协程适用场景（Python/Go 岗必问）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>1.</b> 下列进程状态转换中，<b>不可能</b>发生的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 运行 → 就绪</div>
+<div class="opt" data-k="B">B. 运行 → 阻塞</div>
+<div class="opt" data-k="C">C. 阻塞 → 就绪</div>
+<div class="opt" data-k="D">D. 阻塞 → 运行</div>
+<div class="exp" hidden><b>答案 D。</b>阻塞进程被唤醒后进入就绪队列，必须等调度程序选中才能运行，不存在阻塞直接跳运行。同理"阻塞→终止"也不存在。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="BCD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 同一进程内的多个线程<b>共享</b>的资源有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 各自的栈空间</div>
+<div class="opt" data-k="B">B. 堆内存</div>
+<div class="opt" data-k="C">C. 全局变量</div>
+<div class="opt" data-k="D">D. 打开的文件描述符表</div>
+<div class="exp" hidden><b>答案 BCD。</b>栈、寄存器组、程序计数器是线程私有的；堆、全局变量、打开文件表属于进程级资源，同进程线程共享——这也是"多线程改共享变量要加锁"的原因。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> 关于管道（pipe）通信，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 匿名管道是半双工的，数据单向流动，要双向需建两根管道</div>
+<div class="opt" data-k="B">B. 管道中的数据可以随机访问</div>
+<div class="opt" data-k="C">C. 匿名管道可用于任意两个无亲缘关系的进程</div>
+<div class="opt" data-k="D">D. 管道的容量是无限的，写进程永远不必等待</div>
+<div class="exp" hidden><b>答案 A。</b>匿名管道半双工、先进先出且只能顺序读，写满后写者阻塞；它通过 fork 继承打开的文件描述符使用，所以限父子/兄弟进程（有名管道 FIFO 才能跨亲缘）。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 单处理机系统中有 5 个进程（不含空闲态），处于<b>运行态</b>的进程最多几个？最少几个？</p>
+<details><summary>先自己算，再展开对答案</summary>最多 <b>1</b> 个——单处理机同一时刻只能有一个进程在 CPU 上运行。最少 <b>0</b> 个——5 个进程可以全部处于阻塞态（都在等 I/O），此时 CPU 空闲。前提"不含空闲态"是排除干扰的题眼。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 进程和线程的区别？什么时候选多进程、什么时候选多线程？</p>
+<details><summary>参考回答</summary>三层说：①本质——进程是资源分配的基本单位，线程是调度执行的基本单位；②共享与隔离——同进程线程共享地址空间和资源（通信免费但要加锁），进程间地址空间独立（隔离性好，一个崩不影响别的）；③开销——线程切换只换栈和寄存器现场，进程切换还要换页表/地址空间并使 Cache 失效，开销大得多。选型：要共享大量数据、追求轻量并发→多线程；要隔离与稳定（如 Chrome 多进程）、或绕过 GIL→多进程。加分点：提到协程做 IO 密集的高并发（用户态切换不进内核）。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① "线程共享地址空间"指的是代码段/数据段/堆，<b>栈不共享</b>；② 运行→阻塞是主动行为，就绪→阻塞不可能（就绪进程没在 CPU 上执行，无从发起等待）；③ PCB 是进程存在的唯一标志，创建进程实质是建 PCB；④ 用户级线程一个阻塞全进程阻塞，是它相对内核级线程的核心缺点；⑤ 共享内存"快"的前提是配好同步互斥，否则读到的就是脏数据——面试常顺着追问。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

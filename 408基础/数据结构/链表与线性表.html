@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>链表与线性表 · 408基础/数据结构</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>链表与线性表</h1>
+<div class="meta">适用岗位：全部（笔试选择 + 面试手撕反转/判环） ｜ 形态：结构对比 + 指针画图 + 复杂度手算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>顺序表随机存取、插删搬元素；链表顺序存取、改指针快定位慢</b>。头插法建表 = 读入序列的<b>逆序</b>，尾插法 = 同序。带尾指针 rear 的循环单链表：<b>rear.next 就是头结点，空表条件 rear.next == rear</b>，首结点 = rear.next.next。双链表在 p 之前插 s 共四步，口诀<b>先接后断</b>：s.prior 与 p.prior.next 先改，p.prior = s 永远最后。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>顺序表 vs 链表</b>：线性表是逻辑结构，顺序表与链表是两种存储实现，核心差异一张表说清：</p>
+<table>
+<tr><th class="l">维度</th><th class="l">顺序表（数组）</th><th class="l">链表</th></tr>
+<tr><td class="l">存取方式</td><td class="l">随机存取，按位访问 O(1)</td><td class="l">顺序存取，按位访问 O(n)</td></tr>
+<tr><td class="l">按值查找</td><td class="l">O(n)；有序时可折半 O(log n)</td><td class="l">O(n)，无法折半（不能随机跳）</td></tr>
+<tr><td class="l">插入 / 删除</td><td class="l">定位 O(1)，但平均搬 n/2 个元素（删除 (n−1)/2 个）</td><td class="l">定位 O(n)，改指针 O(1)</td></tr>
+<tr><td class="l">空间</td><td class="l">必须连续；静态分配可能溢出，预留太多又浪费</td><td class="l">按需分配，每结点多一个指针域，存储密度小于 1</td></tr>
+<tr><td class="l">适用场景</td><td class="l">长度稳定、按位查多、插删少</td><td class="l">长度动态、插删频繁</td></tr>
+</table>
+<p><b>三种链表</b>：① 单链表——每结点一个 next 指针，找前驱要 O(n)；② 双链表——加 prior 指针，找前驱 O(1)，在给定结点前插入/删除都是 O(1)，代价是每结点多一个指针域；③ 循环链表——尾结点 next 指回头结点，从任一结点都能绕全表。<b>带尾指针 rear 的循环单链表</b>最实用：rear.next 即头结点，于是找首结点 rear.next.next、找尾结点 rear 全是 O(1)，两个这样的表拼接也只要 O(1)。判空三件套：带头结点单链表 head.next == null；循环单链表 head.next == head；带尾指针循环单链表 rear.next == rear。</p>
+<p><b>头插法与尾插法建表</b>：头插法把新结点插到头结点之后，<b>最后读入的排在最前，建表结果 = 读入序列的逆序</b>；尾插法把新结点接到表尾（设一个尾指针，免得每次扫全表），结果与读入<b>同序</b>。笔试最爱给读入序列问建表结果，或者反过来。</p>
+<pre class="ascii-fallback"><code>单链表插入（p 的后继是 q，把 s 接进去）：
+插入前:  ... -- [p] -- [q] -- ...
+插入后:  ... -- [p] -- [s] -- [q] -- ...
+口诀: s.next = p.next 先挂后继, 再 p.next = s
+      顺序不能反, 先改 p.next 会把 q 弄丢</code></pre>
+<pre class="mermaid">
+flowchart LR
+    subgraph G1["插入前：p 的后继是 q"]
+        direction LR
+        p1["p"] --> q1["q"]
+    end
+    subgraph G2["插入后：s 接进 p、q 之间"]
+        direction LR
+        p2["p"] --> s2["s"] --> q2["q"]
+    end
+    G1 -->|"s.next = p.next，再 p.next = s（先接后断）"| G2
+</pre>
+<pre class="ascii-fallback"><code>单链表删除（删 q，前后是 p、r）：
+删除前:  [p] -- [q(待删)] -- [r]
+删除后:  [p] ------------ [r]
+一步: p.next = p.next.next   (q 被跨过, 交给 GC)</code></pre>
+<pre class="mermaid">
+flowchart LR
+    subgraph G3["删除前"]
+        direction LR
+        a["p"] --> b["q（待删）"] --> c["r"]
+    end
+    subgraph G4["删除后"]
+        direction LR
+        d["p"] --> e["r"]
+    end
+    G3 -->|"p.next = p.next.next（跨过 q）"| G4
+</pre>
+<p><b>面试手撕两件套</b>：单链表反转（三指针迭代）与快慢指针判环。判环原理：slow 每步 1 格、fast 每步 2 格，只要成环，两者相对速度恒定，必然在环内相遇；fast 撞到 null 即无环。顺带记结论：找到相遇点后，一指针回头、两指针同速前进，再相遇处即环入口（Floyd 判圈）。</p>
+<pre><code>class ListNode {
+    int val;
+    ListNode next;
+    ListNode(int val) { this.val = val; }
+}
+
+// 单链表反转（迭代）：三个指针一路翻
+static ListNode reverse(ListNode head) {
+    ListNode prev = null, cur = head;
+    while (cur != null) {
+        ListNode nxt = cur.next;   // 1. 先存后继, 防断链
+        cur.next = prev;           // 2. 反转当前指针
+        prev = cur;                // 3. prev 前移
+        cur = nxt;                 // 4. cur 前移
+    }
+    return prev;                   // 新表头(原表尾)
+}
+
+// 快慢指针判环：slow 每步 1 格, fast 每步 2 格, 有环必相遇
+static boolean hasCycle(ListNode head) {
+    ListNode slow = head, fast = head;
+    while (fast != null &amp;&amp; fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+        if (slow == fast) return true;
+    }
+    return false;                  // fast 撞到 null = 无环
+}</code></pre>
+<pre><code>def reverse(head):
+    prev, cur = None, head
+    while cur:
+        cur.next, prev, cur = prev, cur, cur.next  # 存后继+翻转+双前移一行完成
+    return prev
+
+def has_cycle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow, fast = slow.next, fast.next.next
+        if slow is fast:
+            return True
+    return False</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">手算</span><span class="tag">机试手写</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：头插/尾插建表序列、循环链表判空与判尾条件、顺序表 vs 链表各类操作复杂度、双链表指针操作顺序。</li>
+<li>计算：等概率下平均移动/比较次数（n/2、(n+1)/2 一族），要会现场列式。</li>
+<li>机试：单链表反转、快慢指针判环/找中点，手撕热身高频。</li>
+<li>面试口述：双链表插入四步及顺序原因；数组 vs 链表工程选型（补一句缓存局部性更稳）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 依次将 1、2、3、4、5 读入，用<b>头插法</b>（每次插到头结点之后）建立单链表，则从头到尾的结点序列是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 1，2，3，4，5</div>
+<div class="opt" data-k="B">B. 1，3，5，2，4</div>
+<div class="opt" data-k="C">C. 5，4，3，2，1</div>
+<div class="opt" data-k="D">D. 2，1，4，3，5</div>
+<div class="exp" hidden><b>答案 C。</b>头插法每次把新结点放在最前面，最后读入的反而在最前，建表结果恒为读入序列的<b>逆序</b>；选 A 的是尾插法的结果。反过来考也要会：头插建表得 5，4，3，2，1，说明读入就是 1，2，3，4，5。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 设 rear 是指向<b>带尾指针的循环单链表</b>（只设一个头结点，rear 指向尾结点）尾结点的指针，则该表为<b>空</b>的判定条件是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. rear == null</div>
+<div class="opt" data-k="B">B. rear.next == rear</div>
+<div class="opt" data-k="C">C. rear.next == null</div>
+<div class="opt" data-k="D">D. rear == rear.next.next</div>
+<div class="exp" hidden><b>答案 B。</b>空表只剩头结点，此时"尾结点"就是头结点本身，头结点的 next 指向自己，即 rear.next == rear。顺带两个 O(1) 福利：首结点 = rear.next.next，尾结点 = rear。A 错在表不为 null（头结点永远在）。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于顺序表和链表，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 顺序表支持随机存取，按位访问 O(1)；链表只能从头沿链扫描，按位访问 O(n)</div>
+<div class="opt" data-k="B">B. 链表在已给出前驱结点的前提下，插入或删除只需修改指针，O(1) 完成</div>
+<div class="opt" data-k="C">C. 顺序表按位插入删除同样只需 O(1)，不用移动元素</div>
+<div class="opt" data-k="D">D. 链表每个结点附带指针域，存储密度低于顺序表</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：顺序表定位是 O(1)，但第 i 位插入平均要搬 n/2 个元素，删除平均搬 (n−1)/2 个，代价全在移动。注意 B 的前提"已给出前驱（或位置）"——链表 O(1) 只覆盖改指针那一步，按位定位仍是 O(n)，这正是最常设的文字陷阱。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> 双链表中在结点 p 之前插入新结点 s，写出四步指针操作，并说明为什么 p.prior = s 必须放最后。</p>
+<details><summary>参考回答</summary>四步：① s.prior = p.prior；② p.prior.next = s；③ s.next = p；④ p.prior = s。顺序原因：④ 会<b>覆盖 p 的旧前驱</b>，若先做 ④，旧前驱就丢了，①② 无从做起；② 又依赖 ① 保存的前驱。口诀：<b>先把新结点两头接好（①③），再改旧邻居的指针（②④），p.prior = s 永远最后</b>。加分项：对称地，双链表删 p 只要两步——p.prior.next = p.next; p.next.prior = p.prior。来源：面试高频改编。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>5.</b> 设表长 n = 100，元素等概率分布。求：① 顺序表按值查找成功的平均比较次数；② 顺序表插入的平均移动元素个数；③ 链表定位第 i 个结点的平均步数，以及定位后插入的指针修改次数；④ 用一句话总结两类表插入操作的真实代价差别。</p>
+<details><summary>先自己算，再展开对答案</summary>① (1+2+…+n)/n = (n+1)/2 = <b>50.5</b> 次。② 插入位置 i（1..n+1 等概率）需移动 n−i+1 个元素，平均 = (n+(n−1)+…+0)/(n+1) = <b>n/2 = 50</b> 个。③ 从头结点出发走 i 步到达第 i 个结点，平均 (n+1)/2 = <b>50.5</b> 步；定位后只改 <b>2</b> 个指针、搬 0 个元素。④ 两类表"定位"同阶 O(n)，差距在"摆放"：<b>顺序表贵在搬 n/2 个元素，链表贵在走 n/2 步但摆放免费</b>。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 头插逆序、尾插同序，建表题先默读一遍读入顺序；② 链表插删 O(1) 的前提是"位置/前驱已给出"，按位定位仍是 O(n)；③ 双链表前插四步中 p.prior = s 必须最后，否则旧前驱被覆盖；④ "随机存取"这个词只属于顺序表，链表只有顺序存取；⑤ 循环单链表判空 = 头结点自指（rear.next == rear），别写成 rear == null；⑥ 面试手撕反转要会口述"存后继、翻转、双前移"三步节奏。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

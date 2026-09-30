@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>缓存穿透、击穿、雪崩与分布式锁 · 编程题与Java基础/生态</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 生态</div>
+<h1>缓存穿透、击穿、雪崩与分布式锁</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开、后端（项目场景题最常考） ｜ 形态：场景辨析 + 方案 + 代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：记忆锚点——<b>穿透=查一个不存在的、击穿=一个热点 key 过期瞬间、雪崩=一批 key 同时过期或 Redis 整体宕机</b>；一致性用 Cache Aside：<b>先更新数据库再删除缓存</b>（删除而非更新，懒加载+防并发乱序）；分布式锁三件套：<code>SET key uniqueValue NX EX</code> 一条命令原子加锁、值存唯一标识 + <b>Lua 保证"判断+删除"原子</b>、Redisson 看门狗自动续期。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>三大问题：定义 + 对策一张表</b>（先辨析场景，再给方案）：</p>
+<table>
+<tr><th>问题</th><th>定义（一句话）</th><th>典型场景</th><th>对策</th></tr>
+<tr><td><b>穿透</b></td><td class="l">查询<b>根本不存在</b>的数据，缓存永不命中，每次都打穿到数据库</td><td class="l">恶意请求 id=-1、爬虫乱撞</td><td class="l">①入口参数校验 ②<b>缓存空值</b>（短 TTL，防占内存）③<b>布隆过滤器</b>前置拦截</td></tr>
+<tr><td><b>击穿</b></td><td class="l"><b>某一个热点</b> key 过期的瞬间，海量并发同时打到数据库</td><td class="l">秒杀商品、爆款详情页缓存到期</td><td class="l">①<b>互斥锁重建</b>（只放一个线程查库回填，其余等待重试）②<b>逻辑过期</b>（不删除，值里带过期时间，发现过期后异步重建、先返回旧值）③热点数据永不过期</td></tr>
+<tr><td><b>雪崩</b></td><td class="l"><b>一大批</b> key 同时过期，或 Redis 整体宕机，流量全量砸向数据库</td><td class="l">0 点统一设置的批量缓存、机房故障</td><td class="l">①过期时间<b>加随机抖动</b> ②Redis <b>高可用</b>（主从哨兵 / Cluster）③<b>限流、降级、熔断</b>兜底 ④多级缓存（本地 + Redis）</td></tr>
+</table>
+<p><b>布隆过滤器一句话</b>：位数组 + k 个哈希函数；判定"<b>不存在</b>"必然准确、判定"存在"可能误判（哈希碰撞），标准版不支持删除——适合 key 集合相对稳定的防穿透场景。</p>
+
+<p><b>缓存与数据库一致性：Cache Aside 模式</b>（旁路缓存，最常用）：</p>
+<ul>
+<li><b>读路径</b>：先读缓存，命中直接返回；未命中读数据库 → 回填缓存 → 返回。</li>
+<li><b>写路径</b>：<b>先更新数据库，再删除缓存</b>（不是更新缓存！）。</li>
+<li><b>为什么"删除"而不是"更新"缓存</b>：①懒加载——写多读少的 key，每次写都更新缓存是白算，删掉等真正被读时再回填；②并发写时"更新缓存"会乱序：两个写请求到达数据库的顺序与到达缓存的顺序可能相反，最终缓存里留下旧值；删缓存没有这种终态错误。</li>
+<li><b>为什么"先库后删"而不是"先删后更"</b>：先删后更的坏窗口——删完到库更新完之间，读请求未命中就读到【旧库值】并回填旧缓存，之后长期脏（读快写慢，窗口大）；先库后删的坏窗口需要"读请求在库更新前读到旧值、又拖到删缓存之后才回填"，相当于读比写还慢，概率极小。</li>
+<li><b>延迟双删</b>：删缓存 → 更新库 → 延迟几百毫秒再删一次，兜底上述极小窗口；只能改善，不能根治。</li>
+<li><b>定位一句话</b>：缓存只能给<b>最终一致</b>；要强一致就别用缓存，或加锁串行化——得不偿失。</li>
+</ul>
+
+<p><b>分布式锁</b>（单机锁 synchronized 只锁 JVM 内，多实例部署必须用分布式锁）：</p>
+<ul>
+<li><b>原子加锁一条命令</b>：<code>SET lockKey uniqueValue NX EX 30</code>——NX（不存在才设置）+ EX（过期时间）+ 唯一值一把设好。为什么必须一条命令：<code>SETNX</code> 和 <code>EXPIRE</code> 分两步，中间宕机锁就永久不过期 → 死锁。</li>
+<li><b>锁误删问题</b>：A 业务超时，锁到期被 B 拿走；A 干完后直接 DEL 会删掉<b>B 的锁</b>。解法：值存唯一标识（UUID:线程ID），释放前先判断是不是自己的锁。</li>
+<li><b>为什么释放必须用 Lua</b>："GET 比对 + DEL"是两步，GET 判断完恰好锁过期被 B 抢到，比对结果就失效了——Lua 脚本在 Redis 单线程中<b>整体原子执行</b>，判断+删除不可分割。</li>
+<li><b>续期问题</b>：锁 30 秒、业务跑了 35 秒照样出事 → Redisson <b>看门狗 watchdog</b>：默认锁 30s，每 1/3 时间（10s）检查一次，业务没结束就自动续满 30s。</li>
+<li><b>可重入与 RedLock 一句</b>：Redisson 用 hash 结构（field=线程标识，value=重入次数）实现可重入；RedLock 多节点多数派方案业界争议大（Martin Kleppmann vs antirez），常规业务单主 + 哨兵 / Redisson 足够，别当银弹。</li>
+</ul>
+
+<span class="lang">Java</span>
+<pre><code>// 分布式锁最小可用版（Jedis 风格）：原子加锁 + Lua 原子释放
+String token = UUID.randomUUID().toString();
+// 一条命令同时带上 NX + EX + 唯一值，防止两步之间宕机造成死锁
+String ok = jedis.set("lock:order", token, SetParams.setNx().ex(30));
+if (!"OK".equals(ok)) { /* 获取失败：短暂重试或直接返回 */ }
+
+// 释放：Lua 保证"判断是自己的锁 + 删除"两步原子执行
+String lua =
+    "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+    "  return redis.call('del', KEYS[1]) " +
+    "else return 0 end";
+jedis.eval(lua, Collections.singletonList("lock:order"),
+                 Collections.singletonList(token));
+// 生产建议直接用 Redisson：可重入 + 看门狗自动续期，省掉手写这些坑</code></pre>
+
+<p>Redis 数据类型与持久化的底层支撑（String/ZSet 选型、RDB/AOF）见同目录 <a href="Redis数据类型与持久化.html">Redis数据类型与持久化</a>。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：给场景辨析是穿透/击穿/雪崩哪个、对策匹配、默认淘汰与空值 TTL 细节、Lua 释放锁的原因。</li>
+<li>面试："项目里怎么防穿透/击穿/雪崩"（三锚点+对策）、"缓存和数据库一致性怎么保证"（Cache Aside 全套：删不更、先库后删、延迟双删、最终一致）、"分布式锁怎么写才对"（一条命令 + 唯一值 + Lua + 看门狗）。</li>
+<li>追问链：布隆过滤器原理 → 误判率与位数组 → 互斥锁重建超时怎么办 → Redisson 看门狗 → RedLock 争议，一环扣一环。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 电商详情页给爆款商品缓存设了 30 秒过期；过期瞬间该商品的上万 QPS 同时打到 MySQL。这属于哪种问题（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 缓存穿透</div>
+<div class="opt" data-k="B">B. 缓存击穿</div>
+<div class="opt" data-k="C">C. 缓存雪崩</div>
+<div class="opt" data-k="D">D. 缓存污染</div>
+<div class="exp" hidden><b>答案 B。</b>锚点对号：<b>一个热点</b> key 过期瞬间高并发直打库=击穿；查不存在的数据=穿透；<b>一批</b>同时过期或整体宕机=雪崩。对策：互斥锁重建或逻辑过期。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于三大缓存问题的对策，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 布隆过滤器可以前置拦截"查不存在数据"的穿透请求</div>
+<div class="opt" data-k="B">B. 给过期时间加随机抖动，可缓解一批 key 同时过期引发的雪崩</div>
+<div class="opt" data-k="C">C. 互斥锁重建能防止热点 key 过期瞬间大量线程同时查库</div>
+<div class="opt" data-k="D">D. 缓存空值应设置与正常数据相同的长 TTL，减少失效次数</div>
+<div class="exp" hidden><b>答案 ABC。</b>空值缓存只防穿透，且 TTL 要<b>短</b>（几十秒级）：空值长期占内存，且数据一旦真创建出来旧空值还会挡住正常读。D 的做法两头都亏。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> Cache Aside 模式中，写路径采用"先更新数据库，再删除缓存"而非"更新缓存"，最主要的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 更新缓存有写放大且并发写会乱序覆盖，删除后按需回填（懒加载）能保证终态取到最新值</div>
+<div class="opt" data-k="B">B. 先删缓存后更数据库没有任何坏窗口</div>
+<div class="opt" data-k="C">C. 数据库和缓存之间支持跨存储的事务</div>
+<div class="opt" data-k="D">D. 删除缓存比更新缓存节省的只是一次网络请求</div>
+<div class="exp" hidden><b>答案 A。</b>懒加载省掉"写了没人读"的无效计算；并发写到达顺序不一致时更新缓存会留下旧值，删除没有终态错误。B 错——先删后更的窗口更大（读快写慢）。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> 释放分布式锁时用 Lua 脚本执行"判断值相等再删除"，原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Lua 脚本的执行速度比普通命令快</div>
+<div class="opt" data-k="B">B. GET 比对与 DEL 两步在脚本内原子执行，防止锁恰好过期被他人抢走后误删</div>
+<div class="opt" data-k="C">C. Redis 的普通命令不支持条件判断</div>
+<div class="opt" data-k="D">D. Lua 脚本可以绕过 Redis 单线程模型的限制</div>
+<div class="exp" hidden><b>答案 B。</b>GET 完恰好在 DEL 前过期、锁被 B 拿走，此时再 DEL 就删了别人的锁——两步必须不可分割，Lua 在单线程里整体执行天然原子。D 说反了：Lua 正是借单线程才原子。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 项目里缓存和数据库的一致性是怎么保证的？说说完整方案。</p>
+<details><summary>参考回答</summary>用 Cache Aside：读——先读缓存，未命中读库回填；写——先更新数据库，再删除缓存。两个关键追问都能接住：为什么删除不更新——懒加载省无谓计算，且并发写更新缓存会乱序留旧值；为什么先库后删——先删后更的窗口里读请求会把旧库值回填缓存（读快写慢，概率大），先库后删要求"读比写还慢"才出错，概率极小，必要时加延迟双删兜底。最后主动定位：这套只能保证最终一致，业务要求强一致就不该上缓存。加分点：把删除缓存改成消息队列异步删、或 binlog 订阅（Canal）删缓存。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 空值缓存 TTL 要<b>短</b>、布隆过滤器"说不存在必然准、说存在可能误判"；② 击穿锁的是"单个热点过期瞬间"，雪崩是"一批同时 / 整体宕机"，场景题先数"一个还是一批"；③ 删缓存不等于更新缓存：懒加载 + 防并发乱序，两个理由都说出来；④ 加锁必须 <code>SET NX EX</code> 一条命令；释放必须 Lua"判断+删除"原子，值存唯一标识防误删；⑤ 锁的过期时间不等于业务完成保证——长任务靠 Redisson 看门狗续期；⑥ 别把"缓存最终一致"说成强一致，主动交代边界反而是加分项。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

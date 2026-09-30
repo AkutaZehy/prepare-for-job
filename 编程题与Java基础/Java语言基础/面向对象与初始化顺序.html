@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>面向对象与初始化顺序 · 编程题与Java基础/Java语言基础</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / Java语言基础</div>
+<h1>面向对象与初始化顺序</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开 ｜ 形态：概念 + 输出判断 + 面试口述 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：三大特性一句话——封装=private 字段+公开方法控制访问；继承=extends 复用+单继承；多态=父类引用指向子类对象。重写口诀<b>两同两小一大</b>（方法名参数相同、返回值异常更小、访问权限更大）。初始化顺序：<b>父静态→子静态→父实例块→父构造→子实例块→子构造，静态只执行一次</b>；多态<b>方法看运行时类型、字段看编译时类型</b>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>三大特性，各一句话</b>：封装——字段 private、行为公开，用 getter/setter 控制访问边界；继承——<code>extends</code> 复用并扩展父类，Java 只支持单继承（接口可多实现），构造子类必先构造父类；多态——父类引用指向子类对象，<b>编译看左边（引用类型），运行看右边（实际对象）</b>。</p>
+
+<p><b>重载 vs 重写</b>（重写口诀：<b>两同两小一大</b>——方法名与参数列表相同；返回值类型与抛出的异常更小或相同；访问权限更大或相同）</p>
+<table>
+<tr><th>对比点</th><th>重载 Overload</th><th>重写 Override</th></tr>
+<tr><td>位置</td><td>同一个类里</td><td>父子类之间</td></tr>
+<tr><td>参数列表</td><td>必须不同</td><td>必须相同</td></tr>
+<tr><td>返回值</td><td>可以不同</td><td>相同或更小（子类型）</td></tr>
+<tr><td>抛出异常</td><td>无要求</td><td>更小或相同，不能抛新的更大 checked 异常</td></tr>
+<tr><td>访问权限</td><td>无要求</td><td>更大或相同</td></tr>
+<tr><td>绑定</td><td>编译期按参数静态绑定</td><td>运行期动态绑定</td></tr>
+</table>
+
+<p><b>构造器与 this / super</b>：构造器与类同名、没有返回值；<code>this(...)</code> 调本类重载构造器、<code>super(...)</code> 调父类构造器，二者都必须是构造器第一行，因此不能同时出现；不写 <code>super(...)</code> 时编译器自动插入父类无参构造调用——父类没有无参构造而子类又没显式调用，直接编译错。</p>
+
+<p><b>类初始化顺序</b>（静态部分只在类第一次被使用时执行一次）</p>
+<ul>
+<li>① 父类静态变量、静态代码块（同一类内按书写顺序）</li>
+<li>② 子类静态变量、静态代码块</li>
+<li>③ 父类实例变量、实例代码块</li>
+<li>④ 父类构造器</li>
+<li>⑤ 子类实例变量、实例代码块</li>
+<li>⑥ 子类构造器</li>
+<li>第二次 new 同一个类：从 ③ 开始重复，①② 不再执行。</li>
+</ul>
+<span class="lang">Java</span>
+<pre><code>public class InitOrder {
+    static class Parent {
+        static { System.out.println("1 父类静态块"); }
+        { System.out.println("3 父类实例块"); }
+        Parent() { System.out.println("4 父类构造器"); }
+    }
+
+    static class Child extends Parent {
+        static { System.out.println("2 子类静态块"); }
+        { System.out.println("5 子类实例块"); }
+        Child() { System.out.println("6 子类构造器"); }
+    }
+
+    public static void main(String[] args) {
+        new Child();
+        System.out.println("--- 第二次 new，静态不再执行 ---");
+        new Child();
+    }
+}
+// 输出：1 父类静态块 / 2 子类静态块 / 3 父类实例块 / 4 父类构造器
+//       / 5 子类实例块 / 6 子类构造器 / ---分隔线
+//       / 3 / 4 / 5 / 6（再来一轮，静态消失）</code></pre>
+<span class="lang">Java</span>
+<pre><code>class Calc {
+    int add(int a, int b) { return a + b; }          // 基准方法
+    double add(double a, double b) { return a + b; } // 重载：同名不同参
+}
+
+class SciCalc extends Calc {
+    @Override
+    public int add(int a, int b) { return a + b; }   // 重写：两同（方法名、参数）
+    // 两小：返回值 int 不变、不抛更大异常；一大：public 权限不小于父类默认权限
+}</code></pre>
+
+<p><b>多态绑定：方法看运行时类型，字段看编译时类型</b>：实例方法调用是动态绑定——JVM 按对象实际类型在虚方法表里找实现，重写生效；字段和 static 方法是静态绑定——编译期就按引用的静态类型解析好了。所以 <code>Parent p = new Child()</code> 时，<code>p.field</code> 取到的是 Parent 的字段，<code>p.method()</code> 调到的是 Child 的方法。</p>
+
+<p><b>接口 vs 抽象类</b>：抽象类单继承，可以有构造器、实例字段和任意方法，适合"is-a + 复用模板代码"；接口多实现，成员变量隐式 public static final，<b>JDK8 起</b>可有 default/static 方法、<b>JDK9 起</b>可有 private 方法，适合"定义能力契约、制造多继承效果"。接口有了 default 方法也存不了每个对象各自的实例状态——这是与抽象类的本质区别。</p>
+<span class="lang">Python</span>
+<pre><code>class Parent:
+    def greet(self):
+        return "parent"
+
+class Child(Parent):
+    def greet(self):          # 重写
+        return "child"
+
+p = Child()
+print(p.greet())   # child：按对象实际类型查找，天生动态绑定
+# Python 没有编译期静态类型，不存在"字段看编译时类型"的陷阱</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断：初始化顺序题最经典——给父子类静态块/实例块/构造器问打印顺序，陷阱在"静态只执行一次"。</li>
+<li>概念选择：重写"两同两小一大"、final/static/abstract 组合合法性、接口 default 方法（JDK8 分水岭）。</li>
+<li>面试口述：多态绑定机制（为什么方法动态绑定、字段静态绑定）、接口与抽象类怎么选。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码，main 中连续执行 <code>new Child(); new Child();</code>，输出是（&nbsp;&nbsp;）</p>
+<pre><code>class Parent {
+    static { System.out.print("A"); }
+    { System.out.print("B"); }
+    Parent() { System.out.print("C"); }
+}
+class Child extends Parent {
+    static { System.out.print("D"); }
+    { System.out.print("E"); }
+    Child() { System.out.print("F"); }
+}</code></pre>
+<div class="opt" data-k="A">A. ADBCEFBCEF</div>
+<div class="opt" data-k="B">B. ADBCEFADBCEF</div>
+<div class="opt" data-k="C">C. ABCDEFABCDEF</div>
+<div class="opt" data-k="D">D. DABCEFDABCEF</div>
+<div class="exp" hidden><b>答案 A。</b>第一次使用 Child：父类静态 → 子类静态（AD，仅此一次）；随后每次 new 走"父实例块→父构造→子实例块→子构造"（BCEF 两轮）。B 错在静态重复执行，D 错在子类静态先于父类。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 父类方法签名 <code>protected Number calc(int x) throws IOException</code>，子类重写合法的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. public Integer calc(int x) throws FileNotFoundException</div>
+<div class="opt" data-k="B">B. private Integer calc(int x)</div>
+<div class="opt" data-k="C">C. public Integer calc(long x)</div>
+<div class="opt" data-k="D">D. public Integer calc(int x) throws Exception</div>
+<div class="exp" hidden><b>答案 A。</b>按"两同两小一大"逐项对：方法名参数相同；返回值 Integer 是 Number 的子类型（更小）、FileNotFoundException 是 IOException 的子类（更小）；public 比 protected 大。B 权限更小；C 参数变了是重载不是重写；D 抛了更大的 checked 异常。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 final、static、abstract 修饰符，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. final 类不能被继承，final 方法不能被重写，final 变量只能赋值一次</div>
+<div class="opt" data-k="B">B. 抽象类不能实例化，但可以有构造器，供子类通过 super 调用</div>
+<div class="opt" data-k="C">C. abstract 方法可以同时被 static 或 final 修饰</div>
+<div class="opt" data-k="D">D. static 方法属于类而不属于实例，不能被重写，子类的同名静态方法只是隐藏</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错——abstract 与 final、static、private 天生互斥：abstract 要靠子类实现并参与多态，final 不许重写，static 不走动态绑定。D 正确：子类定义同签名静态方法只是"隐藏"父类版本，调用看编译时类型。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> 关于 JDK8 之后的接口与抽象类，说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 接口有了 default 方法，就能像抽象类一样保存每个对象各自的实例状态</div>
+<div class="opt" data-k="B">B. 接口成员变量隐式 public static final，无法持有实例状态；抽象类可以有实例字段与构造器</div>
+<div class="opt" data-k="C">C. 一个类只能继承一个抽象类，也只能实现一个接口</div>
+<div class="opt" data-k="D">D. 接口的 default 方法在 JDK8 之前就已经存在</div>
+<div class="exp" hidden><b>答案 B。</b>JDK8 起接口才有 default/static 方法（JDK9 起才有 private 方法），但成员变量永远是 public static final 常量，没有实例状态；类可多实现接口、单继承抽象类。选型口诀：共享代码与状态用抽象类，定义能力契约用接口。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 口述 Java 多态的绑定机制：为什么"方法看运行时类型、字段看编译时类型"？</p>
+<details><summary>参考回答</summary>分编译期与运行期两步：① 编译期，编译器只认引用的静态（编译时）类型——用它检查方法是否存在、确定方法签名，生成 invokevirtual 指令；字段访问也是在这一步按静态类型解析好写进字节码的。② 运行期，JVM 执行 invokevirtual 时按对象的实际类型去虚方法表里找同签名的实现——这就是动态绑定，重写因此生效。而字段、static 方法、private 方法与构造器不走虚方法表，属于静态绑定。所以结论是"方法看运行时、字段看编译时"。加分点：说出 invokevirtual/invokestatic 区别、虚方法表（vtable）。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 初始化顺序一句话：父静态→子静态→父实例块→父构造→子实例块→子构造，静态只一次；② 实例块总在构造器方法体之前执行；③ 判断重写合法性按"两同两小一大"逐项对，参数一变就成重载；④ 接口 default/static 是 JDK8 起、private 是 JDK9 起，老资料"接口全是抽象方法"要修正；⑤ static 方法与字段不参与多态，都看编译时类型。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

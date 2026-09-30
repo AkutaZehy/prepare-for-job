@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HashMap全解 · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>HashMap 全解</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（面试问到源码级的头号热门） ｜ 形态：原理 + 代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：JDK8 = <b>数组 + 链表 + 红黑树</b>；容量永远是 2 的幂，定位用 <code>(n−1) &amp; hash</code>；默认容量 16、负载因子 0.75（放第 13 个元素后扩容一倍）；<b>树化 = 链表长度 8 且数组容量 ≥ 64，退化阈值 6</b>；hash 扰动 <code>(h ^ (h &gt;&gt;&gt; 16))</code> 让高位参与运算；JDK7 头插并发扩容成环死循环，JDK8 改尾插；允许一个 null 键，<b>线程不安全</b>（并发用 ConcurrentHashMap）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>put 全流程（JDK8，面试背诵版）</b>：①计算 key 的 hash（高 16 位异或低 16 位扰动）→ ②若 table 为空，<b>延迟到首次 put 才分配数组</b>（resize）→ ③<code>(n−1)&amp;hash</code> 定位桶，桶空直接放 → ④桶首节点 key 相同（hash 相等且 equals 真）则覆盖 → ⑤否则遍历链表尾插，长度达 8 且容量 ≥ 64 转<b>红黑树</b> → ⑥插入后 size 超过阈值（容量×0.75）触发 resize 扩容一倍 → ⑦旧表元素按"hash &amp; oldCap 是否为 0"拆成 lo/hi 两条链，分别留在原位或移到"原位+oldCap"，<b>无需重算 hash</b>。</p>
+<table>
+<tr><th>高频数字</th><th>值</th><th>为什么</th></tr>
+<tr><td>默认容量 / 负载因子</td><td>16 / 0.75</td><td class="l">0.75 是空间利用率与碰撞概率的折中（泊松分布下桶内超过 8 个的概率约千万分之一）</td></tr>
+<tr><td>树化 / 退化阈值</td><td>8 / 6</td><td class="l">8 对应泊松分布的极小概率事件；6 留缓冲防止 8↔7 反复树化拆化</td></tr>
+<tr><td>树化最低容量</td><td>64</td><td class="l">表太小时优先扩容而不是树化（扩容就能拆短链表）</td></tr>
+<tr><td>扩容</td><td>容量×2</td><td class="l">保持 2 的幂，使 (n−1)&amp;hash 等价于取模且迁移位固定</td></tr>
+</table>
+<p><b>为什么容量必须是 2 的幂</b>：①<code>(n−1)&amp;hash</code> 在 n=2 的幂时等价于 <code>hash % n</code>，位运算远快于取模；②n−1 的二进制全 1（如 16−1=1111），与运算能均匀散列；③扩容时元素新位置 = 原位置 或 原位置+旧容量，由 <code>hash &amp; oldCap</code> 一位判定，迁移极快。</p>
+<p><b>为什么 hash 要扰动</b>：若只用 hashCode 低几位与 (n−1) 相与，高位信息全被丢弃，碰撞集中；(h ^ (h&gt;&gt;&gt;16)) 把高 16 位异或进低 16 位，让高位也参与定位。</p>
+<p><b>JDK7 vs JDK8 对比表</b>：</p>
+<table>
+<tr><th>维度</th><th>JDK7</th><th>JDK8</th></tr>
+<tr><td>结构</td><td class="l">数组 + 链表</td><td class="l">数组 + 链表 + 红黑树</td></tr>
+<tr><td>插入方式</td><td class="l"><b>头插</b>（并发扩容可能成环→死循环）</td><td class="l">尾插（并发扩容仍可能丢数据，只是不成环）</td></tr>
+<tr><td>扩容时机</td><td class="l">先扩容后插入</td><td class="l">先插入后判断扩容</td></tr>
+<tr><td>hash 计算</td><td class="l">4 次扰动</td><td class="l">1 次高低位异或</td></tr>
+</table>
+<p><b>线程不安全的表现</b>：JDK7 并发扩容链表成环（get 时 CPU 100%）；JDK8 并发 put 仍会覆盖丢失数据。所以并发场景用 ConcurrentHashMap（详见「线程基础与 synchronized」所属子类的并发主题页，此处不展开）。</p>
+<p><b>其他要点</b>：允许 1 个 null 键、多个 null 值（null 的 hash 恒为 0）；fail-fast——迭代期间结构性修改抛 ConcurrentModificationException（modCount 校验），遍历删除用 <code>iterator.remove()</code>；equals 相等的两个 key 必须有相同 hashCode（否则 HashMap 定位错乱——重写 equals 必须重写 hashCode 的原因）。</p>
+<span class="lang">Java</span>
+<pre><code>// 简版实现（数组+单链表），覆盖核心考点：hash 定位、覆盖、拉链
+class SimpleMap&lt;K, V&gt; {
+    private static final int CAP = 16;
+    private Node&lt;K, V&gt;[] table = new Node[CAP];
+
+    static class Node&lt;K, V&gt; { K k; V v; Node&lt;K, V&gt; next;
+        Node(K k, V v, Node&lt;K, V&gt; n) { this.k = k; this.v = v; next = n; } }
+
+    public void put(K k, V v) {
+        int i = (CAP - 1) &amp; hash(k);          // 定位桶：等价于取模
+        for (Node&lt;K, V&gt; n = table[i]; n != null; n = n.next) {
+            if (n.k.equals(k)) { n.v = v; return; }   // 覆盖
+        }
+        table[i] = new Node&lt;&gt;(k, v, table[i]);        // 拉链
+    }
+    public V get(K k) {
+        for (Node&lt;K, V&gt; n = table[(CAP - 1) &amp; hash(k)]; n != null; n = n.next)
+            if (n.k.equals(k)) return n.v;
+        return null;
+    }
+    private int hash(K k) { return k == null ? 0 : k.hashCode() ^ (k.hashCode() &gt;&gt;&gt; 16); }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code># Python 的 dict 也是哈希表，但实现路线不同：
+# 1) 开放寻址（冲突后探测下一空位）而非拉链
+# 2) 紧凑布局：entries 数组 + indices 稀疏索引，省内存且迭代有序（3.7 起成为语言保证）
+# 3) hash(key) 与容量取掩码定位；扩容同样翻倍并重排
+d = {"a": 1, "b": 2}
+d["a"] = 10          # 覆盖，与 HashMap 语义一致
+# 面试对照语：Java 拉链+树化，Python 开放寻址+紧凑数组，两者都不保证线程安全</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span><span class="tag">口述 put 流程</span></p>
+<ul>
+<li>笔试：树化两个条件、阈值数字、容量 2 的幂、负载因子、null 键、fail-fast。</li>
+<li>面试："讲讲 put 流程"（按七步背）、"为什么容量是 2 的幂"、"1.7 和 1.8 区别"、"什么时候退化成 O(n)"（链表退化/哈希不均，树化后 O(logn)）。</li>
+<li>追问链：HashMap 线程不安全 → ConcurrentHashMap → 锁的粒度（CAS+synchronized 锁桶头），一环扣一环要接得住。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="BCD" data-multi>
+<p><span class="tg">多选</span><b>1.</b> JDK8 中 HashMap 链表转红黑树的条件包括（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 链表长度达到 6</div>
+<div class="opt" data-k="B">B. 链表长度达到 8</div>
+<div class="opt" data-k="C">C. 数组容量达到 64</div>
+<div class="opt" data-k="D">D. 数组容量不足 64 时优先扩容而不是树化</div>
+<div class="exp" hidden><b>答案 BCD。</b>两个条件缺一不可：链表 ≥ 8 <b>且</b> 数组容量 ≥ 64；容量不足 64 时走 resize 拆链。A 把退化阈值 6 当树化阈值。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> HashMap 容量必须是 2 的幂，最主要的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. (n−1)&amp;hash 在此时等价于取模运算，且扩容时元素迁移只需判断一位</div>
+<div class="opt" data-k="B">B. 2 的幂能让红黑树更快平衡</div>
+<div class="opt" data-k="C">C. 这是 JVM 内存对齐的强制要求</div>
+<div class="opt" data-k="D">D. 2 的幂能避免 null 键冲突</div>
+<div class="exp" hidden><b>答案 A。</b>两个红利都在位运算上：定位快（与代替模）、迁移快（hash &amp; oldCap 判断 0/1 决定原地或原位+oldCap）。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>3.</b> <code>new HashMap&lt;&gt;(19)</code> 后首次 put 完成时，table 数组的容量是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 19</div>
+<div class="opt" data-k="B">B. 38</div>
+<div class="opt" data-k="C">C. 32</div>
+<div class="opt" data-k="D">D. 16</div>
+<div class="exp" hidden><b>答案 C。</b>构造器只把阈值算成 tableSizeFor(19)=32，数组要等首次 put 才分配；tableSizeFor 找"≥ 给定值的最小 2 的幂"，19 → 32。注意两点结合考：延迟初始化 + 向上取 2 的幂。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> JDK7 中并发使用 HashMap 扩容可能导致链表成环的根因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 红黑树退化成链表</div>
+<div class="opt" data-k="B">B. 头插法在两个线程同时迁移链表时改变指针指向，形成环形引用</div>
+<div class="opt" data-k="C">C. 负载因子 0.75 太大</div>
+<div class="opt" data-k="D">D. modCount 没有加锁</div>
+<div class="exp" hidden><b>答案 B。</b>头插让新节点插到链表头，两线程交错迁移会把 e→next 反转两次指向彼此成环，之后 get 该桶就死循环 CPU 100%。JDK8 改尾插解决成环，但并发 put 仍会丢数据——HashMap 从来不是线程安全的。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 背一遍 JDK8 的 put 流程（不看资料）。</p>
+<details><summary>参考回答</summary>①算 key 的 hash（高低 16 位异或扰动）；②table 空则 resize 延迟初始化；③(n−1)&amp;hash 找桶，空则直接放；④桶首节点 hash 相同且 equals 真则覆盖；⑤否则遍历链表尾插，长度到 8 且容量 ≥64 树化；⑥插入后 size 超过 容量×0.75 就扩容一倍，元素按 hash&amp;oldCap 拆两条链迁移；⑦扩容后重新检查树化/退化。加分点：说出"先插入后判断扩容（1.8）"、null 键恒放 0 号桶、覆盖时返回旧值。</details>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>6.</b> 关于 HashMap 遍历中删除元素，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 用 for-each 直接 map.remove(k) 最简洁安全</div>
+<div class="opt" data-k="B">B. HashMap 遍历顺序与插入顺序一致</div>
+<div class="opt" data-k="C">C. fail-fast 机制保证并发修改时不丢数据</div>
+<div class="opt" data-k="D">D. 应使用迭代器的 iterator.remove()，或 Java 8 的 map.entrySet().removeIf(...)</div>
+<div class="exp" hidden><b>答案 D。</b>for-each 中直接 remove 会触发 fail-fast 抛 ConcurrentModificationException（modCount 与 expectedModCount 不一致）；B 错——HashMap 遍历顺序由 hash 定位决定，不保证任何顺序（有序用 LinkedHashMap/TreeMap）；C 只抛异常预警，不保证数据安全。来源：牛客经典题。</div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 数字三兄弟别混：树化 8、退化 6、最小树化容量 64；负载 0.75 是"容量×0.75"的阈值系数；② JDK8 默认构造<b>不分配数组</b>，首次 put 才建（容量按构造参数向上取 2 的幂）；③ "线程不安全"在 JDK8 的表现是数据覆盖丢失而不是死循环（成环是 1.7 头插专属）；④ 重写 equals 必须重写 hashCode——HashMap 定位先 hash 后 equals，hashCode 不一致会导致"放进去取不出来"；⑤ removeIf / iterator.remove 是遍历删除唯二正解。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

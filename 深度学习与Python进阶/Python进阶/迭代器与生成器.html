@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>迭代器与生成器 · 深度学习与Python进阶/Python进阶</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / Python进阶</div>
+<h1>迭代器与生成器</h1>
+<div class="meta">适用岗位：AI 开发、测开(Python)、通用软开 ｜ 形态：概念 + 输出判断（yield 执行顺序是笔试常客） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>Iterable 有 <code>__iter__</code>，Iterator 还要有 <code>__next__</code></b>；for 循环本质 = <code>iter()</code> 拿迭代器 + 反复 <code>next()</code> + 捕获 StopIteration；<b>生成器函数被调用时函数体一行不跑</b>，第一个 next 才执行到第一个 yield 暂停；生成器<b>惰性、省内存、一次性</b>——耗尽后再取是空；本机实测：10⁶ 元素生成器表达式对象 200 字节，同规模 list 仅外壳就 8448728 字节。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>Iterable vs Iterator：两层协议</b></p>
+<table>
+<tr><th>角色</th><th class="l">协议要求</th><th class="l">例子</th></tr>
+<tr><td>可迭代 Iterable</td><td class="l">实现 <code>__iter__</code>（返回一个迭代器）</td><td class="l">list、tuple、str、dict、set、文件对象</td></tr>
+<tr><td>迭代器 Iterator</td><td class="l">实现 <code>__iter__</code> + <code>__next__</code>（取下一个，没了抛 StopIteration）</td><td class="l"><code>iter([...])</code> 的返回值、生成器、zip/enumerate/map/filter 的返回值</td></tr>
+</table>
+<ul>
+<li><code>iter(obj)</code> 就是去调 <code>obj.__iter__()</code>；迭代器自己的 <code>__iter__</code> 返回自身，所以迭代器既是 Iterable 也是 Iterator。</li>
+<li>list 本身<b>没有 <code>__next__</code></b>，for 之所以能遍历它，是因为 for 先用 iter() 把它包成迭代器。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>from collections.abc import Iterable, Iterator
+
+print(isinstance([1, 2], Iterable))        # True
+print(isinstance([1, 2], Iterator))        # False：list 没有 __next__
+print(isinstance(iter([1, 2]), Iterator))  # True：iter() 才拿到迭代器
+
+# for x in obj 的本质等价展开：
+it = iter(obj)              # ① 拿迭代器
+while True:
+    try:
+        x = next(it)        # ② 逐个取
+    except StopIteration:   # ③ 取完收工，for 正常结束
+        break</code></pre>
+
+<p><b>生成器函数：yield 暂停与恢复</b></p>
+<ul>
+<li>函数体里出现 <code>yield</code>，它就成了<b>生成器函数</b>：<b>调用它不执行函数体</b>，只返回一个生成器对象。</li>
+<li>每次 <code>next(g)</code>：从上次暂停处继续执行，到下一个 yield 处<b>暂停</b>并交出值；函数自然结束（或 return）→ 抛 StopIteration。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>def f():
+    print("A")
+    yield 1
+    print("B")
+    yield 2
+
+g = f()          # 函数体一行不跑，只拿到生成器
+print("start")
+print(next(g))   # 打印 A，输出 1 —— 执行到第一个 yield 暂停
+print(next(g))   # 打印 B，输出 2 —— 从暂停处恢复
+next(g)          # 函数结束，抛 StopIteration</code></pre>
+
+<p><b>生成器表达式 vs 列表推导：惰性省内存</b></p>
+<ul>
+<li>语法差一个括号：<code>[x*x for x in data]</code> 列表推导（立刻算完、占内存）；<code>(x*x for x in data)</code> 生成器表达式（返回生成器、用到才算）。</li>
+<li><b>内存实测（本机 Python 3.12.9）</b>：<code>(i*i for i in range(10**6))</code> 的生成器对象 <code>sys.getsizeof</code> = <b>200 字节</b>；同规模列表推导 = <b>8448728 字节</b>（约 8.4MB，仅外壳，不含每个 int 对象的 ~28 字节）。</li>
+<li>选型：只遍历一遍的大流水线 → 生成器；要反复遍历、<code>len()</code>、切片、随机访问 → list。</li>
+</ul>
+
+<p><b>一次性消费坑：迭代器耗尽后是空的</b></p>
+<span class="lang">Python</span>
+<pre><code>it = iter([1, 2, 3])
+print(sum(it))   # 6
+print(sum(it))   # 0 —— 迭代器已耗尽，sum 对空序列返回 0
+print(list(it))  # []
+
+z = zip([1, 2], "ab")     # zip/enumerate/map/filter 返回的都是一次性迭代器
+print(list(z))            # [(1, 'a'), (2, 'b')]
+print(list(z))            # []</code></pre>
+<ul>
+<li>典型翻车：把迭代器当参数传给两个函数、或存进实例属性被两处遍历——第二次遍历拿到空气。复用前先 <code>list()</code> 落地，或每次重新 iter()。</li>
+</ul>
+
+<p><b>扩展一句</b>：<code>g.send(v)</code> 向当前暂停点喂值（<code>y = yield x</code> 的 y 接住）；<code>g.close()</code> 在暂停点抛 GeneratorExit 提前收尾；<code>yield from 子生成器</code> 委托遍历并自动透传 send/异常（PEP 380，Python 3.3 起）。<code>enumerate(lst)</code>、<code>zip(a, b)</code> 是"惰性版"工具：不复制序列、边走边发 (下标, 元素) / (对, 对)。协程一脉的演化与适用场景见 <a href="GIL与并发模型选型.html">GIL与并发模型选型</a>；生成器函数也是函数对象，闭包与绑定机制见 <a href="作用域闭包与装饰器.html">作用域闭包与装饰器</a>。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断：yield 执行顺序（def 里 print + yield 经典题）、迭代器耗尽后再聚合、生成器与列表推导的求值时机。</li>
+<li>概念选择：Iterable/Iterator 协议、for 循环本质、哪些内置函数返回惰性迭代器。</li>
+<li>面试口述：生成器为什么省内存、什么场景用/不用；追难点在 send/yield from 与协程渊源。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>def f():
+    print("A")
+    yield 1
+    print("B")
+    yield 2
+
+g = f()
+print("start")
+print(next(g))</code></pre>
+<div class="opt" data-k="A">A. A、start、1 —— 调用 f() 时函数体先执行到 yield 1</div>
+<div class="opt" data-k="B">B. start、A、1 —— 调用 f() 只创建生成器，print("start") 先输出，next 才启动函数体</div>
+<div class="opt" data-k="C">C. start、A、B、1 —— next 一次会把函数体跑完</div>
+<div class="opt" data-k="D">D. start、1、A —— yield 先交值再执行 print</div>
+<div class="exp" hidden><b>答案 B。</b>有 yield 的函数是生成器函数：<b>调用它不执行函数体</b>，只返回生成器对象；next(g) 把函数体从开头执行到第一个 yield 处暂停并交出 1，所以顺序是 start → A → 1。继续 next 两次：先 B、2，再 StopIteration。本机 Python 3.12.9 实跑核对。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> <code>for x in obj</code> 能正常工作，obj 至少要提供（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. <code>__next__</code> 方法</div>
+<div class="opt" data-k="B">B. <code>__iter__</code> 方法返回一个迭代器（迭代器自身还需实现 <code>__next__</code>）</div>
+<div class="opt" data-k="C">C. <code>__getitem__</code> 方法</div>
+<div class="opt" data-k="D">D. <code>__len__</code> 方法</div>
+<div class="exp" hidden><b>答案 B。</b>for 的第一步是 <code>iter(obj)</code>（即 obj.__iter__()）拿迭代器，随后反复 next 直到 StopIteration。list/dict 自己没有 __next__，靠 iter() 被包成迭代器。__getitem__ 的老式序列协议也能被 for 兼容，但标准答案是 __iter__ + __next__ 两件套。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>it = iter([1, 2, 3])
+print(sum(it))
+print(sum(it))</code></pre>
+<div class="opt" data-k="A">A. 6 和 6</div>
+<div class="opt" data-k="B">B. 6 和 0</div>
+<div class="opt" data-k="C">C. 0 和 0</div>
+<div class="opt" data-k="D">D. 第二次 sum 抛出 StopIteration</div>
+<div class="exp" hidden><b>答案 B。</b>迭代器是一次性的：第一次 sum 消费完，第二次拿到已耗尽的迭代器，sum 对空序列返回 0（StopIteration 被 sum 内部消化）。zip/enumerate/map/filter 的返回值同样一次性——复用前先 list() 落地。本机实跑核对。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="AB" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于惰性求值与生成器，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 生成器表达式 (x*x for x in range(10**7)) 创建时几乎不占内存，元素用到才计算</div>
+<div class="opt" data-k="B">B. zip()、enumerate()、map() 返回的都是惰性迭代器</div>
+<div class="opt" data-k="C">C. 生成器可以反复遍历，每次从头开始</div>
+<div class="opt" data-k="D">D. 生成器函数被调用时，函数体立即执行到第一个 yield</div>
+<div class="exp" hidden><b>答案 AB。</b>C 错：生成器一次性，耗尽即空；D 错：调用生成器函数只返回生成器对象，函数体到第一个 next 才执行。本机实测 10⁶ 元素：生成器表达式对象 200 字节 vs 列表推导外壳 8448728 字节。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 生成器为什么省内存？什么场景该用，什么场景不该用？</p>
+<details><summary>参考回答</summary>省内存的原因：生成器同一时刻只持有"一个当前元素 + 执行状态（局部变量、指令位置）"，不像 list 要把全部元素立刻算出来并装箱进内存——本机实测 10⁶ 元素，生成器表达式对象 200 字节，列表推导仅外壳就 8.4MB（还不含元素本身）。<br>
+该用：① 大文件逐行处理（open 默认就是惰性按行迭代）；② 多段数据流水线（读 → 清洗 → 聚合，用生成器串起来，全程只有一个元素在流动）；③ 无限/未知长度的序列（实时数据流）；④ 只遍历一次的大批量任务。<br>
+不该用：要反复遍历、len()、切片、随机访问、或要把结果交给多个消费方 → 用 list 先落地；结果本身很小时，省内存收益为零，可读性优先。<br>
+加分点：yield from 组合多级流水线；生成器是协程的底层来源（async/await 的前身），被 next 驱动、可在 yield 处暂停恢复——与 GIL 页 asyncio 一脉相承。来源：AI 岗笔试高频。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 生成器函数调用 ≠ 执行：函数体到第一个 next 才跑。② 迭代器一次性：zip/enumerate/map/filter 的返回值同理，二次遍历拿到空——复用先 list()。③ Iterable（__iter__）与 Iterator（__iter__ + __next__）是两层：list 是 Iterable 不是 Iterator。④ 生成器表达式圆括号、列表推导方括号；只遍历一遍选前者。⑤ next(g, default) 可以兜住 StopIteration；⑥ 判断类型用 collections.abc 的 Iterable/Iterator，别用 abc.Iterable（旧路径已弃用）。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

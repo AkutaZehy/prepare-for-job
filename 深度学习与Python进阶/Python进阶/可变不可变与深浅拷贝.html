@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>可变不可变与深浅拷贝 · 深度学习与Python进阶/Python进阶</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / Python进阶</div>
+<h1>可变不可变与深浅拷贝</h1>
+<div class="meta">适用岗位：AI 开发、测开(Python)、通用软开 ｜ 形态：概念 + 输出判断（笔试重灾区） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>"不可变"指对象内容不可改，变量名随时可以重新绑定</b>；<b>默认参数在 def 时求值一次</b>——可变默认值被所有调用共享，正确写法是 None 哨兵；<b>copy.copy 只复制最外层容器、内层共享引用，copy.deepcopy 递归复制到最内层</b>；<code>a[:]</code>、<code>list(a)</code>、<code>a*1</code> 都是浅拷贝；<b><code>[[0]*3]*2</code> 的两"行"是同一个 list</b>；<b>is 比身份、== 比值</b>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>可变与不可变类型清单</b></p>
+<table>
+<tr><th>类别</th><th class="l">类型</th><th class="l">含义</th></tr>
+<tr><td>不可变</td><td class="l"><code>int</code>、<code>float</code>、<code>str</code>、<code>tuple</code>、<code>frozenset</code>、<code>bytes</code></td><td class="l">对象创建后内容不能原地修改，任何"修改"都产生新对象</td></tr>
+<tr><td>可变</td><td class="l"><code>list</code>、<code>dict</code>、<code>set</code>、<code>bytearray</code>、自定义对象</td><td class="l">可以原地修改（append、pop、下标赋值…），id 不变内容变</td></tr>
+</table>
+<ul>
+<li><b>"不可变"约束的是对象，不是变量名</b>：<code>a = 1; a = 2</code> 不是把 1 改成 2，而是 a 重新绑定到新对象，旧对象等回收。</li>
+<li>不可变类型<b>可哈希</b>（能做 dict 的 key、set 的元素）；可变类型不可哈希。</li>
+<li>tuple 的坑：tuple 本身不可变，但<b>元素可以是可变 list</b>——<code>t = (1, [2, 3]); t[1].append(4)</code> 完全合法。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>a = "hello"
+b = a
+print(a is b)        # True：b 绑定到同一个对象
+a = a + "!"          # str 不可变：拼接生成新对象，a 重新绑定
+print(a is b)        # False：b 还指向旧对象
+
+lst = [1, 2, 3]
+lst2 = lst
+lst2.append(4)       # list 可变：原地修改，id 不变
+print(lst)           # [1, 2, 3, 4] —— lst 一起"变"了，本来就是同一个对象</code></pre>
+
+<p><b>函数传参：传的是对象引用</b></p>
+<ul>
+<li>Python 的参数传递是<b>"传对象引用"（共享传参）</b>：把实参对象的引用按值复制给形参。</li>
+<li>效果：函数内对<b>可变对象原地修改</b>（append/pop/下标赋值）→ 调用方可见；函数内对参数<b>重新赋值</b> → 只改本地绑定，调用方无感。</li>
+<li>防御姿势：不想让函数动调用方的数据，入口先 <code>copy.copy()</code> 一份再改。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>def modify(lst):
+    lst.append(4)        # 原地修改：调用方可见
+
+def rebind(lst):
+    lst = [9, 9, 9]      # 重新绑定：只改本地变量
+
+a = [1, 2, 3]
+modify(a); print(a)      # [1, 2, 3, 4]
+rebind(a); print(a)      # [1, 2, 3] —— 没变</code></pre>
+
+<p><b>默认参数陷阱</b>（Python 笔试第一高频）</p>
+<ul>
+<li>默认值表达式在 <code>def</code> 执行时<b>求值一次</b>，绑定在函数对象上（<code>f.__defaults__</code> 可见），不是每次调用重新求值。</li>
+<li>默认值是不可变对象（None、int、str）没事；是可变对象（list、dict）就<b>所有调用共享同一个对象</b>。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>def add_item(x, bag=[]):        # 陷阱：默认 list 只创建一次
+    bag.append(x)
+    return bag
+
+print(add_item(1))   # [1]
+print(add_item(2))   # [1, 2]  ← 不是 [2]！两次调用共享同一个 list
+print(add_item(3))   # [1, 2, 3]
+
+def add_item_ok(x, bag=None):   # 正确写法：None 哨兵
+    if bag is None:
+        bag = []                # 每次调用新建
+    bag.append(x)
+    return bag</code></pre>
+
+<p><b>浅拷贝 vs 深拷贝</b></p>
+<ul>
+<li><b>copy.copy(x)（浅拷贝）</b>：新建最外层容器，元素原样放引用 → <b>内层可变对象共享</b>。</li>
+<li><b>copy.deepcopy(x)（深拷贝）</b>：递归复制到最内层，内层也独立；用记忆表防循环引用，不可变元素直接共享（安全，因为改不动）。</li>
+<li>切片 <code>a[:]</code>、<code>list(a)</code>、<code>a*1</code>、<code>dict(a)</code>、<code>{**a}</code> 都是<b>浅拷贝</b>；<code>copy.copy</code> 对不可变对象直接返回原对象。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>import copy
+src = [1, [2, 3]]
+sh = copy.copy(src)        # 浅拷贝
+dp = copy.deepcopy(src)    # 深拷贝
+
+src[0] = 100               # 改外层元素
+print(sh[0])               # 1   —— 浅拷贝的外层是独立容器
+print(dp[0])               # 1
+
+src[1].append(4)           # 改内层（可变）元素
+print(sh[1])               # [2, 3, 4] —— 内层共享引用，跟着变
+print(dp[1])               # [2, 3]    —— 内层也复制了，不受影响</code></pre>
+<span class="lang">伪代码</span>
+<pre><code>浅拷贝 copy(x):
+    新建空容器 C
+    for 每个元素 e in x:
+        C.add(e)             # 只放引用，不复制内层
+    return C                 # 外壳独立，内层共享
+
+深拷贝 deepcopy(x):
+    若 x 不可变: return x                     # 不可变对象直接共享，改不动
+    若 x 已拷贝过: return 记忆表里的副本        # 防循环引用
+    新建空容器 C；记忆表[x] = C
+    for 每个元素 e in x:
+        C.add(deepcopy(e))   # 递归到最内层
+    return C                 # 逐层独立</code></pre>
+
+<p><b><code>[[0]*3]*2</code> 的坑</b></p>
+<span class="lang">Python</span>
+<pre><code>grid = [[0] * 3] * 2        # 外层的两个元素是【同一个】内层 list 的引用
+grid[0][0] = 1
+print(grid)                 # [[1, 0, 0], [1, 0, 0]] ← 改一行，两行全变
+print(grid[0] is grid[1])   # True —— 陷阱根源
+
+grid_ok = [[0] * 3 for _ in range(2)]   # 正确：每次循环新建内层 list
+grid_ok[0][0] = 1
+print(grid_ok)              # [[1, 0, 0], [0, 0, 0]]
+
+# 注意区分：一维 [0] * 3 没事——三个 0 是同一个 int，但 int 不可变改不动；
+# 二维 [[...]] * 2 复制的是 list 引用，list 可变，就出事了。</code></pre>
+
+<p><b>is vs ==，小整数缓存与字符串驻留</b></p>
+<ul>
+<li><b>is 比"身份"</b>（id() 是否相同），<b>== 比"值"</b>（调 <code>__eq__</code>）。判断 None 用 <code>is None</code>（PEP 8）。</li>
+<li><b>CPython 小整数缓存 [-5, 256]</b>：区间内的 int 预先建好，任何位置拿到的是同一对象。<b>这是实现细节</b>，面试可以提，但不能写进业务依赖。</li>
+<li><b>字符串驻留</b>：标识符样式的字面量、编译期常量会驻留共享；运行期拼接出来的串不保证。</li>
+<li><b>出题的严谨姿势</b>：同一代码对象内的常量只存一份（同一函数里 <code>257 is 257</code> → True）；跨函数/跨语句的大整数是不同对象。所以 <code>257</code> 陷阱题要写成下面"跨函数"的形式才能稳定复现，别写成同一行字面量。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>a = [1, 2, 3]
+b = [1, 2, 3]
+print(a == b)   # True：值相等
+print(a is b)   # False：两个不同对象
+
+x = 100
+y = 100
+print(x is y)   # True：[-5, 256] 小整数缓存（CPython 实现细节）
+
+def f(): return 257
+def g(): return 257
+print(f() == g())   # True
+print(f() is g())   # False：257 超出缓存，两个函数各自持有自己的常量对象
+
+def same():
+    p = 257
+    q = 257
+    return p is q    # True：同一代码对象的常量只存一份</code></pre>
+
+<p><b>Java 对照（一句话）</b>：Java 只有<b>值传递</b>——传对象时复制的是"引用的拷贝"，方法内能通过它修改对象内容（效果同 Python 的原地修改），但重新赋值改不动调用方的变量（效果同 rebind），两种语言的结论一致。</p>
+<span class="lang">Java</span>
+<pre><code>static void reassign(int[] arr) {
+    arr = new int[]{9, 9, 9};   // 改的是引用的拷贝
+}
+public static void main(String[] args) {
+    int[] a = {1, 2, 3};
+    reassign(a);
+    System.out.println(a[0]);   // 1 —— 调用方无感
+}</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断是绝对主力：默认参数陷阱、<code>[[0]*3]*2</code>、深浅拷贝后改内层谁变、<code>is</code>/<code>==</code> 与小整数缓存。</li>
+<li>概念选择：可变/不可变分类、哪些操作是浅拷贝、可哈希与不可哈希。</li>
+<li>面试口述：Python 传参机制（和 Java 值传递对照着说）、为什么可变对象不能做字典 key。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>def f(x, bag=[]):
+    bag.append(x)
+    return bag
+
+print(f(1))
+print(f(2))</code></pre>
+<div class="opt" data-k="A">A. [1] 和 [2]，默认值每次调用都重新创建</div>
+<div class="opt" data-k="B">B. [1] 和 [1, 2]，默认 list 在 def 时创建一次，所有调用共享</div>
+<div class="opt" data-k="C">C. [2] 和 [2]，每次调用覆盖默认值</div>
+<div class="opt" data-k="D">D. 抛出 TypeError</div>
+<div class="exp" hidden><b>答案 B。</b>默认值表达式在 def 执行时求值一次并挂在函数对象上，两次调用往<b>同一个 list</b> 里 append。正确写法是 None 哨兵：<code>def f(x, bag=None): if bag is None: bag = []</code>。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>2.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>g = [[0] * 3] * 2
+g[0][0] = 1
+print(g)</code></pre>
+<div class="opt" data-k="A">A. [[1, 0, 0], [0, 0, 0]]</div>
+<div class="opt" data-k="B">B. [[1, 0, 0], [1, 0, 0]]，两行是同一个 list 的引用</div>
+<div class="opt" data-k="C">C. [[0, 0, 0], [0, 0, 0]]，赋值不生效</div>
+<div class="opt" data-k="D">D. 抛出 TypeError</div>
+<div class="exp" hidden><b>答案 B。</b><code>[[0]*3]*2</code> 里外层列表的两个元素指向<b>同一个内层 list</b>（<code>g[0] is g[1]</code> 为 True），改"一行"两行全变。正确写法：<code>[[0]*3 for _ in range(2)]</code>，每次循环新建内层 list。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>3.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>import copy
+src = [1, [2, 3]]
+sh = copy.copy(src)
+src[1].append(4)
+print(src[1] is sh[1])
+print(sh)</code></pre>
+<div class="opt" data-k="A">A. True 和 [1, [2, 3, 4]]：浅拷贝只复制外壳，内层共享引用</div>
+<div class="opt" data-k="B">B. False 和 [1, [2, 3]]：浅拷贝会复制内层</div>
+<div class="opt" data-k="C">C. True 和 [1, [2, 3]]：内层共享但 append 不可见</div>
+<div class="opt" data-k="D">D. False 和 [1, [2, 3, 4]]</div>
+<div class="exp" hidden><b>答案 A。</b><code>copy.copy</code> 新建了最外层容器，但元素是原样放引用，<code>src[1]</code> 与 <code>sh[1]</code> 是同一个对象（is 为 True），append 原地修改两边同时可见。换成 <code>copy.deepcopy</code> 才会得到 False 和 [1, [2, 3]]。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>4.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>def f(): return 257
+def g(): return 257
+
+print(f() == g(), f() is g())</code></pre>
+<div class="opt" data-k="A">A. True True</div>
+<div class="opt" data-k="B">B. True False</div>
+<div class="opt" data-k="C">C. False True</div>
+<div class="opt" data-k="D">D. False False</div>
+<div class="exp" hidden><b>答案 B。</b>257 超出 CPython 小整数缓存 [-5, 256]，两个函数是不同代码对象、各自持有自己的常量 257，is 为 False；== 比值恒为 True。严谨性提醒：同一代码对象内的常量只存一份（同一函数里 p = 257; q = 257 则 p is q 为 True），所以 257 陷阱题要写成跨函数形式才稳定复现；且缓存与驻留都是实现细节，不可依赖。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 下列属于不可变（immutable）类型的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. tuple</div>
+<div class="opt" data-k="B">B. list</div>
+<div class="opt" data-k="C">C. str</div>
+<div class="opt" data-k="D">D. frozenset</div>
+<div class="exp" hidden><b>答案 ACD。</b>不可变家族：int、float、str、tuple、frozenset、bytes；list、dict、set、bytearray 是可变的。记忆钩子：不可变类型可哈希，能进 set、当 dict 的 key——list/dict/set 都不行。注意 tuple 只是自身不可变，内嵌的 list 仍可改。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>6.</b> Python 函数传参是传值还是传引用？可变对象在函数内被修改，调用方会受影响吗？</p>
+<details><summary>参考回答</summary>都不是经典意义上的传值/传引用，准确说法是<b>"传对象引用"（共享传参）</b>：把实参对象的引用按值复制给形参。两个效果：① 函数内对可变对象<b>原地修改</b>（append、pop、下标赋值），调用方看得见，因为两边是同一个对象；② 函数内对参数<b>重新赋值</b>（x = [...])，只改本地绑定，调用方无感。不可变对象在函数内"修改"本质是重新绑定，同样不影响外部。对照 Java：Java 只有值传递，对象传的是引用的拷贝，效果与 Python 一致——能改内容、改不动绑定。加分点：可变默认参数陷阱是同一机制的衍生坑；不想暴露内部数据就入口先浅拷贝。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 判断"改没改到共享对象"：先分清是<b>原地修改</b>（append、pop、下标赋值）还是<b>重新绑定</b>（=、+ 拼接产生新对象）。② 看到 <code>def f(x=[])</code> 直接在心里替换成 None 哨兵写法。③ 一维 <code>[0]*3</code> 没事（元素不可变），二维 <code>[[0]*3]*2</code> 就炸（外层复制的是 list 引用）——乘法复制引用，不复制对象。④ is 只用于 None 判断和身份调试，值比较一律 ==；<code>a[:] / list(a) / a*1</code> 都是浅拷贝，嵌套结构要 deepcopy。⑤ 小整数缓存 [-5, 256] 与字符串驻留是 CPython 实现细节，出题可以考、业务不能依赖，且 257 类陷阱要用跨函数写法才严谨。⑥ tuple 不可变 ≠ 内容全不可变：内嵌 list 仍可原地改。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

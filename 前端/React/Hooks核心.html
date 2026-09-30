@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hooks 核心：useState/useEffect · 前端/React</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / React</div>
+<h1>Hooks 核心：useState / useEffect</h1>
+<div class="meta">适用岗位：前端、通用软开 ｜ 形态：闭包陷阱输出题 + 规则多选 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>React 16.8 引入 Hooks</b>。setState 触发重渲染、靠引用比较；<b>函数式更新 <code>setX(x =&gt; x + 1)</code></b> 基于最新值，专治连续更新与闭包旧值；<b>闭包陷阱</b>：setInterval 的回调永远读到创建那一次渲染的旧 state，页面卡在 1——解法：函数式更新或 useRef。useEffect 依赖 <code>[]</code> 只跑一次、<code>[a,b]</code> 依赖变才跑、不传每次跑；<b>清理函数在下一次 effect 前与卸载时</b>执行。useRef 存跨渲染可变值、改 .current 不触发渲染。Hooks 两条铁律：只在顶层调用、只在函数组件/自定义 Hook 里调用。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<span class="lang">JSX · useState 与批处理</span>
+<pre><code>const [count, setCount] = useState(0);
+
+setCount(count + 1);        // 直接传值：用"这次渲染的 count"算
+setCount(c =&gt; c + 1);       // 函数式更新：基于 React 手里最新的 prev 算
+setCount(c =&gt; c + 1);       //   同一轮里连调三次也全生效（直接传值三次只加 1）
+
+// 批处理：同一轮事件里的多次 setState 合并成一次重渲染
+// 版本结论：React 18 起自动批处理覆盖到 promise/setTimeout/原生事件，
+//          18 之前只有 React 事件处理器内才批处理。</code></pre>
+<span class="lang">JSX · 闭包陷阱：计数器永远停在 1（输出题母题）</span>
+<pre><code>function Timer() {
+  const [count, setCount] = useState(0);
+  useEffect(() =&gt; {
+    const id = setInterval(() =&gt; {
+      setCount(count + 1);   // ✗ count 是这次 effect 创建时的闭包值，永远是 0
+    }, 1000);
+    return () =&gt; clearInterval(id);
+  }, []);                    // 依赖 []：effect 只跑一次，闭包被"冻"在第一帧
+  return &lt;p&gt;{count}&lt;/p&gt;;     // 页面永远显示 1（0+1，反复覆盖）
+}
+
+// 解法1：函数式更新，不依赖闭包里的 count
+setCount(c =&gt; c + 1);        // ✓ 每秒 +1
+
+// 解法2：useRef 存最新值，回调读 ref.current
+const latest = useRef(0);
+useEffect(() =&gt; { latest.current = count; }, [count]);</code></pre>
+<span class="lang">JSX · useEffect 三种依赖 + 清理函数</span>
+<pre><code>useEffect(() =&gt; {
+  const id = setInterval(tick, 1000);
+  window.addEventListener('resize', onResize);
+  return () =&gt; {                    // 清理函数执行时机：
+    clearInterval(id);              //   ① 下一次 effect 执行之前（依赖变化）
+    window.removeEventListener('resize', onResize);  //  ② 组件卸载时
+  };
+}, []);       // []：挂载后跑一次；[a, b]：挂载后 + a/b 变化后；不传：每次渲染后都跑
+
+// 心智纠偏：useEffect 不是"生命周期"，而是
+//   "渲染之后，把这份副作用同步到外面的世界"——依赖写的是同步所需的数据。</code></pre>
+<table>
+<tr><th>Hook</th><th>用途</th><th>关键点</th></tr>
+<tr><td class="l">useRef</td><td class="l">① 拿 DOM 引用 ② 存跨渲染可变值</td><td class="l">改 <code>.current</code> <b>不触发重渲染</b>；界面要跟着变的数据用 state，只是"记着"的数据用 ref（timer id、上一次值）</td></tr>
+<tr><td class="l">useMemo</td><td class="l">缓存计算结果</td><td class="l">依赖不变不重算，近似 Vue 的 computed（对照 <a href="../Vue/computed与watch与diff概览.html">Vue computed 页</a>）</td></tr>
+<tr><td class="l">useCallback</td><td class="l">缓存函数引用</td><td class="l">配合 <code>React.memo</code> 子组件：否则父每渲染都传"新函数"，memo 白做</td></tr>
+<tr><td class="l">自定义 Hook</td><td class="l">逻辑复用</td><td class="l">必须 <code>use</code> 开头，内部照常调其他 Hook；每个组件用它时状态相互独立</td></tr>
+</table>
+<ul>
+<li><b>两条规则及原因</b>：① 只在<b>顶层</b>调用（不能放进 if/循环/嵌套函数）——React 靠<b>调用顺序</b>记录每个 Hook 的状态，顺序一乱状态就串位；② 只在<b>函数组件或自定义 Hook</b> 中调用——普通 JS 函数没有 Hook 的挂载环境。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出题必考</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：useEffect 三种依赖写法与清理时机、useRef 与 useState 区别、两条规则、useMemo/useCallback 区别。</li>
+<li>面试链路："setInterval 里 count 为什么不动"→ 闭包陷阱原理（函数组件每次渲染是独立闭包）→ 函数式更新为什么能解 → 依赖数组该怎么写 → useEffect 心智是不是生命周期。</li>
+<li>场景：组件卸载后还在 setState 的警告、定时器翻倍（effect 重复执行没清理）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> <code>useEffect(() =&gt; {...}, [])</code> 的执行与清理时机，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 首次渲染后执行一次；清理函数在组件卸载时执行</div>
+<div class="opt" data-k="B">B. 每次渲染后都执行，清理函数在每次渲染前执行</div>
+<div class="opt" data-k="C">C. 挂载前同步执行，类似 getDerivedStateFromProps</div>
+<div class="opt" data-k="D">D. 永远不会执行，因为依赖数组为空表示永不运行</div>
+<div class="exp" hidden><b>答案 A。</b>空依赖 = "同步逻辑不依赖任何会变的数据"，只挂载后跑一次，清理在卸载时。若有依赖 [a]，则每次 a 变化后先跑上一次的清理函数、再跑新 effect。补充：React 18 开发模式 StrictMode 会故意挂载-卸载-再挂载一次来暴露漏清理的副作用，生产环境不会。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 关于 useRef，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 修改 ref.current 会立即触发组件重渲染</div>
+<div class="opt" data-k="B">B. 既能存 DOM 引用，也能存跨渲染的可变值；修改 .current 不触发重渲染</div>
+<div class="opt" data-k="C">C. useRef 和 useState 可以随意互换，只是名字不同</div>
+<div class="opt" data-k="D">D. useRef 的值在组件重新渲染后会被重置为初始值</div>
+<div class="exp" hidden><b>答案 B。</b>选型口诀：界面要跟着变的用 useState；只是"记住"（timer id、previous 值、是否已请求标记）且不想引发渲染的用 useRef。useRef 跨渲染保持同一对象，D 恰好说反。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 Hooks 的规则与缓存 Hook，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Hooks 必须在函数组件顶层调用，不能包在 if/循环/普通函数里</div>
+<div class="opt" data-k="B">B. 自定义 Hook 必须 use 开头，内部可以调用其他 Hook，实现逻辑复用</div>
+<div class="opt" data-k="C">C. useMemo 缓存计算结果，useCallback 缓存函数引用</div>
+<div class="opt" data-k="D">D. useCallback 返回的函数引用在每次渲染时都会变，所以没有缓存意义</div>
+<div class="exp" hidden><b>答案 ABC。</b>A 的原因：React 按调用顺序存储 Hook 状态，条件调用会顺序错乱。D 错：useCallback 依赖不变时返回同一个引用，正是为了让 React.memo 的子组件跳过重渲染。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">输出题</span><b>4.</b> 按知识点梳理里的 Timer 组件：初始 <code>useState(0)</code>，effect 依赖 <code>[]</code>，setInterval 每秒执行 <code>setCount(count + 1)</code>。问：① 页面最终显示几？② 把回调改成 <code>setCount(c =&gt; c + 1)</code> 后呢？③ 解释①的现象。</p>
+<details><summary>先自己跑一遍脑子，再展开对答案</summary>① 永远显示 <b>1</b>：effect 只跑一次，interval 回调捕获的是第一帧渲染的 count=0，每秒执行的都是 setCount(0+1)，页面从 0 变 1 后再也不动。② 改函数式更新后每秒 +1，页面 1、2、3……持续增长——回调不再读闭包里的 count，而是把"上一个最新值"交给 React。③ 本质：函数组件每次渲染都是一次独立函数执行、各自持有当次的 state 闭包；依赖 [] 把 effect 和它的闭包冻在了第一帧。同类翻车：事件监听器里读旧 state、异步请求回调里读旧 state，解法一致（函数式更新/useRef/补全依赖）。来源：面试高频改编。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> "什么是闭包陷阱？怎么解决？"以及一句带过 useEffect 该怎么理解。</p>
+<details><summary>参考回答</summary>现象：定时器/订阅/异步回调里 setState 读到的永远是旧的 state（计数器卡在 1 是标准例子）。原因：函数组件每次渲染生成独立闭包，effect 若依赖 [] 只执行一次，回调被冻结在第一次渲染的那份闭包里。解法：① 函数式更新 <code>setCount(c =&gt; c + 1)</code>，把"怎么算"交给 React、以最新值为基准；② 用 useRef 存一份最新值，回调读 ref.current；③ 从根上讲是依赖数组漏了 count——补全依赖让 effect 重建（定时器场景要配合清理函数避免 interval 叠加）。useEffect 理解：别硬套 componentDidMount/DidUpdate，把它当"渲染后同步副作用"，依赖数组声明的是这份同步用了哪些外部数据。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① setState 直接传值连调三次只 +1，函数式更新才连续生效；② effect 漏写清理函数：依赖一变旧定时器/订阅不销毁，越积越多（"定时器翻倍"）；③ 依赖数组"骗" React（故意漏依赖）是闭包陷阱的头号来源——要么补全依赖，要么用函数式更新/useRef 明确绕开；④ useMemo/useCallback 不是免费的，无 memo 子组件时白缓存，面试能说出"按需使用"是加分项；⑤ 把 useEffect 当生命周期逐个对号入座会写出依赖地狱——先问"我要同步什么"。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

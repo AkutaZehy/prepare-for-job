@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生命周期与组件通信 · 前端/Vue</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / Vue</div>
+<h1>Vue 生命周期与组件通信</h1>
+<div class="meta">适用岗位：前端、通用软开 ｜ 形态：顺序输出题 + 通信选型 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：Vue3 挂载链 <code>setup → beforeCreate → created → beforeMount → mounted</code>；<b>父子首次渲染：父 created 先于子 created，子 mounted 先于父 mounted</b>（父先初始化才有子、子先挂完父才算挂完）；请求无 DOM 依赖放 created 更早、要操作 DOM 放 mounted；通信选型一句话：父子 props/$emit、跨层 provide/inject、任意组件复杂共享状态 Pinia；Vue3 已移除内置事件总线（$on/$off），用社区 <code>mitt</code>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<span class="lang">Vue3 选项式 · 完整顺序</span>
+<pre><code>setup()            // 组合式专属入口，先于一切选项式钩子执行
+  ↓
+beforeCreate       // 实例刚初始化，data/methods 还不可用
+  ↓
+created            // 实例初始化完成：能访问 data/methods、能发请求；仍不能碰 DOM
+  ↓
+beforeMount  →  mounted          // mounted 后真实 DOM 可用（this.$refs / 操作节点）
+  ↓
+beforeUpdate →  updated          // 数据变 → 视图更新，这一对可循环多次
+  ↓
+beforeUnmount →  unmounted       // 卸载，在这里清理定时器/订阅/事件监听</code></pre>
+<span class="lang">Vue3 · 父子首次渲染的打印顺序（输出题母题）</span>
+<pre><code>父 beforeCreate → 父 created → 父 beforeMount
+  → 子 beforeCreate → 子 created → 子 beforeMount → 子 mounted
+→ 父 mounted
+
+记忆：created 阶段父先（父不初始化完，子没地方挂）；
+      mounted 阶段子先（渲染是自底向上完成的）。</code></pre>
+<ul>
+<li><b>keep-alive 一句</b>：被 <code>&lt;keep-alive&gt;</code> 包裹的组件切换时<b>不销毁</b>，用 <code>activated / deactivated</code> 代替重新走 mounted/unmounted——回到页面想刷新数据就写 activated。</li>
+<li><b>请求放 created 还是 mounted</b>：created 更早发出请求（不等挂载）、且 SSR 中只有 created 一侧会在服务端执行；mounted 的优势是能拿到 DOM/refs。纯客户端 SPA 里没有 DOM 依赖的请求，放 created 或组合式 setup 顶层即可；需要"挂载后量尺寸再请求"这类才必须 mounted。</li>
+<li><b>通信全家桶选型</b>：</li>
+</ul>
+<table>
+<tr><th>方式</th><th>适用关系</th><th>要点</th></tr>
+<tr><td class="l">props / $emit</td><td class="l">父子</td><td class="l"><b>单向数据流</b>：子组件不应直接改 prop，要 emit 让父改</td></tr>
+<tr><td class="l">v-model</td><td class="l">父子</td><td class="l">语法糖：<code>:modelValue</code> + <code>@update:modelValue</code>（Vue2 是 value + input）</td></tr>
+<tr><td class="l">ref</td><td class="l">父 → 子</td><td class="l">父持 <code>ref</code> 拿子组件实例直接调方法；Vue3 子组件需 <code>defineExpose</code> 显式暴露</td></tr>
+<tr><td class="l">provide / inject</td><td class="l">祖先 → 任意后代</td><td class="l">跨层免逐级透传（主题、当前用户等）</td></tr>
+<tr><td class="l">事件总线</td><td class="l">任意</td><td class="l">Vue3 <b>不再内置</b> $on/$off，用社区库 <code>mitt</code></td></tr>
+<tr><td class="l">Pinia</td><td class="l">跨组件复杂状态</td><td class="l">全局共享、可 devtools 调试，见 <a href="Router与Pinia.html">Router 与 Pinia/Vuex</a> 页</td></tr>
+</table>
+<span class="lang">Vue3 · v-model 本质</span>
+<pre><code>&lt;!-- 父组件里这两种写法完全等价 --&gt;
+&lt;Child v-model="msg" /&gt;
+&lt;Child :modelValue="msg" @update:modelValue="msg = $event" /&gt;
+
+&lt;!-- 子组件：接 modelValue prop，改值时 emit update:modelValue --&gt;
+props: ['modelValue'],
+emits: ['update:modelValue'],
+methods: { close() { this.$emit('update:modelValue', false) } }
+
+// 版本结论：Vue2 的 v-model 默认是 value prop + input 事件，
+//          Vue3 改为 modelValue + update:modelValue，且支持多个 v-model。
+//          背 Vue2 写法前先确认版本。</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出题必考</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：钩子顺序（尤其 setup 与 beforeCreate 谁先）、父子挂载顺序输出、keep-alive 用哪个钩子、请求放哪个阶段。</li>
+<li>面试链路："说说生命周期"→ 全序列 → 父子顺序 → 请求放哪 → keep-alive → 通信方式选型 → 为什么事件总线不推荐（难维护、数据流向不可追）→ Pinia。</li>
+<li>场景：兄弟组件通信怎么办（提升状态到共同父级 / 事件总线 / Pinia）、深层透传怎么办（provide/inject 或 Pinia）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> Vue3 中组件初始化阶段，最先执行的函数是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. beforeCreate</div>
+<div class="opt" data-k="B">B. created</div>
+<div class="opt" data-k="C">C. setup</div>
+<div class="opt" data-k="D">D. beforeMount</div>
+<div class="exp" hidden><b>答案 C。</b>setup 是组合式 API 的入口，先于 beforeCreate 执行——所以 setup 里还拿不到 this 和 data/methods。选项式的 data/methods 初始化发生在 beforeCreate → created 之间。版本结论：这是 Vue3 新增行为，Vue2 没有 setup。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 关于"首页数据请求应该放在 created 还是 mounted"，说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 必须放 mounted，因为请求需要等真实 DOM 生成</div>
+<div class="opt" data-k="B">B. 无 DOM 依赖的请求放 created 更早发出；SSR 场景只有 created 会在服务端执行，mounted 不会</div>
+<div class="opt" data-k="C">C. 放 beforeCreate 最快，是最佳实践</div>
+<div class="opt" data-k="D">D. 两者完全等价，区别只是写法不同</div>
+<div class="exp" hidden><b>答案 B。</b>created 时实例已初始化完成，可以发请求且比 mounted 更早；数据请求本身不依赖 DOM。需要拿到 $refs / 测量尺寸后再请求的，才放 mounted。SSR 中 mounted 只在客户端执行，这是"请求放 created"最硬的理由。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 Vue3 组件通信，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. props 单向数据流：子组件不应直接修改 prop，应 emit 事件让父组件改</div>
+<div class="opt" data-k="B">B. v-model 本质是 modelValue prop 与 update:modelValue 事件的语法糖</div>
+<div class="opt" data-k="C">C. Vue3 内置了 $on/$off 事件总线，可像 Vue2 一样直接用于任意组件通信</div>
+<div class="opt" data-k="D">D. provide/inject 适合祖先组件向任意深度的后代传数据，免逐级透传</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：Vue3 移除了实例上的 $on/$off/$once，官方推荐复杂状态用 Pinia、事件型通信用社区库 mitt。B 的版本结论：Vue2 是 value + input。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">输出题</span><b>4.</b> 父组件模板中包含 <code>&lt;Child /&gt;</code>。父组件 created 打印 <code>father created</code>、mounted 打印 <code>father mounted</code>；子组件 created 打印 <code>child created</code>、mounted 打印 <code>child mounted</code>。写出首次渲染时控制台的输出顺序。</p>
+<details><summary>先自己排，再展开对答案</summary>顺序：<b>father created → child created → child mounted → father mounted</b>。原因：初始化（created 阶段）父先完成，才能开始渲染子组件；挂载（mounted 阶段）自底向上，子组件先挂载完成并回调，父组件的挂载才算完成。加分点：补上 beforeMount 同样是父先子后、mounted 是子先父后；若子组件是异步组件，父 mounted 可能先于子。来源：面试高频改编。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 两条链各一分钟：① Vue3 生命周期全顺序 + 请求放哪；② 父子/跨层/全局组件分别怎么通信、怎么选。</p>
+<details><summary>参考回答</summary>① 链背：setup → beforeCreate → created → beforeMount → mounted →（更新）beforeUpdate → updated →（卸载）beforeUnmount → unmounted；keep-alive 组件切换走 activated/deactivated 不销毁。请求：无 DOM 依赖放 created（更早、SSR 只有它执行），要操作 DOM 放 mounted。② 选型：父子 props/$emit 单向数据流；表单双向用 v-model（modelValue + update:modelValue 语法糖）；父要调子方法用 ref（Vue3 配 defineExpose）；跨层 provide/inject；Vue3 无内置事件总线用 mitt；兄弟/全局复杂共享状态直接 Pinia。加分点：点出"事件总线数据流向不可追踪、难维护"体现选型判断力。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① setup 里没有 this，选项式钩子里才有 this——混写时先想清楚在哪个环境；② updated 钩子里再改自身依赖的数据可能触发无限更新循环；③ keep-alive 反复切换的组件不会重新 mounted，"每次进入刷新数据"要写 activated；④ 子组件直接改 prop 只会警告不报错，但数据流向从此不可追——正确姿势是本地拷贝或 computed 包装后 emit；⑤ 请求放 created vs mounted 在纯 SPA 里差异只是"早一点点"，别背成"绝对不能放 mounted"。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

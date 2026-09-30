@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>魔法方法与内存管理 · 深度学习与Python进阶/Python进阶</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / Python进阶</div>
+<h1>魔法方法与内存管理</h1>
+<div class="meta">适用岗位：AI 开发、测开(Python)、通用软开 ｜ 形态：概念 + 输出判断（__new__/__init__ 与 str/repr 是高频坑） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>__new__ 造实例、__init__ 只负责初始化</b>（单例重写 __new__）；print 走 <b>__str__</b>，<b>容器里的元素走 __repr__</b>（没定义 __str__ 时 print 也回退 __repr__）；with 靠 <code>__enter__/__exit__</code>；内存 = <b>引用计数为主（归零立即回收）+ 分代 GC 兜循环引用（三代）</b>；<code>__slots__</code> 砍掉实例 <code>__dict__</code> 省内存；<b>del 只是删名字减引用，不保证对象立刻释放</b>——循环引用要等 GC（本机实跑 gc.collect() 返回 2）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>构造与析构：__new__ vs __init__</b></p>
+<ul>
+<li><code>__new__(cls)</code>：静态地<b>创建</b>实例并返回；返回的不是本类实例，<code>__init__</code> 就不会被调用。</li>
+<li><code>__init__(self)</code>：在已创建的实例上<b>初始化</b>，只准返回 None。顺序：先 <code>__new__</code> 后 <code>__init__</code>。</li>
+<li><code>__del__</code>：引用归零时被调，但<b>时机不保证</b>（解释器退出阶段甚至可能不调）——关键资源释放用 with，别押在析构上。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>class Single:
+    _instance = None
+    def __new__(cls):
+        if cls._instance is None:                 # 第一次才真正创建
+            cls._instance = super().__new__(cls)
+        return cls._instance                      # 之后永远返回缓存实例
+
+print(Single() is Single())   # True（本机实跑）—— 单例的标准姿势</code></pre>
+
+<p><b>字符串化：__repr__ vs __str__</b></p>
+<table>
+<tr><th>方法</th><th class="l">给谁看</th><th class="l">谁触发</th></tr>
+<tr><td><code>__str__</code></td><td class="l">用户，要求可读</td><td class="l">print()、str()；未定义时回退 __repr__</td></tr>
+<tr><td><code>__repr__</code></td><td class="l">开发者，要求无歧义（约定能还原）</td><td class="l">交互式回显、<b>容器内的元素</b>、调试器</td></tr>
+</table>
+<span class="lang">Python</span>
+<pre><code>class P:
+    def __new__(cls):
+        print("new")
+        return super().__new__(cls)
+    def __init__(self):
+        print("init")
+    def __str__(self):
+        return "str!"
+    def __repr__(self):
+        return "repr!"
+
+p = P()        # new → init（先创建后初始化）
+print(p)       # str!     —— print 走 __str__
+print([p])     # [repr!]  —— 容器里的元素一律走 __repr__</code></pre>
+
+<p><b>属性：__getattr__ vs __getattribute__</b></p>
+<ul>
+<li><code>__getattribute__</code>：<b>一切属性访问都要经过它</b>（默认 C 实现），Python 层重写等于每次访问都交税，且极易递归死循环（内部必须 super() 兜底）。</li>
+<li><code>__getattr__</code>：<b>只在常规查找失败后兜底调用</b>——懒加载、代理、Mock 对象的标配，安全得多。</li>
+</ul>
+
+<p><b>上下文管理与可调用</b></p>
+<ul>
+<li><code>with obj as x:</code> → 先 <code>x = obj.__enter__()</code>，块结束（含异常）必调 <code>__exit__(exc_type, exc, tb)</code>；open、Lock、事务都靠它保证"一定收尾"。</li>
+<li><code>__call__</code>：定义了它的实例可以像函数一样 <code>obj(...)</code>——类装饰器、带状态回调的标准实现（见 <a href="作用域闭包与装饰器.html">作用域闭包与装饰器</a>）。</li>
+</ul>
+
+<p><b>运算符重载举例</b></p>
+<span class="lang">Python</span>
+<pre><code>class Vec:
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+    def __add__(self, other):          # 使 v1 + v2 合法
+        return Vec(self.x + other.x, self.y + other.y)
+    def __repr__(self):
+        return f"Vec({self.x}, {self.y})"
+
+print(Vec(1, 2) + Vec(3, 4))   # Vec(4, 6)</code></pre>
+<ul>
+<li>同族：<code>__eq__</code>(==)、<code>__len__</code>(len())、<code>__getitem__</code>(下标/切片)、<code>__iter__</code>(for 遍历，见 <a href="迭代器与生成器.html">迭代器与生成器</a>)。</li>
+</ul>
+
+<p><b>内存管理：引用计数为主，分代 GC 兜底</b></p>
+<ul>
+<li><b>引用计数</b>：每个对象记录"有多少引用指着我"，<b>减到 0 立即回收</b>。所以 <code>del a</code> 的语义是"删名字、减引用"——还有别人指着，对象就活着；这就是 del ≠ 立即 free。</li>
+<li><b>循环引用</b>：两个对象互相引用，外部名字全删光后彼此计数仍是 1，引用计数束手无策。<b>分代 GC（三代 0/1/2）</b>定期扫描容器对象的可达性，把不可达的环整体回收：新对象在 0 代，扛过收集次数就晋升下一代。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>import gc
+
+class Node: pass
+
+gc.collect()                 # 先清场，保证下面的数字只反映本次实验
+a, b = Node(), Node()
+a.ref, b.ref = b, a          # 互相引用成环
+del a, b
+print(gc.collect())          # 2 —— 循环引用对象此刻才被分代 GC 回收
+
+c1, c2 = Node(), Node()
+del c1, c2
+print(gc.collect())          # 0 —— 无环对象早被引用计数收走了</code></pre>
+<ul>
+<li><b>__slots__ 省内存原理</b>：类里声明 <code>__slots__ = ("x", "y")</code> 后，实例不再有 <code>__dict__</code>（每个实例一个 dict 很占地），属性放进固定槽位——百万级小对象能省一半以上内存；代价：不能动态加属性，需要 weakref 时要显式加 <code>"__weakref__"</code>。</li>
+<li><b>weakref 一句</b>：弱引用不增加引用计数，对象死了拿到 None——缓存、观察者模式用它防内存泄漏。</li>
+<li>对象在"共享引用"下的行为细节见 <a href="可变不可变与深浅拷贝.html">可变不可变与深浅拷贝</a>。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断：<code>__new__</code>/<code>__init__</code> 执行顺序、print 与容器元素的 str/repr 选择。</li>
+<li>概念选择：单例重写哪个方法、str/repr 回退规则、getattr/getattribute 触发时机、with 的协议。</li>
+<li>面试口述：Python 怎么处理循环引用（引用计数 + 分代 GC）；追难点在 del 语义、__slots__、weakref。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>class P:
+    def __new__(cls):
+        print("new")
+        return super().__new__(cls)
+    def __init__(self):
+        print("init")
+    def __str__(self):
+        return "str!"
+    def __repr__(self):
+        return "repr!"
+
+p = P()
+print(p)
+print([p])</code></pre>
+<div class="opt" data-k="A">A. new、init、str!、[repr!]</div>
+<div class="opt" data-k="B">B. init、new、str!、[str!]</div>
+<div class="opt" data-k="C">C. new、init、repr!、[repr!]</div>
+<div class="opt" data-k="D">D. new、init、str!、[str!]</div>
+<div class="exp" hidden><b>答案 A。</b>创建顺序是先 __new__（造实例）后 __init__（初始化）；print(p) 走 __str__，但<b>容器里的元素一律用 __repr__</b>。只有当 __str__ 未定义时，print 才回退到 __repr__。本机 Python 3.12.9 实跑输出 new / init / str! / [repr!]。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 要实现单例模式（一个类全程只有一个实例），应该（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 重写 __init__，在里面检查 self 是否已存在</div>
+<div class="opt" data-k="B">B. 重写 __new__，第一次创建后缓存到类属性 _instance 并永远返回它</div>
+<div class="opt" data-k="C">C. 重写 __del__ 阻止实例被销毁</div>
+<div class="opt" data-k="D">D. 用一个 global 变量保存实例即可，无需重写任何方法</div>
+<div class="exp" hidden><b>答案 B。</b>__new__ 才是"造实例"的那一步，只有在这里控制返回缓存的 _instance 才拦得住新实例；__init__ 在每个新实例上都会被调用，拦不住创建。裸 global 也拦不住 P() 继续造新对象。本机实跑 Single() is Single() → True。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>3.</b> 一个类只定义了 <code>__repr__</code>（返回 "repr!"），没有定义 <code>__str__</code>。print(obj) 输出（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 报错：print 必须要求类实现 __str__</div>
+<div class="opt" data-k="B">B. 默认地址，形如 &lt;__main__.P object at 0x…&gt;</div>
+<div class="opt" data-k="C">C. repr!：__str__ 缺省时回退调用 __repr__</div>
+<div class="opt" data-k="D">D. 空字符串</div>
+<div class="exp" hidden><b>答案 C。</b>__str__ 未定义时 print/str 回退到 __repr__。反过来只定义 __str__：容器里的元素仍显示默认地址——所以调试场景的最佳实践是<b>至少定义 __repr__</b>。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于魔法方法，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. with 语句要求对象实现 __enter__ 与 __exit__</div>
+<div class="opt" data-k="B">B. len(obj) 实际调用 obj.__len__</div>
+<div class="opt" data-k="C">C. __getattr__ 在每次属性访问时都会被调用</div>
+<div class="opt" data-k="D">D. 定义了 __call__ 的实例可以像函数一样被调用</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：每次访问都经过的是 __getattribute__；__getattr__ 只在常规查找失败后兜底，常用于懒加载/代理，且不易递归、开销小。D 正是类装饰器（带状态的装饰器）的实现基础。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> Python 是怎么处理循环引用的？为什么 del 之后对象可能还占着内存？</p>
+<details><summary>参考回答</summary>主力机制是<b>引用计数</b>：每个对象记录指向它的引用数，减到 0 立即回收——所以绝大多数对象 del 掉名字就释放了，del 的语义只是"删名字、减引用"，不是 free()。<br>
+循环引用是引用计数的盲区：两个对象互相引用，外部名字删光后彼此计数仍是 1，永远到不了 0。兜底是 <b>CPython 的分代 GC（三代 0/1/2）</b>：把容器对象按存活时间分代，周期性做可达性扫描，把不可达的环整体回收；新对象在 0 代，扛过收集次数晋升下一代，扫描频率递减。<br>
+本机实跑（Python 3.12.9）：两个互相引用的 Node，del 后 gc.collect() 返回 2（此刻才被回收）；无循环的对照组同样操作返回 0（早被引用计数收走）。<br>
+加分点：低基数大量小对象用 __slots__ 去掉实例 __dict__ 省内存；缓存/观察者用 weakref 弱引用防泄漏；gc.disable() 的服务要特别小心环；真正持有限资源的场景用 with 而不是指望 __del__。来源：AI 岗笔试高频。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① __new__ 返回什么，__init__ 就在什么上初始化；返回非本类实例时 __init__ 根本不执行。② print 走 __str__、容器元素走 __repr__、str 缺省回退 repr——背成"外 str 内 repr"。③ 重写 __getattribute__ = 每次属性访问交税还容易死循环，兜底需求用 __getattr__。④ del 只删名字减引用，循环引用要等分代 GC，关键资源释放靠 with。⑤ __slots__ 省内存但有代价：不能动态加属性、要用 weakref 得显式留槽。⑥ 单例、工厂、不可变对象定制，动手处都在 __new__。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

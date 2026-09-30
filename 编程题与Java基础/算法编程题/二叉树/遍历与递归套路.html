@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二叉树遍历与递归套路（ACM 模式） · 编程题与Java基础/算法编程题/二叉树</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 二叉树</div>
+<h1>二叉树遍历与递归套路（ACM 模式）</h1>
+<div class="meta">原型：LeetCode 104 / 226 / 101 ｜ 适用岗位：全部 ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：ACM 二叉树题标配是<b>层序建树</b>（数据按层序给、空位用 -1 占，队列实现），建完树三大递归遍历各三行。递归套路三问：base case 是什么、左右子树问题怎么定义、拿子问题答案怎么拼出当前层。力扣上树是现成的，ACM 里建树占一半工作量。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>主打题（层序建树 + 三种遍历）</b>：给定 n 个整数按<b>层序</b>描述一棵二叉树，<code>-1</code> 表示空节点（结尾不足的槽位视为空）。输出三行：前序、中序、后序遍历序列，数字间空格分隔。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>5                       # n
+1 2 3 -1 4              # 层序，-1 表示空节点</code></pre>
+这棵树：根 1，左孩 2（其左空、右孩 4），右孩 3。
+<b>输出格式</b>（3 行）：
+<pre><code>1 2 4 3
+2 4 1 3
+4 2 3 1</code></pre></div>
+<div class="tip">变体提前看：① 有的题空位用字符串 <code>null</code> 而不是 -1，读法换成按词切分；② 输出可能只要一种遍历或层序（层序直接就是建树那趟队列）；③ 结点值可能很大 → 用 long。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<ul>
+<li><b>层序建树</b>：节点按层序排队，用一个队列装「还没填满孩子的父节点」。每读一个值：非 -1 就建节点挂到队头父节点的空位上（左优先），挂满右位就把父节点出队；-1 只占位不入队。注意 Java 里 <code>ArrayDeque</code> 不许 null，占位要入队时用 <code>LinkedList</code>；本页写法是「-1 不入队」，两者都行，关键是每槽位严格消费一个 token。</li>
+<li><b>三种遍历</b>：递归框架 <code>左、根、右</code> 的访问位置不同——前序=进入时访问，中序=左子树回来后访问，后序=两棵子树都回来后访问。时间 O(n)、递归栈 O(h)。</li>
+<li><b>最大深度（LC104）</b>：递归套路最小例子——<code>depth(x) = 1 + max(depth(x.l), depth(x.r))</code>，base case 空树返回 0。</li>
+<li><b>唯一复原</b>：中序 + 前序 / 中序 + 后序可以唯一确定二叉树；<b>前序 + 后序不能</b>（只有一个孩子的节点无法区分左右）。</li>
+<li><b>翻转（LC226）/ 对称（LC101）</b>：翻转=交换左右子树后递归；对称=递归比较「左的左 vs 右的右、左的右 vs 右的左」。</li>
+</ul>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 只给一对遍历序列，<b>不能</b>唯一确定一棵二叉树的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 中序 + 前序</div>
+<div class="opt" data-k="B">B. 前序 + 后序</div>
+<div class="opt" data-k="C">C. 中序 + 后序</div>
+<div class="opt" data-k="D">D. 中序 + 层序</div>
+<div class="exp" hidden><b>答案 B。</b>缺了中序就分不出左右。反例：根 1、左孩 2 与根 1、右孩 2 的前序都是 1 2，后序都是 2 1。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于二叉树递归，说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 写递归先把函数定义当黑盒：明确「它对子树算出什么」，再想当前层怎么拼</div>
+<div class="opt" data-k="B">B. base case（通常 x == null）必须最先写，否则空指针或死递归</div>
+<div class="opt" data-k="C">C. 二叉树问题都可以做到 O(1) 空间</div>
+<div class="opt" data-k="D">D. 层序遍历用队列，非递归前序/中序用显式栈</div>
+<div class="exp" hidden><b>答案 ABD。</b>递归本身就要 O(h) 栈空间，最坏退化成 O(n)（链状树），C 错。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<span class="lang">Java · 主打：层序建树 + 三种遍历</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    static StringBuilder sbPre = new StringBuilder();
+    static StringBuilder sbIn = new StringBuilder();
+    static StringBuilder sbPost = new StringBuilder();
+
+    static class Node {
+        int v; Node l, r;
+        Node(int v) { this.v = v; }
+    }
+
+    static Node build(int[] vals, int n) {
+        if (n == 0 || vals[0] == -1) return null;
+        Node root = new Node(vals[0]);
+        Queue&lt;Node&gt; que = new LinkedList&lt;&gt;();
+        que.add(root);
+        int i = 1;
+        while (!que.isEmpty() &amp;&amp; i &lt; n) {
+            Node p = que.poll();
+            if (vals[i] != -1) { p.l = new Node(vals[i]); que.add(p.l); }
+            i++;
+            if (i &gt;= n) break;
+            if (vals[i] != -1) { p.r = new Node(vals[i]); que.add(p.r); }
+            i++;
+        }
+        return root;
+    }
+
+    static void dfsPre(Node x)  { if (x == null) return; sbPre.append(x.v).append(' ');  dfsPre(x.l);  dfsPre(x.r); }
+    static void dfsIn(Node x)   { if (x == null) return; dfsIn(x.l);  sbIn.append(x.v).append(' ');  dfsIn(x.r); }
+    static void dfsPost(Node x) { if (x == null) return; dfsPost(x.l); dfsPost(x.r); sbPost.append(x.v).append(' '); }
+
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        int[] vals = new int[n];
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); vals[i] = (int) in.nval; }
+        Node root = build(vals, n);
+        dfsPre(root); dfsIn(root); dfsPost(root);
+        System.out.println(sbPre.toString().trim());
+        System.out.println(sbIn.toString().trim());
+        System.out.println(sbPost.toString().trim());
+    }
+}</code></pre>
+<span class="lang">Python · 主打</span>
+<pre><code>import sys
+from collections import deque
+
+class Node:
+    __slots__ = ('v', 'l', 'r')
+    def __init__(self, v):
+        self.v, self.l, self.r = v, None, None
+
+def build(it):
+    try:
+        v = next(it)
+    except StopIteration:
+        return None
+    root = None if v == -1 else Node(v)
+    que = deque([root])
+    while que:
+        p = que.popleft()
+        for attr in ('l', 'r'):
+            try:
+                v = next(it)
+            except StopIteration:
+                v = -1
+            if v != -1 and p is not None:
+                ch = Node(v)
+                setattr(p, attr, ch)
+                que.append(ch)
+    return root
+
+pre, ino, post = [], [], []
+def walk(x):
+    if x is None:
+        return
+    pre.append(x.v)
+    walk(x.l)
+    ino.append(x.v)
+    walk(x.r)
+    post.append(x.v)
+
+def main():
+    data = sys.stdin.read().split()
+    n = int(data[0])
+    root = build(iter(list(map(int, data[1:1 + n]))))
+    walk(root)
+    print(' '.join(map(str, pre)))
+    print(' '.join(map(str, ino)))
+    print(' '.join(map(str, post)))
+
+main()</code></pre>
+<span class="lang">Java · 第二题 LC104 最大深度（建树部分同主打，直接复用）</span>
+<pre><code>    // Node / build 与主打完全一致，main 里建完树后输出深度
+    static int depth(Node x) {
+        if (x == null) return 0;
+        return 1 + Math.max(depth(x.l), depth(x.r));
+    }
+    // main 中：System.out.println(depth(root));   → 样例树输出 3</code></pre>
+<span class="lang">Java · 核心函数：LC226 翻转 / LC101 对称</span>
+<pre><code>static Node invert(Node x) {              // 返回翻转后的子树根
+    if (x == null) return null;
+    Node t = invert(x.l);
+    x.l = invert(x.r);
+    x.r = t;
+    return x;
+}
+
+static boolean isSym(Node a, Node b) {    // 调用：isSym(root.l, root.r)
+    if (a == null || b == null) return a == b;
+    return a.v == b.v &amp;&amp; isSym(a.l, b.r) &amp;&amp; isSym(a.r, b.l);
+}</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 建树时每个槽位（含 -1）都要消费一个 token，左右漏读一位全树错位；② ArrayDeque 不能装 null，「占位入队」写法必须用 LinkedList；③ 遍历输出用 StringBuilder 拼完再 trim，逐次 System.out.print 会被大数据量卡慢；④ 递归深度 10⁵ 级链状树会 StackOverflow，改显式栈或层序；⑤ 「前序 + 后序定不了树」是笔试选择题钉子户。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

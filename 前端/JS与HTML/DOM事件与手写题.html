@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOM 事件与手写题 · 前端/JS与HTML</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / JS与HTML</div>
+<h1>DOM 事件与手写题</h1>
+<div class="meta">适用岗位：前端（笔试输出 + 面试手写必考） ｜ 形态：知识点 + 可运行手写实现（node 实跑核对） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：事件流三阶段 <b>捕获 → 目标 → 冒泡</b>；addEventListener 第三参缺省走冒泡，{capture:true} 走捕获；<b>事件委托</b>把 N 个子元素监听合并成父容器 1 个，靠 e.target 认触发源；<b>preventDefault 管默认行为、stopPropagation 管传播</b>，互不替代；<b>防抖 = 停手才执行（搜索框输入）</b>，<b>节流 = 固定频率执行（scroll/resize）</b>，timer/last 都存在闭包里；深拷贝思路 = 递归逐字段复制，JSON.parse(JSON.stringify) 快但函数/undefined 丢失、Date 变字符串、循环引用报错。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>事件流三阶段</b>：一个事件从 window 沿 DOM 树向下找目标（<b>捕获</b>）→ 到达目标元素（<b>目标阶段</b>）→ 再沿原路向上回 window（<b>冒泡</b>）。addEventListener 的第三参决定监听器在哪个阶段触发。</p>
+<span class="lang">JavaScript</span>
+<pre><code>el.addEventListener('click', fn);              // 第三参缺省（falsy）→ 冒泡阶段
+el.addEventListener('click', fn, true);        // 布尔 true → 捕获阶段
+el.addEventListener('click', fn, { capture: true, once: true, passive: true });
+// once: 触发一次后自动移除；passive: 承诺不调 preventDefault，scroll 性能优化</code></pre>
+<p><b>事件委托</b>：利用冒泡，把子元素的监听统一挂到父容器上，用 <code>e.target</code> 判断真正被点的元素。好处：① <b>省监听器</b>——1000 个列表项只要 1 个监听器，省内存；② 动态新增的子元素<b>无需重新绑定</b>。两个对象别记反：</p>
+<table>
+<tr><th class="l">对象</th><th class="l">指向</th><th class="l">委托场景下的值</th></tr>
+<tr><td class="l"><code>e.target</code></td><td class="l">真正触发事件的元素</td><td class="l">被点击的子元素（如 li）</td></tr>
+<tr><td class="l"><code>e.currentTarget</code></td><td class="l">绑定监听器的元素</td><td class="l">父容器（如 ul）</td></tr>
+</table>
+<p><b>preventDefault vs stopPropagation</b>：preventDefault 取消<b>默认行为</b>（a 跳转、表单提交、右键菜单），事件照常传播；stopPropagation 阻断<b>捕获/冒泡继续传播</b>，默认行为照常发生。两者互不包含，要同时阻止就都调。</p>
+<p><b>手写防抖 debounce（完整可运行，本机 node 实跑核对：连续调用 d(1) d(2) d(3)，50ms 后只输出 debounce:3）</b>：</p>
+<span class="lang">JavaScript</span>
+<pre><code>// 防抖：最后一次触发后停顿 delay 才执行（清掉上一次计时，只认最后一次）
+function debounce(fn, delay) {
+  let timer = null;                        // 状态存在闭包里，多次触发共享
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() =&gt; fn.apply(this, args), delay);
+  };
+}</code></pre>
+<p><b>手写节流 throttle（完整可运行，实跑核对：每 20ms 调一次共 7 次、窗口 50ms，触发 0、3、6 三次）</b>：</p>
+<span class="lang">JavaScript</span>
+<pre><code>// 节流：每 interval 最多执行一次（时间戳版）
+function throttle(fn, interval) {
+  let last = 0;
+  return function (...args) {
+    const now = Date.now();
+    if (now - last &gt;= interval) {
+      last = now;
+      fn.apply(this, args);
+    }
+  };
+}</code></pre>
+<p><b>区别一句话 + 场景配对</b>：防抖是"等你停手才执行"（只认最后一次），节流是"固定频率执行"（稀释频率）。<b>搜索框输入联想用防抖</b>（停手 300ms 再发请求，省一半接口）；<b>scroll/resize 监听用节流</b>（页面滚动过程中要保持响应，不能等停手）。</p>
+<table>
+<tr><th class="l">场景</th><th class="l">选型</th><th class="l">理由</th></tr>
+<tr><td class="l">搜索框输入联想 / 自动保存草稿</td><td class="l"><b>防抖</b></td><td class="l">只要最终态，中间过程都可以丢弃</td></tr>
+<tr><td class="l">scroll 懒加载 / resize 重算布局</td><td class="l"><b>节流</b></td><td class="l">过程也要响应，但要稀释到固定频率</td></tr>
+</table>
+<p><b>手写深拷贝思路一句</b>：递归遍历，引用类型逐字段复制、原始类型直接赋值，按类型分支处理 Date/RegExp/Map/Set。<code>JSON.parse(JSON.stringify(obj))</code> 是偷懒版，局限：函数、undefined、Symbol 属性<b>直接丢失</b>（实跑核对：{f:()=&gt;1, u:undefined} 转回来 Object.keys 长度是 <b>0</b>）、Date 变字符串、NaN/Infinity 变 null、<b>循环引用直接报错</b>、原型链丢失。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">面试手写必考</span><span class="tag">笔试输出题</span></p>
+<ul>
+<li>手写：防抖、节流（必须现场写对，可加分"带立即执行参数/取消功能"）、深拷贝（先说思路再写递归版）。</li>
+<li>笔试：e.target 与 e.currentTarget 辨析、事件流顺序、委托的适用与限制（委托场景下 stopPropagation 的拦截时机）。</li>
+<li>面试：为什么能委托（冒泡机制）、防抖节流的区别与选型理由、JSON 深拷贝的局限、passive 的作用（实现细节）。</li>
+<li>追问储备：事件流是"浏览器行为，按 DOM 规范"——各浏览器实现一致，无需实跑；深拷贝正规解是 structuredClone（浏览器/Node 17+ 内置，实现细节）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 用事件委托把 click 监听挂在 ul 上，点击其中的 li 时（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. e.target 和 e.currentTarget 都指向 li</div>
+<div class="opt" data-k="B">B. e.target 指向 li，e.currentTarget 指向 ul</div>
+<div class="opt" data-k="C">C. e.target 指向 ul，e.currentTarget 指向 li</div>
+<div class="opt" data-k="D">D. 委托模式下不存在 e.target</div>
+<div class="exp" hidden><b>答案 B。</b>e.target 是真正触发事件的元素（被点的 li），e.currentTarget 是绑定监听器的元素（ul）；事件委托正是靠 e.target 认出"点的是谁"。事件流三阶段为浏览器行为，按 DOM 规范：捕获 → 目标 → 冒泡。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于事件流与事件监听，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 事件流三阶段顺序：捕获 → 目标 → 冒泡</div>
+<div class="opt" data-k="B">B. addEventListener 第三参缺省时，监听器在冒泡阶段触发</div>
+<div class="opt" data-k="C">C. 调用 stopPropagation 之后，a 链接的默认跳转也会被取消</div>
+<div class="opt" data-k="D">D. 事件委托能把 N 个子元素的监听合并成父容器上的 1 个</div>
+<div class="exp" hidden><b>答案 ABD。</b>stopPropagation 只阻断传播，取消默认行为要 preventDefault——两者互不替代，C 错。A、B 是浏览器行为，按 DOM 规范。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>3.</b> 搜索框输入联想（希望停手 300ms 才发请求）与 scroll 触发懒加载（希望滚动中每 200ms 最多处理一次），应分别使用（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 都用防抖</div>
+<div class="opt" data-k="B">B. 都用节流</div>
+<div class="opt" data-k="C">C. 防抖 / 节流</div>
+<div class="opt" data-k="D">D. 节流 / 防抖</div>
+<div class="exp" hidden><b>答案 C。</b>防抖 = 最后一次触发后停顿才执行，适合"只要最终态"的搜索框输入；节流 = 固定频率执行，适合"过程也要响应"的 scroll/resize。记法：防抖保尾、节流控频。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>4.</b> 下面代码的输出是（&nbsp;&nbsp;）</p>
+<span class="lang">JavaScript</span>
+<pre><code>const src = { x: 1, nested: { y: 2 } };
+const copy = JSON.parse(JSON.stringify(src));
+copy.nested.y = 99;
+console.log(src.nested.y);
+console.log(Object.keys(JSON.parse(JSON.stringify({ f: () =&gt; 1, u: undefined }))).length);</code></pre>
+<div class="opt" data-k="A">A. 99 / 2</div>
+<div class="opt" data-k="B">B. 1 / 0</div>
+<div class="opt" data-k="C">C. 1 / 2</div>
+<div class="opt" data-k="D">D. 99 / 0</div>
+<div class="exp" hidden><b>答案 B。</b>本机 node 实跑：1、0。JSON.parse(JSON.stringify) 复制时已断开嵌套引用，改 copy 不影响 src；但它会<b>静默丢弃</b>函数和值为 undefined 的属性（还有 Symbol、Date 变字符串、循环引用报错）——所以转回来的对象一个键都不剩，这正是手写深拷贝存在的理由。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 现场手写防抖 debounce，并说明它和节流的区别。</p>
+<details><summary>参考回答</summary>思路：闭包保存 timer，每次触发先 clearTimeout 推翻上一次计时，再 setTimeout 一个新的——只认最后一次，停满 delay 才真正执行。<br>function debounce(fn, delay) { let timer = null; return function (...args) { clearTimeout(timer); timer = setTimeout(() =&gt; fn.apply(this, args), delay); }; }<br>区别一句话：防抖是"等你停手才执行"（只留最后一次），节流是"固定频率执行"（每 interval 最多一次）。选型：搜索框输入联想用防抖——只要最终关键词；scroll 懒加载用节流——滚动过程中要保持响应。加分点：this 与参数用 fn.apply(this, args) 保留；可提节流的时间戳版与定时器版差异。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① e.target ≠ e.currentTarget：委托场景前者是子元素、后者是挂监听的父容器；② preventDefault 管默认行为、stopPropagation 管传播，互不替代；③ 防抖节流的 timer/last 必须存在闭包里——写在全局会互相污染，写在函数里每次新建就失效了；④ JSON 深拷贝五宗罪：函数/undefined/Symbol 丢失、Date 变字符串、NaN/Infinity 变 null、循环引用报错、原型丢失；⑤ 第三参既能传布尔也能传 options 对象，capture: true 才走捕获；⑥ scroll 监听可加 { passive: true } 提升性能（实现细节）。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

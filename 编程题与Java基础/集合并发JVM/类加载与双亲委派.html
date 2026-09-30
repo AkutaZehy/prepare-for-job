@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>类加载与双亲委派 · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>类加载与双亲委派</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（"双亲委派"面试点名率极高） ｜ 形态：流程 + 代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：类生命周期七步，加载到初始化五步是 JVM 的事；<b>准备阶段静态变量赋零值</b>，<code>static final</code> 常量才在准备期直接赋真值；初始化即执行 <code>&lt;clinit&gt;</code>（静态变量赋值+静态块合并，JVM 保证线程安全）——<b>被动引用不触发</b>（数组定义、引用常量、经子类引用父类静态字段）；三层加载器 + <b>双亲委派</b>（先交父亲，父亲不行才自己干）：防重复加载 + 防核心类被篡改；打破它：SPI 线程上下文加载器、Tomcat 隔离、自定义加载器重写 <code>findClass</code>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>类生命周期</b>：加载 → 验证 → 准备 → 解析 → 初始化 → 使用 → 卸载。前五步是类加载机制考点。</p>
+<table>
+<tr><th>阶段</th><th>干什么</th><th>高频考点</th></tr>
+<tr><td>加载</td><td class="l">读 .class 字节流 → 方法区类元信息 + 堆中 Class 对象</td><td class="l">Class 对象是反射入口</td></tr>
+<tr><td>验证</td><td class="l">格式/元数据/字节码/符号引用校验</td><td class="l">防恶意字节码</td></tr>
+<tr><td><b>准备</b></td><td class="l">为静态变量分配内存并赋<b>零值</b></td><td class="l"><code>static int a=1</code> 此刻 a=0；<code>static final int A=1</code> 是常量，准备期即 1（ConstantValue）</td></tr>
+<tr><td>解析</td><td class="l">常量池符号引用 → 直接引用</td><td class="l">—</td></tr>
+<tr><td><b>初始化</b></td><td class="l">执行 <code>&lt;clinit&gt;</code>：静态变量真赋值 + static 块，按源码顺序</td><td class="l">JVM 保证 clinit 加锁线程安全（单例-静态内部类版利用它）</td></tr>
+</table>
+<p><b>何时触发初始化</b>（主动引用六场景）：new / 读写静态字段（非 final 常量）/ 调用静态方法 / 反射 Class.forName / 初始化子类连带父类 / main 所在主类。<b>被动引用不触发</b>：ClassName[] arr 定义数组、引用 final 常量（编译期入池）、通过子类名访问父类静态字段（只初始化父类）。</p>
+<p><b>类加载器三层</b>（JDK8 口径，JDK9 扩展→平台）：Bootstrap（核心库，C++ 实现，无 Java 对象）→ Extension（JDK9 后 Platform）→ <b>Application</b>（classpath，默认加载器）→ 自定义。判定相等：同加载器 + 同类全限定名，缺一不可。</p>
+<p><b>双亲委派</b>：收到加载请求先委托父加载器，父辈全部失败才自己尝试。两个价值：①防止重复加载（父辈加载过就用父辈的）；②<b>安全</b>——java.lang.String 永远由 Bootstrap 加载，用户自写同名的 java.lang.X 会被拒绝，核心 API 不可能被篡改。</p>
+<p><b>打破双亲委派</b>（面试三连）：</p>
+<ul>
+<li>SPI（JDBC DriverManager）：核心库要加载厂商实现（在 classpath），Bootstrap 反过来求 Application 加载——用<b>线程上下文类加载器</b>逆向委托；</li>
+<li>Tomcat：每个 webapp 独立 ClassLoader 实现<b>应用隔离</b>（不同应用可用不同版本依赖），自身优先（WebAppClassLoader 先自己找）——破坏"先委托"；</li>
+<li>热部署/热替换：重新加载修改过的类。</li>
+</ul>
+<span class="lang">Java</span>
+<pre><code>// 自定义类加载器：重写 findClass（loadClass 里的委派逻辑保持不变）
+public class MyLoader extends ClassLoader {
+    private final String dir;
+    public MyLoader(String dir, ClassLoader parent) { super(parent); this.dir = dir; }
+
+    @Override
+    protected Class&lt;?&gt; findClass(String name) throws ClassNotFoundException {
+        byte[] data = loadBytes(name);            // 自定义来源：文件/网络/加密类...
+        if (data == null) throw new ClassNotFoundException(name);
+        return defineClass(name, data, 0, data.length);  // 字节 → Class 对象
+    }
+    private byte[] loadBytes(String name) { /* 读 dir/name.class，略 */ return null; }
+}</code></pre>
+<p>继承要点：重写 <code>findClass</code> 保住双亲委派；重写 <code>loadClass</code> 才是真正打破委派。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span></p>
+<ul>
+<li>准备阶段变量值判断（选择题常客：a=0 还是 1）。</li>
+<li>主动/被动引用的初始化触发判断（多选）。</li>
+<li>双亲委派流程、两个价值、谁加载了什么（String → Bootstrap）。</li>
+<li>打破双亲委派的场景与原因（SPI/Tomcat）。</li>
+<li>面试：手写自定义类加载器思路、静态内部类单例为什么线程安全（clinit 加锁）——与设计模式页联动。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 口述题先自答）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 类中有 <code>static int a = 1;</code> 与 <code>static final int B = 2;</code>，则<b>准备阶段</b>结束后 a 与 B 的值分别是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 1 和 2</div>
+<div class="opt" data-k="B">B. 0 和 2</div>
+<div class="opt" data-k="C">C. 0 和 0</div>
+<div class="opt" data-k="D">D. 1 和 0</div>
+<div class="exp" hidden><b>答案 B。</b>准备阶段普通静态变量只赋零值（a=0），真正的赋值 1 在初始化的 &lt;clinit&gt; 里执行；static final 修饰的编译期常量有 ConstantValue 属性，准备期就直接赋真值 2。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 下列情形中，会触发类初始化的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. new 一个该类的实例</div>
+<div class="opt" data-k="B">B. 访问该类的静态非 final 字段</div>
+<div class="opt" data-k="C">C. 定义该类的数组：ClassName[] arr = new ClassName[10]</div>
+<div class="opt" data-k="D">D. 初始化该类的子类</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 是被动引用——数组定义只触发数组类型（[LClassName;）相关初始化，不触发元素类；另一类被动引用是访问编译期常量（static final）。来源：408 外 Java 笔试高频（牛客经典题）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>3.</b> 用户代码里自己写了一个 <code>java.lang.String</code> 类并放入 classpath，运行时实际使用的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 应用类加载器加载的用户版 String</div>
+<div class="opt" data-k="B">B. 编译时随机选择一个版本</div>
+<div class="opt" data-k="C">C. Bootstrap 加载的 rt.jar 里的核心 String（双亲委派 + 核心类保护）</div>
+<div class="opt" data-k="D">D. 运行直接报错，程序无法启动</div>
+<div class="exp" hidden><b>答案 C。</b>应用类加载器一路向上委托，Bootstrap 一定能加载核心 String，用户的同名类永远没机会加载；这正是双亲委派"防核心 API 被篡改"价值的具象化。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="AC" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于打破双亲委派，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. JDBC 的 DriverManager 通过线程上下文类加载器加载厂商的驱动实现</div>
+<div class="opt" data-k="B">B. Tomcat 各 webapp 共用一个类加载器以保证依赖一致</div>
+<div class="opt" data-k="C">C. 自定义加载器重写 loadClass（而非 findClass）才能真正绕过委派流程</div>
+<div class="opt" data-k="D">D. 双亲委派是 JVM 强制规范，任何框架都不能打破</div>
+<div class="exp" hidden><b>答案 AC。</b>B 反了——Tomcat 恰恰每个 webapp 独立加载器做应用隔离；双亲委派只是推荐模型（Java 规范建议），SPI/Tomcat/热部署都是现实中的打破者。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 什么是双亲委派？它解决了什么问题？怎么打破？</p>
+<details><summary>参考回答</summary>流程：类加载请求先交给父加载器处理，逐级上抛到 Bootstrap，父辈都加载不到才由当前加载器自己 findClass。解决两个问题：①同一类只会被加载一次（父辈有就用父辈的），保证类的唯一性；②核心类永远由 Bootstrap 加载，用户伪造 java.lang.X 会被拒绝，保证安全。打破方式：重写 loadClass 绕过委派逻辑；现实动因——SPI 里核心库需要反向加载 classpath 的实现（线程上下文类加载器）、Tomcat 需要 webapp 隔离与版本共存、热部署需要重复加载。答完主动补一句"自定义加载器重写 findClass 保持委派、重写 loadClass 才打破"，层次立现。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 准备 vs 初始化：普通静态变量准备期是零值，final 常量准备期即真值——选择题最爱；② clinit 由 JVM 加锁执行，两个线程同时初始化一个类会阻塞——静态内部类单例的线程安全就靠它；③ 触发初始化的是"主动引用"，数组定义与 final 常量是被动引用；④ 判断类相等 = 同一加载器 + 同一全限定名，双亲委派保证核心类唯一；⑤ findClass 与 loadClass 的分工是自定义加载器的面试陷阱题。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 与 Function Calling · 深度学习与Python进阶/大模型与LLM应用</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 大模型与LLM应用</div>
+<h1>Agent 与 Function Calling</h1>
+<div class="meta">适用岗位：AI/Agent 开发（面试必问 + 场景设计） ｜ 形态：流程图 + JSON 示例 + 翻车清单 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：Agent 循环 = <b>目标 → 思考/规划 → 调工具 → 观察 → 迭代</b>（ReAct = Reason + Act 交替，2022）；Function Calling 四步：<b>给 Schema → 模型只出"函数名 + 参数 JSON" → 应用代码执行 → 结果回填继续</b>——模型不执行、只出参；工具描述质量决定调用质量；翻车三件套：参数幻觉、死循环、错误不重试；MCP（2024）= 工具/上下文对接的标准协议。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>Agent 循环</b>：给模型一个目标，它自主走"目标 → 思考/规划 → 选工具发起调用 → 拿到观察 → 判断是否完成 → 继续迭代"的循环，直到产出最终回答。代表范式 <b>ReAct（2022）</b>：Reason 与 Act 交替——把思考过程写出来再决定动作，工具/环境返回"观察"（Observation）回填继续推理；思考外化带来可解释性与可中途纠偏的能力。</p>
+<pre class="ascii-fallback"><code>目标 → 思考/规划 → 选工具 → 执行工具（应用侧） → 观察结果
+        ↑                                        │
+        └─────────── 未完成，继续迭代 ←───────────┘
+                                     信息足够 ↓
+                                   给出最终回答</code></pre>
+<pre class="mermaid">
+flowchart LR
+    A[目标] --&gt; B[思考 规划]
+    B --&gt; C[选工具]
+    C --&gt; D[执行工具 应用侧]
+    D --&gt; E[观察结果]
+    E --&gt; F{信息足够吗}
+    F -- 否 --&gt; B
+    F -- 是 --&gt; G[给出最终回答]
+</pre>
+<p><b>Function Calling 完整流程</b>（四步背熟）：</p>
+<ul>
+<li>① 开发者把<b>工具列表</b>（JSON Schema：名称、描述、参数类型、required）随请求发给模型；</li>
+<li>② 模型<b>不执行</b>，只输出<b>调用意图</b>：函数名 + 参数 JSON；</li>
+<li>③ 开发者的应用代码<b>校验参数并真正执行</b>——鉴权、限流、副作用控制都在这一层；</li>
+<li>④ 执行结果以 tool 消息<b>回填</b>对话，模型基于观察继续生成，或再发起下一轮调用。</li>
+</ul>
+<p><b>职责边界一句话：模型负责决策与出参，应用负责执行与兜底</b>——模型"自己脑补执行结果"就是幻觉。</p>
+<pre><code>// ① 开发者随请求注册工具列表（JSON Schema，节选）
+{"tools": [{"type": "function", "function": {
+    "name": "get_weather",
+    "description": "查询指定城市与日期的天气",
+    "parameters": {"type": "object",
+        "properties": {"city": {"type": "string", "description": "城市名"},
+                       "date": {"type": "string", "description": "YYYY-MM-DD"}},
+        "required": ["city"]}}}]}
+// ② 模型只输出调用意图（不执行！arguments 是字符串形式的 JSON）
+{"tool_calls": [{"id": "c1", "type": "function",
+    "function": {"name": "get_weather", "arguments": "{\"city\": \"杭州\"}"}}]}
+// ③ 应用代码执行后，把结果以 tool 消息回填，继续对话
+{"role": "tool", "tool_call_id": "c1", "content": "{\"temp\": 26, \"cond\": \"多云\"}"}</code></pre>
+<ul>
+<li><b>工具描述质量决定调用质量</b>：工具描述是写给模型看的接口文档——何时该用、参数含义、枚举取值、示例，写得越清楚调用越准；描述含糊是参数幻觉的温床。</li>
+<li><b>多工具编排与并行调用</b>：相互独立的调用可以在一轮里并行发出（多个 tool_calls）；有依赖的必须等回填再串行发起；复杂流程由模型规划顺序或在代码侧编排。工具箱里最常见的一类工具是知识库检索——先捞相关资料再决策（见 <a href="RAG从原理到落地.html">RAG 从原理到落地</a>）。</li>
+</ul>
+<p><b>常见翻车</b>：</p>
+<table>
+<tr><th class="l">翻车点</th><th class="l">现象</th><th class="l">工程防护</th></tr>
+<tr><td class="l">参数幻觉</td><td class="l">编造枚举外的取值、格式错、拿幻觉值硬调</td><td class="l">Schema 校验 + 枚举约束 + 把报错回填让模型自改</td></tr>
+<tr><td class="l">死循环</td><td class="l">同一工具反复调、不判断终止</td><td class="l">最大步数 / 预算上限 + 循环检测</td></tr>
+<tr><td class="l">错误处理差</td><td class="l">一次失败就放弃，或原样盲目重试</td><td class="l">错误分类处理，重试必须带上失败原因</td></tr>
+</table>
+<p><b>MCP 一句话</b>：MCP（Model Context Protocol，2024 年推出的开放协议）把"模型 ↔ 工具/数据源"的对接标准化——工具方按协议实现一次，多个 Agent 宿主都能接入，把 M×N 的对接变成 M+N。与 Function Calling 的关系：FC 是模型侧的调用机制，MCP 是工具生态侧的标准协议，两者互补。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">面试必问</span><span class="tag">场景设计</span><span class="tag">AI 岗笔试</span></p>
+<ul>
+<li>Agent 循环五步默写 + ReAct 是什么（Reason+Act 交替、观察回填）。</li>
+<li>Function Calling 四步流程 + "谁执行"的职责边界——最高频追问。</li>
+<li>给一个场景（查天气/查库/发工单）当场讲清 Agent 数据流。</li>
+<li>工具描述质量、并行调用与依赖编排、翻车点与工程护栏。</li>
+<li>追问：MCP 是什么、与 function calling 什么关系；记忆与上下文怎么管理。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> Function Calling 流程中，"真正执行函数"的是谁？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 模型在输出参数后自行调用函数并返回结果</div>
+<div class="opt" data-k="B">B. 开发者的应用代码执行函数，把结果以 tool 消息回填给模型继续生成</div>
+<div class="opt" data-k="C">C. 模型服务提供方会自动执行所有注册的函数</div>
+<div class="opt" data-k="D">D. 不需要执行，模型会自己补全结果</div>
+<div class="exp" hidden><b>答案 B。</b>模型的职责止步于"理解工具列表 + 输出函数名与参数 JSON"的调用意图；执行、鉴权、副作用控制全部在应用侧；结果回填后模型才能基于<b>真实观察</b>继续。D 正是"幻觉执行结果"的典型错误。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> ReAct 范式的核心机制是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 推理（Reason）与行动（Act）交替进行，行动后的观察回填再驱动下一轮思考</div>
+<div class="opt" data-k="B">B. 只做任务规划，不与任何环境交互</div>
+<div class="opt" data-k="C">C. 多个模型互相辩论、投票得出结论</div>
+<div class="opt" data-k="D">D. 把所有工具一次性全部调用，汇总结果作答</div>
+<div class="exp" hidden><b>答案 A。</b>ReAct（2022）= Reason + Act：思考痕迹写出来再行动，观察是工具/环境的真实反馈，回填后继续推理直到完成。C 描述的是 debate 类多智能体玩法，D 是"乱枪打鸟"不是范式。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 Agent 的组成与工程实践，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 规划：把目标拆成步骤、决定调用哪些工具、判断何时终止</div>
+<div class="opt" data-k="B">B. 工具：模型只产出调用意图（函数名 + 参数 JSON），执行在应用侧</div>
+<div class="opt" data-k="C">C. 记忆/上下文管理：历史对话与观察结果如何取舍、拼进上下文</div>
+<div class="opt" data-k="D">D. 只要模型足够强，参数校验和最大步数限制都可以省掉</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 是翻车根源——参数幻觉与死循环恰恰要靠"Schema 校验 + 最大步数/预算 + 错误回填"等工程护栏兜底，模型再强也不是理由。A、B、C 对应 Agent 三要素：规划、工具、记忆。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> 设计一个"查天气"Agent，把完整数据流讲一遍。</p>
+<details><summary>参考回答</summary>① <b>注册工具</b>：把 get_weather(city, date) 的 JSON Schema（参数类型、required、枚举说明）放进系统提示；② 用户问"明天杭州穿什么" → 模型思考需要先查天气 → 输出 tool_call：get_weather，参数 {"city": "杭州", "date": "2026-10-01"}；③ 应用侧<b>校验参数</b>（城市合法性、日期格式）→ 调天气 API → 结果以 tool 消息<b>回填</b>；④ 模型基于观察继续推理：气温 26℃、多云 → 生成穿衣建议；若用户还要比两个城市，可一轮并行发出多个 tool_calls。终止条件：模型判断信息足够即输出自然语言回答。加分：主动提参数校验、最大步数上限、失败重试策略——展示工程意识。来源：AI 岗笔试高频。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> Agent 常见的翻车点有哪些？工程上怎么防？</p>
+<details><summary>参考回答</summary>① <b>参数幻觉</b>——编造枚举外的取值、格式错：上 Schema 校验与枚举约束，出错把报错信息回填让模型自己改；② <b>死循环</b>——同一工具反复调、不判停：设最大步数与预算上限，加循环检测；③ <b>错误处理差</b>——一次失败就放弃或原样盲目重试：把错误分类（参数错 / 服务错 / 权限错）分别处理，重试必须带上失败原因。另一大根因是<b>工具描述写得含糊</b>——工具描述就是给模型看的接口文档，描述质量直接决定调用质量。加分：终止条件要在系统提示里写明（何时算完成、何时该停）。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 模型永远不执行函数——答"模型自己调 API"直接暴露没做过落地；② arguments 是<b>字符串形式的 JSON</b>，应用侧要 parse + 校验后再执行；③ 并行调用要求工具间无依赖，有依赖必须串行等回填；④ 观察回填用的是 tool/工具消息角色，不是再发一条 user 消息；⑤ 死循环的根因常是"终止条件没讲清"——系统提示里写明何时停；⑥ MCP 是协议层标准化，FC 是模型能力层机制，两者不是竞争关系。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

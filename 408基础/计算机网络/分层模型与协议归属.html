@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分层模型与协议归属 · 408基础/计算机网络</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机网络</div>
+<h1>分层模型与协议归属</h1>
+<div class="meta">适用岗位：全部（笔试必考选择；面试开场必问"说说 OSI 和 TCP/IP"） ｜ 形态：对应表 + 速查表 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：OSI 7 层 = 物理/链路/网络/传输/会话/表示/应用，TCP/IP 4 层 = 网络接口/网际/传输/应用（教学五层折中）；设备归属：<b>集线器-物理层、交换机-链路层（隔冲突域不隔广播域）、路由器-网络层（两者都隔）</b>；封装 PDU：<b>报文→报文段→分组→帧→比特</b>；<b>RIP 跑 UDP 520、OSPF 直接封 IP（协议号 89）、BGP 跑 TCP 179——三个路由协议三种承载</b>；ARP 按 408 口径属网络层；FTP 控制 21 / 数据 20。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>三套模型的关系</b>：OSI 先定模型后补协议（7 层，理论完整但繁杂，实际没人完整实现）；TCP/IP 从实践中归纳（4 层，事实标准）；教学五层（物理+链路+网络+传输+应用）是折中讲法，408 按五层组织。</p>
+<table>
+<tr><th>OSI（7 层）</th><th>教学五层</th><th>TCP/IP（4 层）</th><th class="l">功能一句话</th></tr>
+<tr><td>7 应用</td><td rowspan="3">应用</td><td rowspan="3">应用</td><td class="l">按协议为用户进程提供服务（HTTP、DNS…）</td></tr>
+<tr><td>6 表示</td><td class="l">数据格式转换、加密压缩（TCP/IP 中并入应用层）</td></tr>
+<tr><td>5 会话</td><td class="l">建立与管理会话（TCP/IP 中并入应用层）</td></tr>
+<tr><td>4 传输</td><td>传输</td><td>传输</td><td class="l"><b>端到端</b>（进程到进程）：TCP 可靠、UDP 尽力而为</td></tr>
+<tr><td>3 网络</td><td>网络</td><td>网际</td><td class="l"><b>主机到主机</b>：路由选择与分组转发（IP）</td></tr>
+<tr><td>2 数据链路</td><td>链路</td><td rowspan="2">网络接口</td><td class="l"><b>相邻节点</b>：成帧、差错检测（以太网、PPP）</td></tr>
+<tr><td>1 物理</td><td>物理</td><td class="l">比特流透明传输，规定接口与介质特性</td></tr>
+</table>
+<p><b>设备归属（考选择）</b>：</p>
+<table>
+<tr><th class="l">设备</th><th>工作层次</th><th class="l">要点</th></tr>
+<tr><td class="l">中继器、集线器（Hub）</td><td>物理层</td><td class="l">只放大转发信号；<b>集线器不隔离冲突域</b>（所有端口同一个冲突域）</td></tr>
+<tr><td class="l">网桥、以太网交换机</td><td>链路层</td><td class="l">按 MAC 地址查表转发帧；<b>隔离冲突域、不隔离广播域</b>（VLAN 才能隔离广播域）</td></tr>
+<tr><td class="l">路由器</td><td>网络层</td><td class="l">按 IP 地址转发分组；<b>既隔离冲突域又隔离广播域</b></td></tr>
+<tr><td class="l">网关</td><td>高层（传输层及以上，常见应用层）</td><td class="l">做协议转换；日常说"网关"多指默认网关（路由器接口 IP），注意区分</td></tr>
+</table>
+<p><b>数据封装与 PDU</b>：发送方自上而下逐层加头（链路层还加尾），接收方自下而上解封装。各层 PDU 依次为：<b>应用报文 → 传输层报文段（segment）→ 网络层分组/IP 数据报（packet）→ 链路层帧（frame）→ 物理层比特</b>。反之自物理层向上就是解封装方向。</p>
+<p><b>"哪个协议在哪层"速查表（408/王道口径）</b>：</p>
+<table>
+<tr><th>层次</th><th class="l">协议</th></tr>
+<tr><td>应用</td><td class="l">HTTP、FTP、DNS、SMTP、POP3、DHCP、Telnet、SNMP、<b>RIP（跑 UDP 520）、BGP（跑 TCP 179）</b></td></tr>
+<tr><td>传输</td><td class="l">TCP、UDP</td></tr>
+<tr><td>网络</td><td class="l"><b>IP、ICMP、IGMP、ARP、RARP</b>、OSPF（报文直接封装在 IP 数据报中，IP 协议号 89）</td></tr>
+<tr><td>链路</td><td class="l">以太网（IEEE 802.3）、PPP、CSMA/CD</td></tr>
+<tr><td>物理</td><td class="l"><b>TCP/IP 体系在物理层没有自己的协议</b>，只有接口标准与传输介质规范（RS-232 等）</td></tr>
+</table>
+<p>注：ARP 的归属各教材有分歧——408/王道归<b>网络层</b>（个别教材归链路层），做题按题目口径。</p>
+<p><b>"路由协议跑在应用层"三大易错</b>：</p>
+<table>
+<tr><th class="l">路由协议</th><th>层次归属</th><th>承载方式</th></tr>
+<tr><td class="l">RIP（距离向量，域内）</td><td><b>应用层</b></td><td>封装在 <b>UDP 报文（端口 520）</b>中</td></tr>
+<tr><td class="l">OSPF（链路状态，域内）</td><td><b>网络层</b></td><td>直接封装在 <b>IP 数据报</b>中（IP 协议号 89）</td></tr>
+<tr><td class="l">BGP（路径向量，域间）</td><td><b>应用层</b></td><td>封装在 <b>TCP 报文段（端口 179）</b>中</td></tr>
+</table>
+<p><b>常见熟知端口表</b>：</p>
+<table>
+<tr><th class="l">协议</th><th>端口</th><th>传输层</th></tr>
+<tr><td class="l">FTP 数据 / 控制</td><td><b>20 / 21</b></td><td>TCP</td></tr>
+<tr><td class="l">Telnet</td><td><b>23</b></td><td>TCP</td></tr>
+<tr><td class="l">SMTP</td><td><b>25</b></td><td>TCP</td></tr>
+<tr><td class="l">DNS</td><td><b>53</b></td><td>主要 UDP（区域传送用 TCP）</td></tr>
+<tr><td class="l">DHCP 服务端 / 客户端</td><td><b>67 / 68</b></td><td>UDP</td></tr>
+<tr><td class="l">TFTP</td><td>69</td><td>UDP</td></tr>
+<tr><td class="l">HTTP</td><td><b>80</b></td><td>TCP</td></tr>
+<tr><td class="l">POP3</td><td><b>110</b></td><td>TCP</td></tr>
+<tr><td class="l">SNMP</td><td>161</td><td>UDP</td></tr>
+<tr><td class="l">HTTPS</td><td><b>443</b></td><td>TCP</td></tr>
+<tr><td class="l">RIP</td><td>520</td><td>UDP</td></tr>
+<tr><td class="l">BGP</td><td>179</td><td>TCP</td></tr>
+</table>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：协议归属判断（RIP/OSPF/BGP/ARP/DHCP 是标准干扰项池）、设备与层次匹配（谁隔离冲突域/广播域）、封装顺序、端口匹配、"某功能属于哪一层"。</li>
+<li>面试口述：OSI 与 TCP/IP 的区别与联系、为什么网络层有 IP 还要 ARP/ICMP、一个 URL 请求经过哪些层哪些协议（综合串讲题）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>1.</b> 下列协议归属正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. RIP 是应用层协议，其报文封装在 UDP 数据报（端口 520）中传送</div>
+<div class="opt" data-k="B">B. BGP 是应用层协议，其报文封装在 TCP 报文段（端口 179）中传送</div>
+<div class="opt" data-k="C">C. ARP 是链路层协议，直接封装在以太网帧中传送</div>
+<div class="opt" data-k="D">D. DHCP 是应用层协议，基于 UDP 实现，服务器使用 67 号端口</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：408/王道口径 ARP 属<b>网络层</b>（个别教材归链路层，做题先认口径，考研答网络层）。A/B/D 三对：RIP-UDP520、BGP-TCP179、DHCP-UDP67 都是"路由协议/配置协议跑在应用层"的经典陷阱点。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 某设备收到帧后根据帧中目的 MAC 地址查表转发，能隔离冲突域，但它连接的所有端口仍处于同一个广播域。该设备是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 集线器</div>
+<div class="opt" data-k="B">B. 网桥 / 以太网交换机</div>
+<div class="opt" data-k="C">C. 路由器</div>
+<div class="opt" data-k="D">D. 中继器</div>
+<div class="exp" hidden><b>答案 B。</b>按帧（MAC）转发 = 链路层设备：交换机每个端口一个冲突域（隔离冲突域）、默认所有端口同广播域（不隔离广播域）。路由器按 IP 转发且广播域也隔离（C 多了"不隔离广播域"这一条）；集线器/中继器是物理层设备，连冲突域都不隔离。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> 主机 A 向远端主机发送数据，数据自上而下经过协议栈，正确的 PDU 封装顺序是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 报文 → 报文段 → 分组（IP 数据报）→ 帧 → 比特</div>
+<div class="opt" data-k="B">B. 报文 → 分组 → 报文段 → 比特 → 帧</div>
+<div class="opt" data-k="C">C. 帧 → 分组 → 报文段 → 报文 → 比特</div>
+<div class="opt" data-k="D">D. 比特 → 帧 → 分组 → 报文段 → 报文</div>
+<div class="exp" hidden><b>答案 A。</b>发送方封装方向 = 应用 → 物理：应用层报文，传输层加 TCP/UDP 头成报文段，网络层加 IP 头成分组（IP 数据报），链路层加帧头帧尾成帧，物理层变比特。D 是接收方解封装的顺序（自下而上）；C 层次颠倒；B 报文段与分组顺序错。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>4.</b> 下列熟知端口与协议的对应关系，<b>错误</b>的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. DNS — 53</div>
+<div class="opt" data-k="B">B. SMTP — 25</div>
+<div class="opt" data-k="C">C. FTP 控制连接 — 20</div>
+<div class="opt" data-k="D">D. HTTPS — 443</div>
+<div class="exp" hidden><b>答案 C。</b>FTP 用两个端口：<b>控制连接 21、数据连接 20</b>，"控制 20"张冠李戴；A、B、D 均正确。同表记忆：Telnet 23、HTTP 80、POP3 110、DHCP 67/68。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="AC" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 关于 OSI 参考模型与 TCP/IP 模型，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 传输层提供端到端（进程到进程）的通信，网络层提供主机到主机的通信</div>
+<div class="opt" data-k="B">B. 网络层的主要任务是在相邻节点之间传输帧并进行差错检测</div>
+<div class="opt" data-k="C">C. 物理层的传输单位是比特，链路层的传输单位是帧</div>
+<div class="opt" data-k="D">D. TCP/IP 模型把 OSI 的会话层、表示层功能并入网络接口层</div>
+<div class="exp" hidden><b>答案 AC。</b>B 说的是链路层职能——网络层负责路由选择与分组转发（主机到主机）；D 错：会话、表示两层的功能并入的是<b>应用层</b>，不是网络接口层。补充（面试口述）：OSI 是先有模型后有协议的"理论标准"，TCP/IP 是先有协议后归纳的"事实标准"。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 路由协议承载三连：RIP-UDP520（应用层）、OSPF 直接封 IP 协议号 89（网络层）、BGP-TCP179（应用层），"路由协议都在网络层"是最大误区；② ARP 归网络层（408 口径），ICMP/IGMP 也封装在 IP 中、同属网络层；③ 设备口诀：集线器什么域都不隔，交换机隔冲突域不隔广播域，路由器两个都隔；④ FTP 双端口 21 控制/20 数据；DNS 主要 UDP 53（区域传送 TCP）；DHCP 服务器 67/客户端 68；⑤ PDU 五件套按"报文→报文段→分组→帧→比特"背；会话/表示层并入的是 TCP/IP 的应用层；⑥ 物理层没有 TCP/IP 协议，别把 RS-232 当成 TCP/IP 的物理层协议。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

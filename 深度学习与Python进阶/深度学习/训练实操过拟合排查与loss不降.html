@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>训练实操：过拟合排查/loss 不降 · 深度学习与Python进阶/深度学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习</div>
+<h1>训练实操：过拟合排查 / loss 不降</h1>
+<div class="meta">适用岗位：全部调参岗（工程排障高频） ｜ 形态：矩阵 + 清单 + 口述模板 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：先看 train/val 曲线 gap——train 低 val 高=过拟合，双高=欠拟合（先排 bug），train 高 val 低=怀疑泄漏/指标错；<b>黄金测试是单 batch 过拟合</b>：几十个样本压不到 0 就是通路 bug；loss 不降按"数据 → lr → 归一化 → 初始化 → 梯度"顺序查；nan/inf 先分"第一步就 nan"（lr/数据/初始化）与"中途 nan"（log(0)、除零、fp16 上溢）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>1. 过拟合/欠拟合诊断：train/val 曲线 gap 矩阵</b>（先排除实现 bug，再谈拟合状态）</p>
+<table>
+<tr><th>train loss</th><th>val loss</th><th>诊断</th><th>首选动作</th></tr>
+<tr><td>低</td><td>低</td><td>健康拟合</td><td>可以收工，继续压 val 或扩任务</td></tr>
+<tr><td>低</td><td>高</td><td><b>过拟合</b></td><td>早停、数据增强、L2/dropout、减容量、加数据</td></tr>
+<tr><td>高</td><td>高</td><td><b>欠拟合</b></td><td>加容量/训更久、降正则、检查 lr 与特征</td></tr>
+<tr><td>高</td><td>低</td><td><b>先查 bug</b></td><td>val 太容易或预处理泄漏进 val、分布不一致、指标实现错</td></tr>
+</table>
+
+<p><b>2. 正则工具箱</b></p>
+<ul>
+<li><b>L2 / 权重衰减</b>：惩罚大权重，让函数更平滑（AdamW 的解耦写法见训练三件套页）。</li>
+<li><b>Dropout</b>：训练时按 p 随机置零激活，推理关闭；现代实现是 inverted dropout——训练时已按 $1/(1-p)$ 缩放，推理原样输出。</li>
+<li><b>数据增强</b>：翻转/裁剪/mixup 等，等于"免费扩充训练集"，是 CV 首选正则。</li>
+<li><b>早停</b>：val 曲线回头就停，保留最优权重——零成本，先上这个。</li>
+<li><b>Label smoothing 一句</b>：把 one-hot 换成 $1-\varepsilon$ 与 $\varepsilon$ 均分，压分类头的过度自信（Inception-v3 论文 2016 使用）。</li>
+</ul>
+
+<p><b>3. loss 不降排查清单（按这个顺序）</b></p>
+<ul>
+<li>① <b>数据与标签</b>：错位、类别塌缩、增强把标签改坏——黄金测试：挑几十个样本单 batch 训练，看能否把 loss 压到接近 0（能过拟合说明模型、损失、反传通路都通）。</li>
+<li>② <b>学习率</b>：太大震荡不收敛、太小纹丝不动——扫 1e-2 / 1e-3 / 1e-4 三点，看曲线形态。</li>
+<li>③ <b>归一化</b>：输入有没有标准化、网络里 BN/LN 漏没漏（选型见 <a href="归一化BN-LN-GN.html">归一化页</a>）。</li>
+<li>④ <b>初始化</b>：全零/方差不对 → 激活塌 0 或爆炸；死 ReLU 的信号是激活里 0 的比例畸高（背景见 <a href="训练三件套激活函数优化器与初始化.html">训练三件套页</a>）。</li>
+<li>⑤ <b>梯度检查</b>：数值梯度对照，看各层 grad 范数是否健康（全 0、或层间悬殊几个量级都有问题）。</li>
+<li>⑥ <b>实现 bug</b>：loss 没进计算图、忘 optimizer.step()/zero_grad()、train/eval 模式没切、数据没 shuffle。</li>
+</ul>
+
+<p><b>4. loss=nan/inf 排查</b>：先分两类——<b>第一步就 nan</b>：lr 太大、数据自带 nan/inf、初始化炸；<b>中途 nan</b>：lr 偏大慢慢飞、<code>log(0)</code>（交叉熵输入没过 sigmoid/softmax 或概率未 clamp 加 ε）、除零（全 pad 的 batch、归一化分母 0）、<b>fp16 上溢</b>（半精度可表示上限约 6.55×10⁴，混合精度必须配动态 loss scaling / GradScaler）。定位方法：从能跑通的最小配置（单样本 + fp32 + 小 lr）逐项加回来，用 <code>torch.autograd.set_detect_anomaly(True)</code> 定位出问题的算子。</p>
+
+<p><b>5. 学习率调度一句</b>：warmup 起步 + 之后阶梯衰减 / 余弦退火，val 平台期降 lr（ReduceLROnPlateau）——调度解决"不同阶段要不同步长"，不解决 bug。</p>
+
+<p><b>loss 不降快速体检（PyTorch 伪代码）</b></p>
+<pre><code>x = (x - x.mean(0)) / (x.std(0) + 1e-8)   # 1) 输入标准化了吗
+assert torch.isfinite(x).all()            # 2) 特征里有没有 nan/inf
+loss = F.cross_entropy(logits, y)         # 3) 标签范围 0..C-1、dtype 对齐
+torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)   # 4) 先裁剪防飞</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">工程口述高频</span><span class="tag">笔试选择</span></p>
+<ul>
+<li>给曲线场景问诊断与动作：四种 gap 组合要能条件反射。</li>
+<li>nan/inf 原因多选与定位流程：fp16 上溢、log(0)、除零、lr 大。</li>
+<li>面试口述题："loss 不降你怎么查"——考的是<b>有序的排查框架</b>，不是罗列可能原因；"单 batch 过拟合测试"是必说的加分句。</li>
+<li>正则工具箱各治什么：过拟合用正则，欠拟合降正则/加容量，别开错药。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 训练曲线上 train loss 已降到 0.05，val loss 在第 20 个 epoch 后开始回升，当前 val loss 0.80。最合理的判断与动作是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 欠拟合，应该训练更多 epoch</div>
+<div class="opt" data-k="B">B. 过拟合，用早停 / 数据增强 / 加重正则</div>
+<div class="opt" data-k="C">C. 学习率太小，应该调大 10 倍</div>
+<div class="opt" data-k="D">D. 模型容量太小，应该加深网络</div>
+<div class="exp" hidden><b>答案 B。</b>train 低 + val 回升是教科书式过拟合；加深网络、练更久、调大 lr 都只会更糟。工程顺序：先早停止损，再加正则/增强，有条件就加数据。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> train loss 与 val loss 都停在高位不再下降，加大 epoch 无效；但用几十个样本做单 batch 过拟合测试能把 loss 压到接近 0。最可能的问题是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 欠拟合或训练配置不当（容量/lr/正则过强），因为单 batch 能过拟合说明梯度与标签通路正常</div>
+<div class="opt" data-k="B">B. 数据通路有 bug，标签错了</div>
+<div class="opt" data-k="C">C. 过拟合，应该加 dropout</div>
+<div class="opt" data-k="D">D. val 集有数据泄漏</div>
+<div class="exp" hidden><b>答案 A。</b>"单 batch 过拟合测试"通过 = 模型、损失、反传、标签对齐都没问题（能记住训练样本），剩下就是容量不足/lr 不合适/正则过强的欠拟合区。B 与测试结果矛盾；C 与"train 也高"矛盾——过拟合是 train 低 val 高；D 恰好相反（泄漏让 val 假性变好，val 会低不是高）。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 训练中途 loss 变成 nan，可能的原因有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 学习率过大，参数一步更新飞到 inf</div>
+<div class="opt" data-k="B">B. 交叉熵输入概率为 0，log(0) 未做 clamp / 加 ε</div>
+<div class="opt" data-k="C">C. 使用 fp16 混合精度但没配 loss scaling，激活/梯度上溢</div>
+<div class="opt" data-k="D">D. dropout 的 p 设为 0.5 导致数值不稳定</div>
+<div class="exp" hidden><b>答案 ABC。</b>fp16 可表示上限约 6.55×10⁴，超了就是 inf，混合精度要配动态 loss scaling；除零（全 pad batch、归一化分母）与数据自带 nan 也常见。p=0.5 是常规超参，不是 nan 来源（D 错）。定位：最小复现 + set_detect_anomaly + 逐项 clamp。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> 拿到一个从零开始训练的模型，loss 不降，说出你的排查顺序。</p>
+<details><summary>参考回答</summary>按顺序来：① 先看数据——抽样肉眼对齐输入与标签、看类别分布；② 黄金测试——单个小 batch 过拟合，压不到 0 就是通路 bug（loss 实现/标签映射/训练循环）；③ 扫学习率（1e-2/1e-3/1e-4 三点，看曲线是纹丝不动、震荡还是飞）；④ 查输入归一化与网络内归一化（BN/LN）漏没漏；⑤ 查初始化与激活健康度（激活/梯度直方图、死 ReLU 比例）；⑥ 梯度检查、裁剪与 nan 监控；⑦ 还不行就最小化复现——砍深度、砍数据，二分定位。加分点：主动说出"先单 batch 过拟合"这个黄金测试，以及"先 fp32 单样本跑通，再加精度与并行"。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① train 低 val 高才叫过拟合，双高是欠拟合（先排 bug），别背反；② 单 batch 过拟合测试是排查第一刀——能过拟合再谈调参，不能过拟合先修 bug；③ nan 先分"第一步就 nan"（lr/数据/初始化）与"中途 nan"（log(0)/除零/fp16）；④ 早停看 val 曲线不看 train；⑤ 优化器/warmup/初始化细节见 <a href="训练三件套激活函数优化器与初始化.html">训练三件套页</a>，归一化选型见 <a href="归一化BN-LN-GN.html">归一化页</a>。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

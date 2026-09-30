@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>作用域闭包与装饰器 · 深度学习与Python进阶/Python进阶</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / Python进阶</div>
+<h1>作用域、闭包与装饰器</h1>
+<div class="meta">适用岗位：AI 开发、测开(Python)、通用软开 ｜ 形态：概念 + 输出判断 + 面试手写装饰器 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：变量查找按 <b>LEGB</b>（Local → Enclosing → Global → Built-in）顺藤摸瓜；在函数里给名字赋值它就是 local，改外层要 <b>nonlocal</b>、改模块要 <b>global</b>；<b>闭包 = 内函数引用外层变量，且外层函数已返回</b>——变量活在 cell 对象里；<b>循环里建的 lambda 全部晚绑定同一个变量</b>，返回后调用得 [2, 2, 2]，用默认参数 <code>i=i</code> 固化；装饰器 = <b>@ 语法糖等价 f = deco(f)</b>，<code>functools.wraps</code> 保元信息，<b>带参装饰器三层嵌套</b>：收参数 → 收函数 → 收调用参数。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>LEGB：变量查找的四站顺序</b></p>
+<table>
+<tr><th>层级</th><th class="l">全称</th><th class="l">含义</th></tr>
+<tr><td>L</td><td class="l">Local</td><td class="l">当前函数内部（含参数）</td></tr>
+<tr><td>E</td><td class="l">Enclosing</td><td class="l">外层（嵌套）函数的作用域</td></tr>
+<tr><td>G</td><td class="l">Global</td><td class="l">模块（文件）级名字</td></tr>
+<tr><td>B</td><td class="l">Built-in</td><td class="l">内置名（print、len…），最后一站</td></tr>
+</table>
+<ul>
+<li><b>赋值即本地</b>：函数内对名字赋值（没有 global/nonlocal 声明），这个名字就是 local——哪怕赋值语句在 print 之后，也会报 <code>UnboundLocalError</code> 而不是去外层找。</li>
+<li><b>global x</b>：函数内赋值写进模块级；<b>nonlocal x</b>：写进上一层函数的变量（Python 3 引入的关键字，Python 2 只有 global）。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>x = 1
+def f():
+    x = 2                 # f 的局部变量，与模块级 x 无关
+    def g():
+        print(x)          # g 只读：按 LEGB 找到 Enclosing（f 的 x = 2）
+    g()
+
+f()        # 2
+print(x)   # 1 —— 模块级 x 从未被改动
+
+def outer():
+    n = 0
+    def step():
+        nonlocal n        # 声明：改的是 outer 的 n
+        n += 1
+        return n
+    return step
+
+c = outer()
+c(); c()
+print(c())   # 3 —— 闭包计数器：n 一直活在 cell 里</code></pre>
+
+<p><b>闭包（closure）</b></p>
+<ul>
+<li><b>定义</b>：内层函数引用了外层作用域的变量，并且外层函数已经返回——变量没有死，而是被装进 cell 对象，随返回的函数对象一起活下来（<code>fn.__closure__</code> 可见）。</li>
+<li>价值：把"状态"挂在函数上而不必写成类，计数器、缓存、装饰器都靠它。</li>
+<li>本质与"变量绑定"同源，传参、共享可变对象的坑见 <a href="可变不可变与深浅拷贝.html">可变不可变与深浅拷贝</a> 一页。</li>
+</ul>
+
+<p><b>late binding 坑：闭包绑定的是变量，不是取值那一刻</b></p>
+<span class="lang">Python</span>
+<pre><code>funcs = []
+for i in range(3):
+    funcs.append(lambda: i)     # 三个 lambda 引用的是【同一个】变量 i
+
+print([f() for f in funcs])     # [2, 2, 2] —— 循环结束后 i = 2，调用时才去取
+
+funcs_fix = [lambda i=i: i for i in range(3)]   # 默认参数在 def 时求值，当场固化
+print([f() for f in funcs_fix]) # [0, 1, 2]</code></pre>
+<ul>
+<li>三个 lambda 的 <code>__closure__</code> 里是<b>同一个 cell</b>，循环结束时 i=2，谁被调用谁去 cell 里现取——这叫<b>晚绑定（late binding）</b>，与 Python 版本无关。</li>
+<li>修复思路：在绑定时就把值固定下来，最惯用的是默认参数 <code>i=i</code>（默认值在 def 时求值一次，原理见 <a href="可变不可变与深浅拷贝.html">可变不可变与深浅拷贝</a> 的默认参数一节）。</li>
+</ul>
+
+<p><b>装饰器：函数是对象，@ 是语法糖</b></p>
+<ul>
+<li>Python 里函数是一等对象：可以赋值给变量、当参数传、当返回值——这是装饰器的全部地基。</li>
+<li><code>@deco</code> 上面放 <code>def f()</code>，等价于 <code>f = deco(f)</code>：<b>包装发生在 def/import 时，只执行一次</b>；之后每次调用 f() 走的都是包装后的函数。</li>
+<li>堆叠 <code>@a @b</code>：<b>自下而上包装、自上而下执行</b>——<code>@a @b def f</code> 等价 <code>f = a(b(f))</code>。本机实跑：def 时打印 B、A；调用时打印 a-in、b-in。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>def d_a(fn):
+    print("A")
+    def wa():
+        print("a-in")
+        fn()
+    return wa
+
+def d_b(fn):
+    print("B")
+    def wb():
+        print("b-in")
+        fn()
+    return wb
+
+@d_a
+@d_b
+def hi():
+    print("hi")
+# def 时刻立刻打印：B、A（b 先包装，a 再包 b 的结果）
+
+hi()   # 调用时刻打印：a-in、b-in、hi（外层包装先执行）</code></pre>
+<ul>
+<li><b>functools.wraps 保元信息</b>：不加的话包装函数的 <code>__name__</code>、<code>__doc__</code> 全变成 wrapper——调试、文档、按函数名注册路由（Flask/FastAPI）、多进程 pickle 函数都会出问题。<b>写装饰器必带。</b></li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>import functools, time
+
+def timed(unit="ms"):
+    def deco(fn):                       # 第二层：接住被装饰函数
+        @functools.wraps(fn)            # 保住 __name__/__doc__ 等元信息
+        def wrapper(*args, **kwargs):   # 第三层：接住调用参数
+            t0 = time.perf_counter()
+            try:
+                return fn(*args, **kwargs)
+            finally:
+                cost = (time.perf_counter() - t0) * (1000 if unit == "ms" else 1)
+                print(f"{fn.__name__} 耗时 {cost:.1f}{unit}")
+        return wrapper
+    return deco                          # 第一层：接住装饰器参数
+
+@timed(unit="ms")
+def work(n):
+    return sum(range(n))
+
+work(10**6)            # work 耗时 21.3ms（数值随机）
+print(work.__name__)   # work —— wraps 生效，不是 wrapper</code></pre>
+<ul>
+<li><b>带参装饰器 = 三层嵌套</b>：<code>@timed(unit="ms")</code> 先执行 <code>timed(unit="ms")</code> 返回真正的装饰器 deco，再由 @ 包装函数。三层职责口诀：<b>外层收参数、中层收函数、内层收调用参数</b>。</li>
+<li><b>类装饰器一句</b>：实现 <code>__init__(self, fn)</code> 与 <code>__call__</code> 的类实例也能当装饰器用，需要跨调用保存状态（如限流、重试计数）时首选。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试手写</span></p>
+<ul>
+<li>输出判断：循环闭包 late binding、global/nonlocal 改的是哪一层、装饰器打印顺序。</li>
+<li>概念选择：LEGB 顺序、@ 的等价变换、闭包变量存活机制、wraps 的作用。</li>
+<li>面试手写：计时/日志/重试装饰器，带参版三层嵌套是必背题；追问点在 wraps 和装饰时机。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>funcs = []
+for i in range(3):
+    funcs.append(lambda: i)
+
+print([f() for f in funcs])</code></pre>
+<div class="opt" data-k="A">A. [0, 1, 2]，每个 lambda 记住了自己当时的 i</div>
+<div class="opt" data-k="B">B. [2, 2, 2]，三个 lambda 晚绑定同一个变量 i，循环结束时 i=2</div>
+<div class="opt" data-k="C">C. [3, 3, 3]，range(3) 最后 i 停在 3</div>
+<div class="opt" data-k="D">D. [0, 0, 0]，lambda 未调用前 i 不可见</div>
+<div class="exp" hidden><b>答案 B。</b>闭包绑定的是变量 i 本身而不是取值那一刻（late binding）：三个 lambda 的 <code>__closure__</code> 里是同一个 cell，循环结束后 i=2，调用时才去取。固化写法：<code>lambda i=i: i</code>（默认参数在 def 时求值，见 <a href="可变不可变与深浅拷贝.html">可变不可变与深浅拷贝</a>）。本机 Python 3.12.9 实跑输出 [2, 2, 2]。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> <code>@a</code> 叠在 <code>@b</code> 上面装饰 <code>def f</code>（即 @a @b def f），等价于下列哪种变换？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. f = a(b(f))：b 先包装 f，a 再包装 b 的结果</div>
+<div class="opt" data-k="B">B. f = b(a(f))：a 先包装 f</div>
+<div class="opt" data-k="C">C. f 被 a 和 b 各自独立包一次，互不影响</div>
+<div class="opt" data-k="D">D. @ 只是注释，运行时没有任何效果</div>
+<div class="exp" hidden><b>答案 A。</b>装饰器自下而上包装、调用时自上而下穿过。带打印的实测（见知识点）：def 时刻输出 B、A，调用 f() 时输出 a-in、b-in。提醒：包装发生在 def/import 时只执行一次，不是每次调用都重新装饰。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>x = 1
+def f():
+    x = 2
+    def g():
+        print(x)
+    g()
+
+f()
+print(x)</code></pre>
+<div class="opt" data-k="A">A. 2 和 1</div>
+<div class="opt" data-k="B">B. 2 和 2</div>
+<div class="opt" data-k="C">C. 1 和 1</div>
+<div class="opt" data-k="D">D. UnboundLocalError</div>
+<div class="exp" hidden><b>答案 A。</b>g 里对 x 只有"读"，按 LEGB 在 Enclosing（f 的局部）找到 2；f 的赋值 <code>x = 2</code> 造的是 f 的局部变量，与模块级 x 无关，最后一行输出 1。要让 f 改模块级 x 需声明 <code>global x</code>；要改上一层函数的 x 需 <code>nonlocal x</code>（Python 3 起）。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于作用域与闭包，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 函数内对变量赋值，该变量默认成为局部变量，除非声明 global/nonlocal</div>
+<div class="opt" data-k="B">B. nonlocal 声明的变量在 Enclosing（外层函数）作用域查找</div>
+<div class="opt" data-k="C">C. 闭包引用的外层变量在外层函数返回后仍存活，存在 cell 对象中</div>
+<div class="opt" data-k="D">D. global x 声明后，对 x 的赋值写进的是 builtins 模块</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：global 对应 LEGB 的 G（模块级），Built-in 只是查找的最后一站、与 global 无关。C 是闭包的定义：变量装进 cell 随函数对象存活，<code>fn.__closure__</code> 可查看。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 手写一个带参计时装饰器 <code>timed(unit="ms")</code>：打印被装饰函数的耗时，要求函数元信息（<code>__name__</code> 等）不变，并说明三层嵌套各自接住什么。</p>
+<details><summary>参考回答</summary>核心是三层嵌套：外层收装饰器参数、中层收被装饰函数、内层收调用参数，用 functools.wraps 保元信息。<br>
+<span class="lang">Python</span>
+<pre><code>import functools, time
+
+def timed(unit="ms"):
+    def deco(fn):                       # 第二层：接住被装饰函数
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):   # 第三层：接住调用参数
+            t0 = time.perf_counter()
+            try:
+                return fn(*args, **kwargs)
+            finally:
+                cost = (time.perf_counter() - t0) * (1000 if unit == "ms" else 1)
+                print(f"{fn.__name__} 耗时 {cost:.1f}{unit}")
+        return wrapper
+    return deco                          # 第一层：接住装饰器参数
+
+@timed(unit="ms")
+def work(n):
+    return sum(range(n))</code></pre>
+讲解顺序：<code>@timed(unit="ms")</code> 先执行 timed 拿到 deco（第一层），@deco 再包装 work（第二层），调用 work(...) 时进入 wrapper（第三层）。加分点：perf_counter 是单调高精度时钟，比 time.time 适合测耗时；try/finally 保证函数抛异常也打印；漏掉 wraps 会丢 <code>__name__</code>/<code>__doc__</code>，路由注册、序列化都会踩坑；装饰在 def 时执行一次，每次调用走的是 wrapper。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 循环里造闭包默认晚绑定，要固化用 <code>i=i</code> 默认参数。② 函数内赋值即 local，"先读后赋值"报 UnboundLocalError；改外层 nonlocal、改模块 global，别混。③ 装饰器忘 functools.wraps 是最常见的手写扣分点。④ 带参装饰器是三层不是两层：收参数 → 收函数 → 收调用参数。⑤ 装饰发生在 def/import 时、只执行一次；堆叠时自下而上包装、自上而下执行。⑥ 闭包变量活在 cell 里，多次调用工厂函数得到的是各自独立的 cell（闭包计数器互不串台）。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

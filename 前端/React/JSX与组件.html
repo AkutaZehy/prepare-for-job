@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSX 与组件：类组件 vs 函数组件 · 前端/React</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / React</div>
+<h1>JSX 与组件：类组件 vs 函数组件</h1>
+<div class="meta">适用岗位：前端、通用软开 ｜ 形态：概念对比 + 短路输出题 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：JSX 编译后是 <code>React.createElement / jsx()</code> 调用，产出<b>描述 UI 的普通 JS 对象</b>（React element），不是真实 DOM；条件渲染 <code>&amp;&amp;</code> 短路有个 0 陷阱（<code>count &amp;&amp; &lt;Badge/&gt;</code> 在 count=0 时渲染出数字 0）；props 只读、state 要走 setState——直接改不触发渲染；表单受控 = value+onChange，非受控 = defaultValue/ref；类组件死于 this 绑定与逻辑复用困难，<b>React 16.8 引入 Hooks</b> 后函数组件成绝对主流。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<span class="lang">JSX · 本质：编译产物是对象，不是 DOM</span>
+<pre><code>const el = &lt;h1 className="t"&gt;hi {name}&lt;/h1&gt;;
+
+// 编译为（React 16 及以前的经典转换，需 import React）
+const el = React.createElement('h1', { className: 't' }, 'hi ', name);
+
+// React 17+ 自动运行时（automatic runtime）：不用 import React，
+// 编译器自动注入 import { jsx } from 'react/jsx-runtime'
+
+// createElement / jsx 返回的是形如下面的普通对象（React element）：
+// { $$typeof: Symbol(react.element), type: 'h1', props: {...} }
+// 它只是"描述"，真正变成 DOM 是 React 后续 render/diff 的事</code></pre>
+<ul>
+<li><b>花括号 {} 与条件渲染</b>：{} 里写任意 JS 表达式（不能是语句）。条件渲染三板斧：<code>cond &amp;&amp; &lt;A/&gt;</code>、<code>cond ? &lt;A/&gt; : &lt;B/&gt;</code>、<code>list.map(...)</code>。注意 <code>&amp;&amp;</code> 左侧为 <code>0</code> 时会渲染出数字 0（0 虽 falsy，但 <code>0 &amp;&amp; x</code> 的结果是 0 本身，React 对数字照渲染）；<code>false/null/undefined</code> 则什么都不渲染。</li>
+<li><b>列表与 key</b>：<code>list.map(item =&gt; &lt;li key={item.id}&gt;...&lt;/li&gt;)</code>，key 要稳定唯一，<b>不用数组下标</b>——插入/删除后状态错位，原理同 Vue（对照 <a href="../Vue/computed与watch与diff概览.html">computed/watch 与 diff 概览</a> 页的复选框例子）。</li>
+<li><b>props 单向数据流与不可变</b>：props 只读，子组件不能改 props（要改数据就回调给父）；state 也不许直接赋值——类组件 <code>this.state.x = 1</code> 不触发重渲染，必须 <code>setState</code>；函数组件用 <code>useState</code> 的 setter。React 靠"引用变没变"判断要不要更新（不可变数据是整套机制的地基，见 <a href="../Vue/响应式原理.html">响应式原理</a> 页的 Vue 对照）。</li>
+</ul>
+<span class="lang">JSX · 受控 vs 非受控</span>
+<pre><code>// 受控组件：React state 是唯一数据源，输入框的值完全由 state 驱动
+&lt;input value={name} onChange={e =&gt; setName(e.target.value)} /&gt;
+// 注意：只给 value 不给 onChange，输入框会"打不了字"并收到警告
+
+// 非受控组件：DOM 自己管理值，需要时用 ref 去取
+&lt;input defaultValue="hi" ref={inputRef} /&gt;
+inputRef.current.value   // 提交时才读</code></pre>
+<span class="lang">JS · 类组件 this 绑定问题（为什么被函数组件取代）</span>
+<pre><code>class Old extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { n: 0 };
+    // 坑：类方法默认不绑 this，传出去当回调 this 是 undefined
+    this.handleClick = this.handleClick.bind(this);   // 解法1：构造器里 bind
+  }
+  handleClick() { this.setState({ n: this.state.n + 1 }) }
+  // 解法2：类字段箭头函数 handleClick = () =&gt; {...}
+}
+
+// React 16.8（2019）引入 Hooks，函数组件全面胜出：
+// ① 逻辑复用靠自定义 Hook，告别 HOC/render props 嵌套地狱
+// ② 没有 this，心智负担消失
+// ③ 相关逻辑可以聚在一起，而不是按生命周期拆散
+// 组合优于继承：React 官方从未推荐组件继承，复用靠 children 组合 / render props / Hook</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出题</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：JSX 编译产物是什么、&amp;&amp;/三元/map 条件渲染、受控非受控区分、setState 直接改 state 行不行。</li>
+<li>面试链路："JSX 是什么"→ createElement/自动运行时 → element vs DOM → 条件渲染陷阱 → key → props/state 不可变 → 类组件 this 问题 → 为什么 Hooks 赢。</li>
+<li>场景：表单联动校验选受控还是非受控；输入框打不了字排查（value 没配 onChange）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> JSX 经编译后的产物本质上是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 真实的 DOM 节点</div>
+<div class="opt" data-k="B">B. HTML 字符串</div>
+<div class="opt" data-k="C">C. 描述 UI 结构的普通 JS 对象（React element），由 React 再渲染成真实 DOM</div>
+<div class="opt" data-k="D">D. 浏览器内置的模板元素 template</div>
+<div class="exp" hidden><b>答案 C。</b><code>&lt;h1&gt;hi&lt;/h1&gt;</code> 编译为 <code>React.createElement('h1', null, 'hi')</code>（React 17+ 自动运行时走 jsx()），返回带 type/props 的对象。这层"描述与实现分离"正是虚拟 DOM diff 的前提。版本结论：React 17 起新 JSX 转换不再要求手动 import React。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 场景：写了 <code>&lt;input value={name} /&gt;</code>（name 是 state），页面输入框却打不了字。原因与正确修法是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. value 不能是变量，必须写死字面量</div>
+<div class="opt" data-k="B">B. 只给 value 不给 onChange，这是"半受控"：state 不变输入永远被重置回 name；补上 onChange 更新 state 即可输入</div>
+<div class="opt" data-k="C">C. 应该改成 this.state.name 直接赋值</div>
+<div class="opt" data-k="D">D. input 组件坏了，换成 div contentEditable</div>
+<div class="exp" hidden><b>答案 B。</b>受控组件的约定：value 来自 state、每次输入经 onChange 回写 state。缺 onChange 时 state 不更新，React 重渲染把输入框拉回原值。确实不需要实时受控就用 <code>defaultValue</code> 走非受控。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 React 的 props / state / key，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. props 是只读的，子组件不应直接修改，数据变更应通过回调交回父组件（单向数据流）</div>
+<div class="opt" data-k="B">B. 类组件直接给 this.state 赋值不会触发重渲染，必须用 setState</div>
+<div class="opt" data-k="C">C. 列表用数组下标 index 当 key 是官方推荐，稳定可靠</div>
+<div class="opt" data-k="D">D. state 更新要用不可变方式：数组用 [...arr, x]、对象用 {...obj}，而不是 push/直接改字段</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：index 当 key 在插入/删除时会状态错位（复选框、输入框串值），与 Vue 同款结论。D 是因为 React 靠引用比较判断数据变没变，原地改引用不变就不会重渲染。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">输出题</span><b>4.</b> 组件里 <code>const count = 0;</code>，模板写 <code>{count &amp;&amp; &lt;Badge /&gt;}</code>。页面会渲染出什么？为什么？至少给出两种正确写法。</p>
+<details><summary>先自己想，再展开对答案</summary>页面会渲染出一个数字 <b>0</b>。<code>count &amp;&amp; x</code> 当 count=0 时短路返回 0 本身——0 是 falsy，但它不是 false/null/undefined，React 对数字类型照常渲染成文本。写法修正：① <code>{count &gt; 0 &amp;&amp; &lt;Badge /&gt;}</code> 把左侧变成布尔；② <code>{count ? &lt;Badge /&gt; : null}</code> 三元兜底 null；③ <code>{!!count &amp;&amp; &lt;Badge /&gt;}</code> 强转布尔。这个 0 陷阱是 React 面试与 code review 出镜率最高的表达式 bug。来源：面试高频改编。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> "类组件和函数组件有什么区别？为什么现在都写函数组件？"按时间线 + 三个理由讲清楚。</p>
+<details><summary>参考回答</summary>时间线：React 16.8（2019）引入 Hooks 之前逻辑只能写在类组件里，之后函数组件通过 Hooks 获得完整能力，成为官方推荐默认。区别与胜出理由：① 逻辑复用——类组件靠 HOC/render props 层层嵌套（包装地狱），函数组件自定义 Hook 把状态逻辑抽成可组合的函数；② this——类组件要 bind 或箭头函数绑 this，忘绑就 undefined，函数组件没有 this；③ 内聚——类组件按生命周期把同一功能的代码拆散在各钩子里，函数组件一个 useEffect 就能把"订阅+清理"写在一处。加分点：函数组件每次渲染是全新闭包（引出闭包陷阱话题）；组合优于继承是 React 一贯立场，复用走 children/render props/Hook 而非继承。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① <code>{count &amp;&amp; &lt;Badge/&gt;}</code> 的 0 陷阱：左侧保证是布尔再 &amp;&amp;；② 类组件忘 bind，回调里 this 是 undefined——报错 "Cannot read properties of undefined"；③ 直接 push 数组/改对象字段不重渲染：React 比的是引用；④ 列表 key 用 index，增删后输入框、勾选串值；⑤ 受控组件漏 onChange 打不了字、控制台有 value without onChange 警告——看警告别硬猜。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

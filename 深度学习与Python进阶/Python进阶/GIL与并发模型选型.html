@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIL与并发模型选型 · 深度学习与Python进阶/Python进阶</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / Python进阶</div>
+<h1>GIL 与并发模型选型</h1>
+<div class="meta">适用岗位：AI 开发、测开(Python)、通用软开 ｜ 形态：概念 + 场景选型（面试高频） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>GIL 是 CPython 的解释器级互斥锁——同一时刻一个进程内只有一个线程在执行 Python 字节码</b>；线程进入<b>阻塞 IO</b>（等待网络/磁盘/sleep）会释放 GIL，纯 CPU 计算不释放 → <b>多线程救 IO 不救 CPU</b>；CPU 密集 → <b>多进程</b>（每进程独立解释器绕开 GIL，代价是进程开销 + pickle 序列化）；海量并发 IO → <b>asyncio 协程</b>（单线程事件循环，CPU 阻塞会卡死它）；Python 3.13 起有实验性 free-threading 构建（无 GIL），生态尚未成熟。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>GIL 是什么</b></p>
+<ul>
+<li><b>Global Interpreter Lock（全局解释器锁）</b>：CPython（官方 C 实现）里的解释器级互斥锁，保证<b>同一时刻一个进程内只有一个线程执行 Python 字节码</b>，即使机器有 32 核。</li>
+<li>为什么存在：CPython 的内存管理（引用计数）不是线程安全的，GIL 是最省事的保护方案——代价是把"线程并行"锁成了"线程轮转"。</li>
+<li><b>IO 会释放，CPU 不释放</b>：线程进入阻塞 IO（socket、read、sleep、等锁）时主动放开 GIL 让别的线程跑；纯 Python 计算循环则一直攥着 GIL。所以多线程对 IO 密集有效、对 CPU 密集无效。</li>
+<li>边界精确化："一个线程执行字节码"说的是<b>纯 Python 字节码</b>；C 扩展（numpy 的大运算、hashlib、压缩库）可以在 C 层自行释放 GIL 多核并行——所以 numpy 排版的重活不受 GIL 拖累。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>import threading, time
+
+# 五个线程各 sleep 0.1 秒：等待是并行的（sleep 阻塞时释放 GIL）
+t0 = time.perf_counter()
+ts = [threading.Thread(target=time.sleep, args=(0.1,)) for _ in range(5)]
+for t in ts: t.start()
+for t in ts: t.join()
+print(round(time.perf_counter() - t0, 1))   # 0.1 —— 不是 0.5
+
+# 对照：串行 5 次才是 0.5
+t0 = time.perf_counter()
+for _ in range(5):
+    time.sleep(0.1)
+print(round(time.perf_counter() - t0, 1))   # 0.5</code></pre>
+<blockquote>诚实备注（本机 Python 3.12.9 实跑）：经典演示"两个线程各加 100 万次不加锁"在本机 6 次全部恰好得到 2000000——CPython 3.11+ 的字节码只在循环回边检查线程切换请求，紧凑计数循环几乎不会被打断在 <code>x += 1</code> 中间。但竞态客观存在（读-改-写三步非原子），换个循环体/解释器版本就可能丢更新，<b>工程上共享计数必须加锁或用队列，不能赌实现细节</b>。</blockquote>
+
+<p><b>三种并发模型对比</b></p>
+<table>
+<tr><th>维度</th><th>多线程 threading</th><th>多进程 multiprocessing</th><th>协程 asyncio</th></tr>
+<tr><td>适用负载</td><td>IO 密集</td><td>CPU 密集</td><td>高并发 IO（成千连接）</td></tr>
+<tr><td>能并行 CPU 吗</td><td>否（GIL）</td><td>是（每进程独立解释器与 GIL）</td><td>否（单线程事件循环）</td></tr>
+<tr><td>创建/切换开销</td><td>中（OS 线程，MB 级栈）</td><td>大（启动慢、独立内存）</td><td>最小（用户态切换）</td></tr>
+<tr><td>通信方式</td><td>共享变量 + Lock/queue.Queue</td><td>pickle 序列化的 Pipe/Queue/Manager</td><td>单线程内 await / asyncio.Queue</td></tr>
+<tr><td>切换方式</td><td>OS 抢占式调度</td><td>OS 调度</td><td>代码 await 处主动让出</td></tr>
+</table>
+
+<p><b>多进程绕开 GIL 的代价</b></p>
+<ul>
+<li>每个进程是<b>独立解释器 + 独立内存</b>：进程启动开销大（Windows 上 spawn 更慢），共享数据要靠 pickle 序列化走 IPC——大数组来回传，序列化可能吃光并行赚到的收益。</li>
+<li>传不了的对象：lambda、局部函数、打开的连接——跨进程参数必须能 pickle。</li>
+</ul>
+
+<p><b>asyncio 的适用与不适</b></p>
+<ul>
+<li>单线程事件循环，协程在 <code>await</code> 处让出；适合<b>高并发网络 IO</b>（爬虫、网关、WebSocket），单机轻松挂上万任务。async/await 语法 Python 3.5 起，底层由生成器演化而来（见 <a href="迭代器与生成器.html">迭代器与生成器</a>）。</li>
+<li><b>不适用</b>：CPU 阻塞任务会卡死整个事件循环（所有协程跟着等）。CPU 活要么换进程池，要么 <code>loop.run_in_executor</code> 丢给线程/进程池。</li>
+</ul>
+
+<p><b>两句话补漏</b>：① <b>concurrent.futures</b>——<code>ThreadPoolExecutor</code>/<code>ProcessPoolExecutor</code> 同一套 submit/map 接口，线程池进程池一键切换，日常选型首选入口。② <b>free-threading</b>——PEP 703，Python 3.13 起提供实验性无 GIL 构建（python3.13t），纯 Python CPU 并行可真多核；仍是实验特性、大量 C 扩展未适配，面试当"关注方向"提一句即可，别当生产结论。</p>
+
+<p><b>Java 对照（一句话）</b>：Java 没有 GIL，JVM 线程是真并行，共享状态靠 synchronized/volatile/JMM 保护；Python 的 GIL 把"并行"降级成"轮转并发"，CPU 并行只能靠多进程——这是两种语言并发模型最根本的差异。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">场景选型</span><span class="tag">面试口述</span></p>
+<ul>
+<li>概念选择：GIL 的精确边界（锁字节码不锁进程、IO 释放 CPU 不释放、"GIL 保证 x += 1 原子"是错的）。</li>
+<li>场景选型：给负载（爬虫/哈希/图片处理/网关）选线程、进程、协程——几乎每场 AI 岗面试都问。</li>
+<li>面试口述：爬虫提速方案（下载与解析分家）；追难点在 multiprocessing 序列化代价与 free-threading 展望。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>import threading, time
+
+t0 = time.perf_counter()
+ts = [threading.Thread(target=time.sleep, args=(0.1,)) for _ in range(5)]
+for t in ts: t.start()
+for t in ts: t.join()
+print(round(time.perf_counter() - t0, 1))</code></pre>
+<div class="opt" data-k="A">A. 0.1 —— sleep 是阻塞等待，线程等待时释放 GIL，五个等待是并行的</div>
+<div class="opt" data-k="B">B. 0.5 —— GIL 迫使五个线程排队 sleep，总时长 5×0.1</div>
+<div class="opt" data-k="C">C. 0.2 —— GIL 半并行，只能省一半时间</div>
+<div class="opt" data-k="D">D. 抛出 RuntimeError，主线程 join 死锁</div>
+<div class="exp" hidden><b>答案 A。</b>GIL 锁的是"执行 Python 字节码"，线程进入阻塞 IO（等网络、磁盘、sleep）时释放 GIL 让别的线程跑，所以五个 sleep 并行、总耗时约 0.1s。本机 Python 3.12.9 实跑 4 次均输出 0.1（对照组串行 5 次 sleep 为 0.5）。同理可得：多线程爬虫并发下载是有效的。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 关于 GIL 的边界，说法准确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. GIL 使同一时刻一个进程内只有一个线程在执行 Python 字节码，即使机器是多核</div>
+<div class="opt" data-k="B">B. 有 GIL 在，Python 程序永远用不上多核</div>
+<div class="opt" data-k="C">C. GIL 保证了 x += 1 这类复合操作在多线程下也是原子的</div>
+<div class="opt" data-k="D">D. GIL 是进程级锁，所以 multiprocessing 的多进程也只能用一个核</div>
+<div class="exp" hidden><b>答案 A。</b>B 错：CPU 并行可走多进程；numpy 等 C 扩展在 C 层释放 GIL 后也能多核。C 错：x += 1 是"读-改-写"多步操作，GIL 只保证单条字节码序列不被打断，复合操作照样要 Lock；且 CPython 3.11+ 紧凑循环几乎不产生中间切换，竞态更隐蔽（本机实测经典计数题 6 次均恰好不丢更新），更不能赌。D 错：GIL 是解释器级，每个进程各有一把、互不约束。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 批量对 200 张 20MB 图片做<b>纯 Python 实现</b>的缩放与滤镜处理（CPU 密集），想最快完成，选（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. threading 开 8 线程</div>
+<div class="opt" data-k="B">B. multiprocessing / ProcessPoolExecutor 开 8 进程</div>
+<div class="opt" data-k="C">C. asyncio 开 8 个协程</div>
+<div class="opt" data-k="D">D. 三者没区别，都是轮着跑</div>
+<div class="exp" hidden><b>答案 B。</b>纯 Python CPU 密集：GIL 使线程与协程都无法并行计算，只有多进程（各自持有解释器和 GIL）能跑满多核；代价是进程启动开销与图片数据跨进程序列化。延伸：若处理算法本身是 numpy/opencv 等 C 扩展实现，扩展会释放 GIL，多线程也有效——选型前先确认热点在 Python 层还是 C 层。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="AB" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 下列"负载 → 方案"的搭配，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 并发抓取上千个网页（网络 IO 密集）——线程池或 asyncio 都合适</div>
+<div class="opt" data-k="B">B. 纯 Python 的批量密码哈希（CPU 密集）——ProcessPoolExecutor 多进程</div>
+<div class="opt" data-k="C">C. 在 asyncio 事件循环里直接跑 CPU 密集任务——能提高整体吞吐</div>
+<div class="opt" data-k="D">D. multiprocessing 传任务时，用 lambda 最方便</div>
+<div class="exp" hidden><b>答案 AB。</b>C 错：CPU 阻塞会卡死事件循环，所有协程跟着等，应 run_in_executor 丢进程池；D 错：跨进程参数要 pickle，lambda/局部函数序列化不了，必须用模块级函数。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 一个爬虫程序：下载页面是 IO 等待，解析页面提数据是纯 CPU，整体很慢。怎么提速？</p>
+<details><summary>参考回答</summary>先把两类活拆开，各配各的模型。<br>
+① 下载是 IO 密集：线程池或 asyncio 并发请求——等待时释放 GIL，等待可以真并行，这是多线程在 Python 里最正当的用法。<br>
+② 解析是纯 CPU：受 GIL 限制，线程加不上去。两条路：用 ProcessPoolExecutor 多进程绕开 GIL（每个 worker 进程独立解释器）；或换能释放 GIL 的 C 解析器（如 lxml），单线程也能快一个量级。<br>
+③ 拼成流水线：下载池把原始 HTML 放进 multiprocessing.Queue（自动 pickle），解析进程池消费；注意队列传大对象要考虑序列化开销，必要时传文件路径而不是内容。<br>
+加分点：动手前先 profile 确认瓶颈真在解析而不是带宽；对目标站限速加重试；如果解析库已经释放 GIL，多线程就够了，别为了多进程白付序列化成本。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① "GIL 保护了 x += 1"是错的——读改写多步复合操作照样要锁，且新版本 CPython 竞态更隐蔽，必须显式加锁。② 选型先问负载：IO 密集线程/协程，CPU 密集多进程，别背反。③ asyncio 里不准跑 CPU 重活（run_in_executor 是唯一正门）。④ 多进程传参必须能 pickle：lambda、局部函数、连接对象都不行。⑤ GIL 是解释器级、每进程一把；multiprocessing 正是靠"一人一把锁"绕开的。⑥ free-threading（3.13 实验性）面试提一句是加分，当生产结论是扣分。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

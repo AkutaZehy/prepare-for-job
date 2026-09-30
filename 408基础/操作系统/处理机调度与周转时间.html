@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>处理机调度与周转时间 · 408基础/操作系统</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 操作系统</div>
+<h1>处理机调度与周转时间</h1>
+<div class="meta">适用岗位：全部（甘特图手算是笔试计算必修课） ｜ 形态：概念 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：周转时间 = <b>完成 − 到达</b>，带权周转 = 周转 ÷ 服务时间；<b>SJF 平均等待/周转最短</b>（非抢占证明）但会饿死长作业；时间片轮转片太大退化成 FCFS、太小切换开销爆炸；<b>多级反馈队列是集大成者</b>：多队列+动态降级+可抢占；计算题先画甘特图再套公式，别跳步。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>三级调度</b>：高级调度（作业——内存，创建进程）、中级调度（内存与外存对换，挂起态相关）、低级调度（进程——CPU，频率最高）。</p>
+<table>
+<tr><th>算法</th><th>规则</th><th>优点</th><th>缺点</th></tr>
+<tr><td>FCFS 先来先服务</td><td class="l">按到达顺序</td><td class="l">公平、简单</td><td class="l">短作业陪跑长作业（护航效应）</td></tr>
+<tr><td>SJF 短作业优先</td><td class="l">服务时间最短者优先</td><td class="l"><b>平均等待/周转最短</b></td><td class="l">长作业饥饿；服务时间靠估计</td></tr>
+<tr><td>SRTN 最短剩余优先</td><td class="l">SJF 的抢占版，新进程剩余更短即抢占</td><td class="l">平均指标更优</td><td class="l">同样饥饿 + 切换开销</td></tr>
+<tr><td>优先级调度</td><td class="l">优先级高者先</td><td class="l">灵活（可区分系统/交互）</td><td class="l">低优先级饥饿 → 老化 aging（等待越久优先级越高）</td></tr>
+<tr><td>RR 时间片轮转</td><td class="l">就绪队列 FIFO，跑满一个时间片就排尾</td><td class="l">响应快、公平、无饥饿</td><td class="l">片太大退化 FCFS；太小上下文切换开销占比过高</td></tr>
+<tr><td>多级反馈队列</td><td class="l">多个队列优先级递减、时间片递增；新进程进最高队列；用完时间片降级；<b>低队列可被高队列新进程抢占</b></td><td class="l">兼顾响应时间与吞吐，UNIX 采用</td><td class="l">实现最复杂</td></tr>
+</table>
+<p><b>抢占 vs 非抢占</b>：可剥夺=运行中可被夺走 CPU（时间片到、更高优先级到达）；不可剥夺=必须等其完成或主动阻塞。SJF/SRTN 的差别就在抢占位。</p>
+<p><b>评价指标</b>：周转时间 = 完成 − 到达；带权周转时间 = 周转时间 ÷ 服务时间（≥1，越小越好）；等待时间 = 周转 − 服务（纯排队）；响应时间（交互系统看这个）。实时调度一句话：EDF 最早截止时间优先、速率单调 RMS 周期越短优先级越高（概念级）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">计算题</span><span class="tag">笔试选择</span><span class="tag">面试口述</span></p>
+<ul>
+<li>给到达/服务时间，按指定算法画甘特图，求各进程周转/带权周转/平均——必考计算，考察细心。</li>
+<li>算法特点辨析：哪个会饥饿（SJF/优先级）、哪个平均最短（SJF）、RR 时间片两极的后果。</li>
+<li>多级反馈队列的规则细节（降级、抢占方向）。</li>
+<li>面试：为什么说多级反馈队列集大成、时间片怎么权衡、饥饿怎么解（aging）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 计算题先自算）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 进程：A（到达 0，服务 7）、B（到达 2，服务 4）、C（到达 4，服务 1）、D（到达 5，服务 4）。分别按 <b>FCFS</b> 与 <b>SJF（非抢占）</b>求平均周转时间。</p>
+<details><summary>先自己算，再展开对答案</summary>FCFS 甘特图：A:0-7，B:7-11，C:11-12，D:12-16。周转 = 7、(11−2)=9、(12−4)=8、(16−5)=11 → 总 35，<b>平均 8.75</b>。<br>SJF：t=0 只有 A → A:0-7；t=7 时 B/C/D 均已到达，最短的 C 先跑 → C:7-8；剩 B(4)、D(4) 相同按到达早者 → B:8-12，D:12-16。周转 = 7、10、4、11 → 总 32，<b>平均 8</b>。结论印证：SJF 平均周转更短。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 同上数据，改用 <b>RR（时间片 q=2）</b>，画出甘特图并求各周转时间。</p>
+<details><summary>先自己算，再展开对答案</summary>规则：新到达进程先进队列，用完时间片的回队尾。甘特图：A:0-2｜B:2-4｜C:4-5（服务 1 提前完成）｜A:5-7｜B:7-9（完成）｜D:9-11｜A:11-13｜D:13-15（完成）｜A:15-16（完成）。周转：A=16、B=9−2=7、C=5−4=1、D=15−5=10 → 总 34，<b>平均 8.5</b>。注意 t=2 时刻 B 到达先于 A 回队尾入队（先到先进）。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 关于时间片轮转（RR），说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 时间片越大，系统响应越快</div>
+<div class="opt" data-k="B">B. 时间片大到让每个进程都能在一个片内跑完时，RR 就退化为 FCFS</div>
+<div class="opt" data-k="C">C. 时间片越小，系统效率越高</div>
+<div class="opt" data-k="D">D. RR 会导致长作业饥饿</div>
+<div class="exp" hidden><b>答案 B。</b>片大于所有服务时间 → 没有进程被切，等价先来先服务；片太小则上下文切换占比过高，真实有效 CPU 时间下降。RR 按队列轮转，不会饥饿。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于多级反馈队列调度，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 设置多个优先级递减的队列，时间片逐级增大</div>
+<div class="opt" data-k="B">B. 新进程直接进入最低优先级队列</div>
+<div class="opt" data-k="C">C. 在低优先级队列执行的进程可能被高优先级队列新到达的进程抢占</div>
+<div class="opt" data-k="D">D. 长作业会逐渐沉到低优先级队列，用大时间片减少切换开销</div>
+<div class="exp" hidden><b>答案 ACD。</b>B 反了——新进程进<b>最高</b>优先级队列（保证交互响应）；用完本队列时间片仍没跑完就降级。它综合了 RR 的响应、优先级的侧重、FCFS 的吞吐，故称集大成。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>5.</b> 下列调度算法中，可能使长作业或低优先级进程产生<b>饥饿</b>的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. FCFS 与 RR</div>
+<div class="opt" data-k="B">B. RR 与多级反馈队列</div>
+<div class="opt" data-k="C">C. SJF 与优先级调度</div>
+<div class="opt" data-k="D">D. FCFS 与 SJF</div>
+<div class="exp" hidden><b>答案 C。</b>SJF 让长作业一直让路，静态优先级让低优先级一直排队；解法是老化（等待越久优先级越高）。FCFS/RR 天然按序公平无饥饿。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 周转时间从"到达"起算不是从提交作业单起算；带权周转 ≥1；② SJF/SRTN 的"短"指<b>服务时间</b>不是到达早；非抢占 SJF 在 t 时刻只能从"已到达"的进程里选；③ RR 里"新到达"与"时间片用完回队"同时发生时，<b>先到先入队</b>（先到先入队是主流考题口径）；④ 抢占类算法画甘特图要盯每个到达时刻是否引发抢占；⑤ 多级反馈队列的降级条件是"在本队列时间片内没跑完"，跑完就退出。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

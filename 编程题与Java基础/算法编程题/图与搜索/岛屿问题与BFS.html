@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>岛屿问题与 BFS（ACM 模式） · 编程题与Java基础/算法编程题/图与搜索</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 图与搜索</div>
+<h1>岛屿问题与 BFS（ACM 模式）</h1>
+<div class="meta">原型：LeetCode 200 / 695 / 994 ｜ 适用岗位：全部 ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：网格就是隐式图，格子是节点、上下左右是边。三板斧：<b>flood fill</b>（扫到 '1' 计数 +1，BFS/DFS 把整座岛标没）；<b>沉岛技巧</b>（直接把 '1' 改 '0'，省 visited 数组）；<b>多源 BFS</b>（所有源点同时入队当第 0 层，层数就是答案）。<b>网格必须按字符串按行读</b>——前导零用数字 tokenizer 一读就废。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>主打题（LC200 岛屿数量）</b>：n×m 的 0/1 网格，1 是陆地、0 是水，上下左右相连的陆地算同一座岛，输出岛的数量。</p>
+<div class="io"><b>输入格式</b>（n+1 行）：
+<pre><code>4 5                     # n m
+11000
+11000
+00100
+00011</code></pre>
+<b>输出格式</b>（1 行）：
+<pre><code>3</code></pre></div>
+<div class="tip">变体提前看：① 求最大岛屿面积（LC695）或周长；② 每格给的是数字（空格分隔）而不是连续 01 串，读法不同但主体代码一致；③ 「被水包围的封闭岛屿」（边界不算）要先把边界淹一遍。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<ul>
+<li><b>岛屿数量（LC200）</b>：双重循环扫网格，遇到 '1' 计数 +1，然后从它出发 BFS（或 DFS）把整座连通块全标成 '0'（沉岛）。每个格子最多进出队一次，O(nm) 时间。</li>
+<li><b>沉岛 vs visited</b>：直接改原数组省一个 O(nm) 数组；笔试里最省事。面试提醒一句「改了输入数据，工程上要 copy 或加 visited」。</li>
+<li><b>最大面积（LC695）</b>：同一框架，flood fill 时数格子数，取 max。DFS 版代码最短（返回值累加），但大网格全 1 会递归爆栈，稳妥用 BFS。</li>
+<li><b>多源 BFS（LC994 腐烂橘子）</b>：把所有初始腐烂橘子一起入队（时间 0），逐层扩散到新鲜橘子。层数 = 全部腐烂的分钟数；结束还有新鲜橘子 → -1。一句话：多源 BFS 等价于虚拟超级源点。</li>
+<li><b>BFS 为什么能求最短路</b>：无权图（每步代价 1）按层扩散，第一次到达某格时用的层数必然最少。</li>
+</ul>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> 网格 BFS 求起点到终点的最少步数，能保证最短的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 网格每步代价相同（无权），BFS 按层扩散，首次到达某格的层数就是最少步数</div>
+<div class="opt" data-k="B">B. 队列是先进先出，天然有序所以结果最短</div>
+<div class="opt" data-k="C">C. BFS 比DFS 访问的格子更少</div>
+<div class="opt" data-k="D">D. 只要网格不是环形连通的就行</div>
+<div class="exp" hidden><b>答案 A。</b>无权图 BFS 即最短路；一旦某步代价不同（如传送门），要改 Dijkstra。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于网格搜索的实现细节，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 常用方向数组 dx/dy 配 for 循环，省去四个 if</div>
+<div class="opt" data-k="B">B. BFS 标记「已访问」要在<b>入队时</b>做，不能等出队才标，否则同一格重复入队</div>
+<div class="opt" data-k="C">C. 沉岛（把 '1' 改 '0'）会破坏输入数据，所以任何场合都不能用</div>
+<div class="opt" data-k="D">D. 多源 BFS 把所有源点一起当第 0 层入队，等价于加一个虚拟超级源点</div>
+<div class="exp" hidden><b>答案 ABD。</b>沉岛在笔试完全可用，工程上 copy 一份或用 visited 即可，C 错。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<span class="lang">Java · 主打 LC200（BFS + 沉岛；网格按行读）</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = new StringTokenizer(br.readLine());
+        int n = Integer.parseInt(st.nextToken());
+        int m = Integer.parseInt(st.nextToken());
+        char[][] g = new char[n][];
+        for (int i = 0; i &lt; n; i++) g[i] = br.readLine().trim().toCharArray();
+
+        int[] dx = {1, -1, 0, 0}, dy = {0, 0, 1, -1};
+        int cnt = 0;
+        for (int i = 0; i &lt; n; i++) {
+            for (int j = 0; j &lt; m; j++) {
+                if (g[i][j] != '1') continue;
+                cnt++;
+                g[i][j] = '0';                       // 沉岛
+                Queue&lt;int[]&gt; que = new ArrayDeque&lt;&gt;();
+                que.add(new int[]{i, j});
+                while (!que.isEmpty()) {
+                    int[] cur = que.poll();
+                    for (int d = 0; d &lt; 4; d++) {
+                        int x = cur[0] + dx[d], y = cur[1] + dy[d];
+                        if (x &gt;= 0 &amp;&amp; x &lt; n &amp;&amp; y &gt;= 0 &amp;&amp; y &lt; m &amp;&amp; g[x][y] == '1') {
+                            g[x][y] = '0';           // 入队即标记
+                            que.add(new int[]{x, y});
+                        }
+                    }
+                }
+            }
+        }
+        System.out.println(cnt);
+    }
+}</code></pre>
+<span class="lang">Python · 主打 LC200</span>
+<pre><code>import sys
+from collections import deque
+
+def main():
+    data = sys.stdin.read().split()
+    n, m = int(data[0]), int(data[1])
+    g = [list(data[2 + i]) for i in range(n)]
+    cnt = 0
+    for i in range(n):
+        for j in range(m):
+            if g[i][j] != '1':
+                continue
+            cnt += 1
+            g[i][j] = '0'
+            dq = deque([(i, j)])
+            while dq:
+                x, y = dq.popleft()
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = x + dx, y + dy
+                    if 0 <= nx < n and 0 <= ny < m and g[nx][ny] == '1':
+                        g[nx][ny] = '0'
+                        dq.append((nx, ny))
+    print(cnt)
+
+main()</code></pre>
+<span class="lang">Java · 第二题 LC695 最大面积（DFS 递归版，短但注意爆栈）</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    static char[][] g;
+    static int n, m;
+
+    static int dfs(int x, int y) {
+        if (x &lt; 0 || x &gt;= n || y &lt; 0 || y &gt;= m || g[x][y] != '1') return 0;
+        g[x][y] = '0';
+        return 1 + dfs(x + 1, y) + dfs(x - 1, y) + dfs(x, y + 1) + dfs(x, y - 1);
+    }
+
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        StringTokenizer st = new StringTokenizer(br.readLine());
+        n = Integer.parseInt(st.nextToken());
+        m = Integer.parseInt(st.nextToken());
+        g = new char[n][];
+        for (int i = 0; i &lt; n; i++) g[i] = br.readLine().trim().toCharArray();
+        int best = 0;
+        for (int i = 0; i &lt; n; i++)
+            for (int j = 0; j &lt; m; j++)
+                best = Math.max(best, dfs(i, j));
+        System.out.println(best);
+    }
+}</code></pre>
+<span class="lang">Java · 核心函数：LC994 腐烂橘子（多源 BFS）</span>
+<pre><code>// 返回全部腐烂所需分钟数；有新鲜橘子烂不到则 -1
+static int oranges(int[][] g) {
+    int n = g.length, m = g[0].length, fresh = 0, t = 0;
+    Queue&lt;int[]&gt; que = new ArrayDeque&lt;&gt;();
+    for (int i = 0; i &lt; n; i++)
+        for (int j = 0; j &lt; m; j++) {
+            if (g[i][j] == 2) que.add(new int[]{i, j, 0});   // 所有源点第 0 层
+            else if (g[i][j] == 1) fresh++;
+        }
+    int[] dx = {1, -1, 0, 0}, dy = {0, 0, 1, -1};
+    while (!que.isEmpty()) {
+        int[] cur = que.poll();
+        t = Math.max(t, cur[2]);
+        for (int d = 0; d &lt; 4; d++) {
+            int x = cur[0] + dx[d], y = cur[1] + dy[d];
+            if (x &gt;= 0 &amp;&amp; x &lt; n &amp;&amp; y &gt;= 0 &amp;&amp; y &lt; m &amp;&amp; g[x][y] == 1) {
+                g[x][y] = 2; fresh--;
+                que.add(new int[]{x, y, cur[2] + 1});
+            }
+        }
+    }
+    return fresh == 0 ? t : -1;
+}</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 网格按<b>字符串按行读</b>：00100 用 StreamTokenizer 读成数字会丢前导零，必须 readLine/按词取；② Windows 判题机 readLine 可能带回车，<code>trim()</code> 防御；③ BFS 标记在入队时做，出队才标会重复入队拖成平方级；④ 1000×1000 全 1 网格 DFS 递归会 StackOverflow（Java 默认栈约 512KB~1MB），大网格用 BFS；⑤ 「步数/分钟数」存进队列元素里最省心，不必按层拆循环。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

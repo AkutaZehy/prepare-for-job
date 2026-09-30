@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpringBoot 核心：IoC、Bean 与自动装配 · 编程题与Java基础/生态</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 生态</div>
+<h1>SpringBoot 核心：IoC、Bean 与自动装配</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（Spring 八股必经之路） ｜ 形态：原理 + 流程 + 版本注记 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：IoC = 对象的创建与依赖交给容器，<b>DI 是实现手段</b>；生命周期口诀——实例化→属性填充→初始化（@PostConstruct → afterPropertiesSet → init-method）→<b>BeanPostProcessor 后置里生成 AOP 代理</b>→销毁；三级缓存解决 <b>setter 循环依赖</b>（构造器与 prototype 无解，三级为的是 AOP 代理一致性）；@Autowired 按<b>类型</b>、@Resource 按<b>名称</b>；自动装配必背：<b>@SpringBootApplication = @Configuration + @EnableAutoConfiguration + @ComponentScan</b>，靠 AutoConfigurationImportSelector 读 imports 文件 + 条件注解按需生效——约定大于配置。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>IoC 与 DI</b>：<b>控制反转</b>——对象的创建、依赖装配、生命周期管理从程序员手里交给 IoC 容器，代码从"主动 new"变成"被动注入"。<b>依赖注入（DI）是实现 IoC 的手段</b>：构造器注入、setter 注入、字段注入。收益：解耦（面向接口）、可替换、好测试（mock 直接注入）。</p>
+
+<p><b>BeanFactory vs ApplicationContext</b>：BeanFactory 是最底层容器，<b>懒加载</b>（getBean 时才实例化单例）；ApplicationContext 是它的超集，<b>启动时就预实例化全部单例</b>，外加事件发布、国际化、资源加载——实际开发用的都是 ApplicationContext。</p>
+
+<p><b>Bean 生命周期（简版必背）</b>：</p>
+<pre><code>① 实例化（构造器/工厂方法，半成品）
+② 属性填充（@Autowired / @Resource 依赖注入）+ Aware 回调（BeanNameAware / ApplicationContextAware…）
+③ BeanPostProcessor 前置处理
+④ 初始化：@PostConstruct → InitializingBean#afterPropertiesSet → init-method（固定顺序）
+⑤ BeanPostProcessor 后置处理 ← AOP 代理对象在这里生成并替换原对象
+⑥ 使用 …… ⑦ 销毁：@PreDestroy → DisposableBean#destroy → destroy-method</code></pre>
+<p>记忆锚点：初始化前后各夹一个 BeanPostProcessor；<b>代理在后置处理里出现</b>——这句话是理解循环依赖与 AOP 关系的钥匙（代理细节见同目录 <a href="AOP动态代理与事务失效.html">AOP动态代理与事务失效</a>）。</p>
+
+<p><b>三级缓存解决 setter / 字段注入的循环依赖</b>：</p>
+<table>
+<tr><th>缓存</th><th>存什么</th></tr>
+<tr><td>一级 singletonObjects</td><td class="l">完全就绪的<b>成品</b>单例</td></tr>
+<tr><td>二级 earlySingletonObjects</td><td class="l"><b>早期引用</b>（已实例化、还没填充属性）</td></tr>
+<tr><td>三级 singletonFactories</td><td class="l">ObjectFactory 工厂——被循环依赖时才调用，<b>按需产出原对象或提前生成的代理</b></td></tr>
+</table>
+<p><b>流程</b>：A 实例化后把自己的工厂放三级 → 填充属性发现要 B → 创建 B → B 填充属性要 A → 从三级缓存取出 A 的早期引用（必要时此处产出代理）放进二级、删三级 → B 拿着它完成 → A 继续完成。一句话：<b>靠"实例化后、初始化前"这个半成品窗口提前暴露引用</b>。</p>
+<p><b>为什么三级不是二级</b>：AOP 代理一致性——代理本该在初始化后的后置处理里生成；二级方案就得"所有 bean 一实例化就立刻生成代理"，破坏生命周期设计。三级用工厂<b>延迟决定</b>：没人循环依赖我就走正常流程，有人依赖我才提前出代理，并保证 A 全容器只代理一次。</p>
+<p><b>无解场景</b>：<b>构造器注入</b>循环依赖（互相在实例化阶段就要对方，早期引用还没机会进缓存，直接 BeanCurrentlyInCreationException）；<b>prototype</b> 作用域（不走单例缓存）。版本注：SpringBoot <b>2.6 起默认禁止</b>循环依赖，需 <code>spring.main.allow-circular-references=true</code>——更推荐靠设计拆掉循环。</p>
+
+<p><b>五种作用域</b>：<b>singleton</b>（默认，容器级一个——注意是"容器级"不是 JVM 级单例）、<b>prototype</b>（每次 getBean 新建）、request（每个 HTTP 请求）、session（每个会话）、websocket（每个 WebSocket 连接）；后三个用于 web 环境。</p>
+
+<p><b>@Autowired vs @Resource</b>：</p>
+<table>
+<tr><th>维度</th><th>@Autowired</th><th>@Resource</th></tr>
+<tr><td>来源</td><td class="l">Spring 提供</td><td class="l">JDK 标准（JSR-250）</td></tr>
+<tr><td>匹配规则</td><td class="l">默认 <b>byType</b>；同类型多个候选时按属性名再找，仍歧义则报错——配 <b>@Primary</b> 指首选、<b>@Qualifier("名")</b> 指定；required=false 允许没有</td><td class="l">默认 <b>byName</b>（不指定 name 用字段名），找不到名字再回退 byType</td></tr>
+</table>
+<p>记忆：A(utowired)=按类型自动配；R(esource)=按资源名找。</p>
+
+<p><b>组件注册四途径</b>：①<b>@Component 及派生</b>（@Service/@Repository/@Controller/@Configuration），配合 <b>@ComponentScan</b> 扫描（Boot 主类默认扫主类所在包及子包）；②<b>@Bean</b>——配置类方法上注册，第三方类没法改源码加注解时用；③<b>@Import</b>——导入配置类/普通类/ImportSelector 实现批量注册；④<b>FactoryBean</b>——工厂 Bean，getBean 拿到的是 getObject 产物、加 <code>&amp;</code> 前缀拿工厂本身（MyBatis 的 SqlSessionFactoryBean 就是）。</p>
+
+<p><b>SpringBoot 自动装配原理（必背，面试开场白）</b>：</p>
+<ul>
+<li><b>@SpringBootApplication = @SpringBootConfiguration（即 @Configuration）+ @EnableAutoConfiguration + @ComponentScan</b>。</li>
+<li>@EnableAutoConfiguration 内部 @Import(AutoConfigurationImportSelector)：启动时读取所有 jar 包的 <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>（<b>SpringBoot 2.7 起</b>的文件位置；<b>2.7 前</b>读 spring.factories 中 EnableAutoConfiguration 键），拿到全部候选自动配置类。</li>
+<li>候选类再被<b>条件注解</b>逐个过滤：<code>@ConditionalOnClass</code>（类路径存在该类才生效）、<code>@ConditionalOnMissingBean</code>（用户没自定义才给默认）等——留存的配置类批量注册 Bean。</li>
+<li>一句话："约定大于配置"= 把你以前手写的配置类按条件自动化；<b>starter = 依赖聚合（一组坐标一次引入）+ 自动配置</b>，开箱即用。</li>
+</ul>
+
+<span class="lang">Java</span>
+<pre><code>// 自动装配的最小模型：一个"候选配置类"靠条件注解决定是否生效
+@Configuration
+@ConditionalOnClass(DataSource.class)      // 类路径上有 DataSource 才生效
+public class DataSourceAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean              // 用户自己没配 DataSource 才给默认的
+    public DataSource defaultDataSource() {
+        return new HikariDataSource();
+    }
+}
+// 这就是"引了 starter 就能用、想覆盖就自己声明同类型 Bean"的全部原理</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：生命周期顺序（三兄弟 @PostConstruct → afterPropertiesSet → init-method）、作用域、@Autowired vs @Resource 匹配规则、循环依赖哪些无解。</li>
+<li>面试："SpringBoot 自动装配原理"（按上面四步背）、"为什么需要三级缓存而不是二级"、"构造器注入为什么解决不了循环依赖"、"BeanFactory 和 ApplicationContext 区别"。</li>
+<li>追问链：生命周期 → BeanPostProcessor → AOP 代理生成时机 → 三级缓存 → 2.6 默认禁止循环依赖，一环扣一环。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> 同一个 Bean 中：@PostConstruct（甲）、afterPropertiesSet（乙）、init-method（丙）、BeanPostProcessor 后置方法（丁），执行顺序正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 甲 → 乙 → 丙 → 丁</div>
+<div class="opt" data-k="B">B. 乙 → 甲 → 丙 → 丁</div>
+<div class="opt" data-k="C">C. 丁 → 甲 → 乙 → 丙</div>
+<div class="opt" data-k="D">D. 甲 → 丙 → 乙 → 丁</div>
+<div class="exp" hidden><b>答案 A。</b>初始化三兄弟固定顺序 <b>@PostConstruct → afterPropertiesSet → init-method</b>，而 BeanPostProcessor 后置在三者全部结束之后——AOP 代理正是这时生成的。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于 Spring 三级缓存解决循环依赖，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 一级缓存 singletonObjects 存放完全就绪的成品单例</div>
+<div class="opt" data-k="B">B. 二级缓存 earlySingletonObjects 存放"已实例化但未填充属性"的早期引用</div>
+<div class="opt" data-k="C">C. 三级缓存放 ObjectFactory，被依赖时才调用，用于按需产出早期引用（可能是代理）</div>
+<div class="opt" data-k="D">D. 三级缓存主要用于解决构造器注入的循环依赖</div>
+<div class="exp" hidden><b>答案 ABC。</b>三级缓存只救 <b>setter/字段注入的单例</b>循环依赖；构造器注入在实例化阶段就互相要对方，早期引用还没机会暴露，D 错。三级为的是 AOP 代理一致性：工厂延迟决定给原对象还是提前代理，且全容器只代理一次。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 关于 @Resource 注解的注入规则，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 只按类型匹配，多个候选时报错</div>
+<div class="opt" data-k="B">B. 默认先按名称匹配，找不到名称再回退按类型</div>
+<div class="opt" data-k="C">C. 只按名称匹配，找不到直接报错，永不回退</div>
+<div class="opt" data-k="D">D. 它是 Spring 提供的注解，与 JDK 无关</div>
+<div class="exp" hidden><b>答案 B。</b>@Resource（JSR-250，JDK 标准）默认 byName（未指定 name 时用字段名），找不到再回退 byType；显式写了 name 属性才"找不到就报错"。A 说的是 @Autowired。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>4.</b> A、B 两个类通过<b>构造器</b>互相注入，Spring 启动抛 BeanCurrentlyInCreationException。根本原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 三级缓存的容量太小存不下两个 bean</div>
+<div class="opt" data-k="B">B. 构造器注入的优先级低于字段注入</div>
+<div class="opt" data-k="C">C. 构造器注入在实例化阶段就要对方，而"早期引用"要等实例化完成后才可能暴露进缓存——A 还没 new 出来就谈不上提前暴露</div>
+<div class="opt" data-k="D">D. prototype 作用域不支持依赖注入</div>
+<div class="exp" hidden><b>答案 C。</b>三级缓存救循环依赖的前提是"实例化完成、属性还没填"这个半成品窗口；构造器注入把依赖提前到了实例化内部，窗口不存在。setter/字段注入才有救。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 背一遍 SpringBoot 自动装配原理。</p>
+<details><summary>参考回答</summary>入口：@SpringBootApplication 是三个注解的组合——@SpringBootConfiguration（本质 @Configuration）、@EnableAutoConfiguration、@ComponentScan（扫主类所在包及子包）。核心在 @EnableAutoConfiguration：它 @Import 了 AutoConfigurationImportSelector，启动时读取所有 jar 里 META-INF/spring/…AutoConfiguration.imports 文件（2.7 起的路径，2.7 前是 spring.factories 的 EnableAutoConfiguration 键），拿到全部候选自动配置类；再用 @ConditionalOnClass、@ConditionalOnMissingBean 等条件注解逐个过滤——类路径有才生效、用户没自己配才给默认——留存的配置类批量注册 Bean。一句话总结：约定大于配置；starter = 依赖聚合 + 自动配置。加分点：主动提 2.7 前后文件位置变化、@ConditionalOnMissingBean 保证用户覆盖优先。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 初始化三兄弟顺序别乱：<b>@PostConstruct → afterPropertiesSet → init-method</b>；AOP 代理在 BeanPostProcessor <b>后置</b>生成；② 三级缓存只救"单例 + setter/字段注入"，构造器与 prototype 无解——答题先说前提；③ SpringBoot 2.6 起默认禁止循环依赖，别再说"循环依赖随便用"；④ @Autowired byType（多候选配 @Primary/@Qualifier），@Resource byName 失败回退 byType；⑤ 自动装配文件位置版本分界：2.7 前 spring.factories、2.7 起 META-INF/spring/…imports；⑥ singleton 是<b>容器级</b>单例，同一 JVM 起两个容器就有两个实例，与 JVM 单例模式不是一回事。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

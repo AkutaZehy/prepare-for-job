@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>评价指标与样本不平衡 · 深度学习与Python进阶/机器学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 机器学习</div>
+<h1>评价指标与样本不平衡</h1>
+<div class="meta">适用岗位：AI/算法、数据分析、测开笔试 ｜ 关联页：<a href="线性回归与逻辑回归.html">LR 与正则化</a>、<a href="经典模型补遗.html">经典模型补遗</a> ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：Precision=查准（报出来的有多少是对的），Recall=查全（该找的找回来多少），F1 是调和平均。ROC 曲线以 TPR-FPR 画、<b>AUC 与阈值无关</b>，概率解释 = 随机取一正一负、正样本得分更高的概率。<b>类别不平衡时 ROC 偏乐观，看 PR 曲线</b>；accuracy 在 99:1 时是骗人的。不平衡应对四件套：重采样（SMOTE）、类别权重、阈值移动、focal loss。手撕 AUC 见手撕子夹的 <a href="../深度学习手撕编程题/手撕AUC.html">手撕 AUC 页</a>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>混淆矩阵</b>（二分类，正类是关注类）：</p>
+<table>
+<tr><th class="l"></th><th>预测正</th><th>预测负</th></tr>
+<tr><td class="l"><b>真实正</b></td><td>TP</td><td>FN（漏报）</td></tr>
+<tr><td class="l"><b>真实负</b></td><td>FP（误报）</td><td>TN</td></tr>
+</table>
+<p>$$P=\frac{TP}{TP+FP}\qquad R=\frac{TP}{TP+FN}\qquad F1=\frac{2PR}{P+R}\qquad Acc=\frac{TP+TN}{全部}$$</p>
+<p>P 与 R 天然此消彼长（调阈值），按业务取舍：垃圾邮件重 <b>P</b>（宁漏勿误杀），癌症筛查/风控欺诈重 <b>R</b>（宁误杀勿漏）。多分类用 macro（各类等权）/micro（按样本）/weighted 平均。</p>
+<p><b>ROC 与 AUC</b>：横轴 FPR=FP/(FP+TN)，纵轴 TPR=Recall。把验证集按模型得分降序逐点画出来。<b>AUC 的概率解释</b>：随机抽一个正样本和一个负样本，正样本得分更高的概率；0.5 = 随机猜，1 = 完美。<b>AUC 不依赖阈值</b>，只看得分排序，所以跨模型、跨阈值可比。</p>
+<p><b>PR vs ROC</b>：不平衡数据（正类极少）下，FP 被海量 TN 稀释、FPR 变化迟钝 → ROC/AUC 偏乐观；PR 曲线对「正类抓得准不准」更敏感，此时应看 PR-AP（average precision）。</p>
+<p><b>样本不平衡的应对</b>：</p>
+<table>
+<tr><th class="l">路线</th><th class="l">做法</th><th class="l">注意</th></tr>
+<tr><td class="l">重采样</td><td class="l">少数类过采样（SMOTE 插值造样本）/ 多数类欠采样</td><td class="l">只在训练集做，验证/测试集保持原分布</td></tr>
+<tr><td class="l">代价敏感</td><td class="l">类别权重 / 损失加权</td><td class="l">sklearn 的 class_weight='balanced'</td></tr>
+<tr><td class="l">阈值移动</td><td class="l">训练不动，预测阈值从 0.5 下调</td><td class="l">零成本，按业务点选阈值</td></tr>
+<tr><td class="l">专用损失</td><td class="l">Focal Loss（降易分样本权重）</td><td class="l">目标检测标配</td></tr>
+</table>
+<p>回归指标一句带过：MAE（稳健）/ MSE（罚大错）/ RMSE / $R^2$；排序与检测岗位再看 mAP/NDCG。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p>评价类题目是<b>测开/AI 岗笔试的必送分题</b>，但年年有人栽：① 给混淆矩阵算 P/R/F1（手算，别背反分子分母）；② 99:1 场景 accuracy 的陷阱；③ AUC 的两种解释（概率解释 / 排序不变性）与「阈值无关」；④ 不平衡时选 PR 还是 ROC；⑤ 重采样只能在训练集做的泄漏常识；⑥ 「召回率上升 precision 一定下降吗」——阈值单调动下是趋势，但不是数学必然，答「通常此消彼长」。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> 欺诈检测数据 10000 条，欺诈 100 条。模型把所有样本都判为「正常」，则（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. accuracy=99%，但欺诈召回率=0%，模型毫无价值——不平衡场景必须看 P/R/F1 或 AUC/PR</div>
+<div class="opt" data-k="B">B. accuracy=99%，模型已经很好</div>
+<div class="opt" data-k="C">C. precision=99%，模型很好</div>
+<div class="opt" data-k="D">D. AUC=0.99，模型很好</div>
+<div class="exp" hidden><b>答案 A。</b>TP=0、FN=100 → R=0；FP=0、TN=9900 → Acc=99%。精确率 0/0 无定义，AUC 由全同分模型=0.5。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> AUC=0.8 的含义，最准确的解释是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 准确率 80%</div>
+<div class="opt" data-k="B">B. 召回率 80%</div>
+<div class="opt" data-k="C">C. 随机取一正一负两个样本，正样本预测分更高的概率是 0.8（等价于按得分排序把正样本排在负样本前面的能力）</div>
+<div class="opt" data-k="D">D. 前 80% 的高分样本都是正样本</div>
+<div class="exp" hidden><b>答案 C。</b>这就是 AUC 的概率（Mann-Whitney U）解释，与阈值无关。D 混淆了 precision@k。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 处理类别不平衡，做法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. SMOTE 过采样只在训练集上做，验证/测试集保持原始分布</div>
+<div class="opt" data-k="B">B. 训练时给少数类更大损失权重（class_weight）</div>
+<div class="opt" data-k="C">C. 先把测试集过采样到 1:1，再报告 F1</div>
+<div class="opt" data-k="D">D. 业务允许时直接下调判决阈值（阈值移动），训练过程可以不动</div>
+<div class="exp" hidden><b>答案 ABD。</b>测试集必须反映真实分布，动测试集=自欺欺人，指标失真，C 错。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、示例题目</h2>
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 混淆矩阵：TP=40，FP=10，FN=20，TN=30。求 Precision、Recall、F1（两位小数）。</p>
+<details><summary>解答</summary>
+<p>$P=40/(40+10)=0.80$；$R=40/(40+20)\approx 0.67$；$F1=2\times0.8\times0.6667/(0.8+0.6667)\approx 0.73$。口算技巧：F1 介于 P 与 R 之间且偏向小者（调和平均）。来源：牛客经典题。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 某模型得分排序（降序）及真实标签：正、正、负、正、负。求 AUC。</p>
+<details><summary>解答</summary>
+<p>逐对计数：3 正 2 负共 6 对。排名 1、2、4 的正样本与排名 3、5 的负样本组成对：(1,3)✓ (1,5)✓ (2,3)✓ (2,5)✓ (4,3)✗（负在前）(4,5)✓ → 5/6 ≈ 0.833。正负得分并列时各记 0.5（平均秩处理）。来源：AI 岗笔试高频。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">口述</span><b>3.</b> 正负样本 1:1000，你的老板问「模型效果怎么样」，你报哪些指标、为什么不报 accuracy？如果要部署，阈值怎么定？</p>
+<details><summary>解答</summary>
+<p>报：PR 曲线与 AP、AUC（排序能力）、在业务选定阈值下的 P/R/F1；召回率必须单报。不报 accuracy：全猜负类就有 99.9%，无信息量。阈值按业务代价定——漏报成本高就把阈值压低换召回，误杀成本高则相反；也可直接报「达到目标召回 90% 时精确率是多少」。来源：面试高频改编。</p>
+</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① P 的分母是「预测正」（TP+FP），R 的分母是「真实正」（TP+FN），背混就全错；② AUC 与阈值无关但<b>与类别分布的排序关系有关</b>，不平衡场景 PR 更诚实；③ ROC 曲线是「逐阈值扫」出来的，不是逐样本画的（逐样本降序是速算技巧）；④ SMOTE 在测试集上做 = 数据泄漏；⑤ F1 是调和平均，会<b>被小值拖死</b>，不会偏向大值；⑥ macro-F1 对少数类友好，micro-F1 大类说了算——不平衡报告用 macro。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

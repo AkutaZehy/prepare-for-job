@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>事件循环与异步 · 前端/JS与HTML</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / JS与HTML</div>
+<h1>事件循环与异步</h1>
+<div class="meta">适用岗位：前端（笔试输出题 + 面试必问） ｜ 形态：知识点 + 输出题逐轮拆解 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：JS 单线程是为避免 DOM 操作竞争，异步靠"浏览器其他线程 + 任务队列 + 事件循环"；一轮循环 = 同步代码跑完 → <b>清空整个微任务队列</b> →（必要时渲染）→ 取<b>一个</b>宏任务 → 再清微任务；微任务：Promise.then/catch/finally、queueMicrotask、MutationObserver；宏任务：整段 script、setTimeout/setInterval、I/O；<b>await 之后的代码 = then 回调 = 微任务</b>；setTimeout(fn,0) 不是立即执行。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>为什么单线程</b>：JS 的主要工作是操作 DOM。若两个线程同时改同一个节点（一个删、一个改），就得靠锁来协调，复杂度大增——所以设计成单线程执行（历史设计）。<b>单线程 ≠ 不能异步</b>：计时交给定时器线程、网络交给网络线程，完成后把<b>回调放进任务队列</b>，主线程空闲时由事件循环取出执行——执行 JS 代码的线程始终只有一个。</p>
+<p><b>同步与异步任务</b>：同步任务直接进主线程排队顺序执行；异步任务的实际处理交给浏览器其他线程，回调进入任务队列等待被取。</p>
+<table>
+<tr><th class="l">类别</th><th class="l">典型成员</th><th class="l">调度规则</th></tr>
+<tr><td class="l"><b>宏任务</b></td><td class="l">整段 script、setTimeout / setInterval、I/O、UI 事件回调</td><td class="l">一轮循环只取<b>一个</b></td></tr>
+<tr><td class="l"><b>微任务</b></td><td class="l">Promise.then/catch/finally 回调、queueMicrotask、MutationObserver</td><td class="l">一轮循环<b>清空整个队列</b></td></tr>
+</table>
+<ul>
+<li><b>一轮循环规则（所有输出题的钥匙）</b>：执行完当前同步代码 → <b>清空整个微任务队列</b>（清的过程中新产生的微任务也一并清掉）→（必要时渲染）→ 取<b>一个</b>宏任务执行 → 再清微任务 → 如此往复。口诀：<b>宏任务一轮一个，微任务一轮清空</b>。注：常和宏任务一起记的"UI 渲染"严格说是循环中独立的一步，不算宏任务（实现细节）。</li>
+<li><b>async/await 是 Promise 的语法糖</b>：async 函数返回 Promise；await 右边的表达式<b>同步求值</b>，<b>await 之后的代码相当于放进 then 的回调（微任务）</b>。所以 await 之前是同步代码，之后全是微任务。</li>
+<li><b>Promise 三状态</b>：pending → fulfilled / rejected，状态一旦改变<b>不可逆</b>；<code>new Promise(fn)</code> 的 fn 是<b>同步、立即</b>执行的，只有 then/catch/finally 注册的回调才是微任务。链式调用：每个 then 返回新 Promise，回调的返回值传给下一级。</li>
+<li><b>setTimeout(fn, 0) 不是立即执行</b>：即使传 0 也要等当前这轮循环（含全部微任务）跑完才轮到它，且浏览器规范把下限抬到最少约 4ms（实现细节）。</li>
+<li><b>浏览器 vs Node 一句话</b>：Node 是阶段化循环（timers / poll / check 等阶段），微任务在<b>每个阶段之间</b>清空——同一段代码两端输出可能不同（实现细节）。</li>
+<li><b>输出题拆解方法（逐轮标注，别背结论）</b>：① 先跑同步代码——整段 script、Promise 的 executor、await 右边；② 按<b>入队顺序</b>清空微任务（then 回调、await 后续）；③ 取第一个宏任务，宏任务<b>内部</b>再重复 ①②③（宏任务里也会产生新微任务）。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试输出题</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：同步 + Promise + setTimeout 混合的输出题，前端笔试出镜率极高——先标轮次再下笔，选项常做成不同输出序列。</li>
+<li>面试：宏/微任务区别与调度规则、为什么单线程还能异步、async/await 原理、Promise 状态与链式调用。</li>
+<li>追问储备：微任务为什么先于宏任务（当前任务一结束立即清空，同轮内更轻）；requestAnimationFrame 在渲染前执行（实现细节）；Node 里 process.nextTick 优先级最高（实现细节）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>1.</b> 下面代码的输出顺序是（&nbsp;&nbsp;）</p>
+<span class="lang">JavaScript</span>
+<pre><code>console.log('start');
+setTimeout(() =&gt; console.log('timeout'), 0);
+Promise.resolve().then(() =&gt; console.log('promise'));
+console.log('end');</code></pre>
+<div class="opt" data-k="A">A. start → end → timeout → promise</div>
+<div class="opt" data-k="B">B. start → end → promise → timeout</div>
+<div class="opt" data-k="C">C. start → promise → end → timeout</div>
+<div class="opt" data-k="D">D. start → timeout → promise → end</div>
+<div class="exp" hidden><b>答案 B。</b>逐轮拆：第一轮同步——start、end；同步跑完清微任务——promise；最后取宏任务——timeout。setTimeout(fn,0) 就算 0ms 也要排队：等微任务清空后才轮到它（且最少约 4ms，实现细节）。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>2.</b> 下面代码的输出顺序是（&nbsp;&nbsp;）</p>
+<span class="lang">JavaScript</span>
+<pre><code>setTimeout(() =&gt; console.log('A'), 0);
+async function foo() {
+  console.log('B');
+  await null;              // await 之后的代码进微任务
+  console.log('C');
+}
+foo();
+Promise.resolve().then(() =&gt; console.log('D'));
+console.log('E');</code></pre>
+<div class="opt" data-k="A">A. B → E → C → D → A</div>
+<div class="opt" data-k="B">B. B → C → D → E → A</div>
+<div class="opt" data-k="C">C. B → E → D → C → A</div>
+<div class="opt" data-k="D">D. A → B → E → C → D</div>
+<div class="exp" hidden><b>答案 A。</b>同步轮：foo() 执行到 await 前输出 B，await 把"C"挂进微任务队尾；回到主脚本，then 注册 D，再输出 E——同步序列是 <b>B、E</b>。清微任务（按入队顺序）：先 C（await 恢复）后 D。最后取宏任务输出 A。整体 B → E → C → D → A。C 选项错在把两个微任务的先后记反——await 的续体先入队、then 后入队。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>3.</b> 下面代码的输出顺序是（&nbsp;&nbsp;）</p>
+<span class="lang">JavaScript</span>
+<pre><code>setTimeout(() =&gt; {
+  console.log('A');
+  Promise.resolve().then(() =&gt; console.log('B'));
+}, 0);
+setTimeout(() =&gt; console.log('C'), 0);
+console.log('D');</code></pre>
+<div class="opt" data-k="A">A. D → A → B → C</div>
+<div class="opt" data-k="B">B. D → A → C → B</div>
+<div class="opt" data-k="C">C. D → C → A → B</div>
+<div class="opt" data-k="D">D. A → C → B → D</div>
+<div class="exp" hidden><b>答案 A。</b>同步：D。取第一个宏任务输出 A，并在宏任务内部把 B 注册为微任务；宏任务跑完<b>立即清微任务</b> → B；再取下一个宏任务 → C。B 选项错在"两个定时器背靠背跑完"——每执行完一个宏任务都要先清空微任务队列。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ACE" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 下列属于微任务的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Promise.then/catch/finally 注册的回调</div>
+<div class="opt" data-k="B">B. setTimeout 的回调</div>
+<div class="opt" data-k="C">C. queueMicrotask 传入的函数</div>
+<div class="opt" data-k="D">D. 整段 script 代码</div>
+<div class="opt" data-k="E">E. MutationObserver 回调</div>
+<div class="exp" hidden><b>答案 ACE。</b>setTimeout 回调与整段 script 是宏任务。记忆口径：微任务是"Promise 体系及同类细粒度回调"，宏任务是"一轮循环取一个的大块头"。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> JS 只有单线程，为什么还能"异步"？</p>
+<details><summary>参考回答</summary>单线程是为了避免 DOM 操作竞争：两个线程同时改一个节点就得加锁，成本太高。异步靠分工：I/O、定时器这类耗时操作交给浏览器的其他线程 / 内核处理，完成后把回调放进任务队列；事件循环在主线程空闲时按"清空微任务 → 取一个宏任务"的规则调度回调执行。所以异步 ≠ 多线程执行 JS——是"浏览器多线程协作 + 任务队列 + 事件循环"，JS 代码本身始终单线程跑。加分点：微任务一轮清空、宏任务一轮一个；可补一句 Node 阶段化循环的差异。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① <code>new Promise(fn)</code> 的 fn 是同步执行的——Promise 里的 log 不是微任务，then/catch/finally 的回调才是；② "清空微任务"是清到空为止：执行微任务过程中新产生的微任务也在本轮清掉；③ 宏任务一轮只取一个、微任务一轮全清——输出题先逐轮标注再下笔；④ await 之前是同步、await 之后是微任务（相当于 then 回调）；⑤ setTimeout(fn,0) 不是立即执行：要排队等循环，且最少约 4ms（实现细节）；⑥ 同一段代码浏览器与 Node 输出可能不同——Node 阶段化循环、微任务在每个阶段之间清空（实现细节）。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

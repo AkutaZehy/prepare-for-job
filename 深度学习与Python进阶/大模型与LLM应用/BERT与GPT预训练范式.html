@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BERT vs GPT 与预训练范式 · 深度学习与Python进阶/大模型与LLM应用</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 大模型与LLM应用</div>
+<h1>BERT vs GPT 与预训练范式</h1>
+<div class="meta">适用岗位：AI/Agent 开发（八股必问） ｜ 形态：三分架构 + 双对比表 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：架构三分——<b>BERT 双向 Encoder + MLM</b>（挑 15%，挑中按 80/10/10 处理）+ NSP（RoBERTa 去掉）；<b>GPT 单向 Decoder + 因果 LM</b>（每个 token 都算 loss）；T5 两头都占。LLM 时代 decoder-only 胜出四点：<b>监督信号稠密、scaling 顺手、任务统一成生成、KV cache 推理友好</b>。下游范式从"预训练 → 微调"变成"预训练 → 提示/指令"。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>架构三分</b>：都是 Transformer（注意力细节见 <a href="../深度学习/Self-Attention与Transformer.html">Self-Attention 与 Transformer</a>），差别在"用哪一半、怎么预训练"：</p>
+<table>
+<tr><th class="l">维度</th><th>Encoder-only</th><th>Decoder-only</th><th>Encoder-Decoder</th></tr>
+<tr><td class="l">代表</td><td>BERT（2018）</td><td>GPT 系（GPT-2/3 及主流 LLM）</td><td>T5（2019）、BART</td></tr>
+<tr><td class="l">注意力可见性</td><td>双向，每个位置看全句</td><td>单向，causal mask 只看左侧</td><td>编码双向 + 解码单向</td></tr>
+<tr><td class="l">预训练目标</td><td>MLM（+NSP）</td><td>因果语言模型（逐 token 续写）</td><td>span 复原，统一成 text-to-text</td></tr>
+<tr><td class="l">擅长任务</td><td>理解类：分类、NER、句对匹配</td><td>生成类：对话、续写、指令跟随</td><td>翻译、摘要等 seq2seq</td></tr>
+<tr><td class="l">当下地位</td><td>小模型理解类任务仍常用</td><td><b>LLM 时代主流</b></td><td>场景收缩但未消失</td></tr>
+</table>
+<p><b>BERT：双向 + MLM</b>——随机挑选 <b>15%</b> 的 token 参与预测（loss 只算这些位置），挑中的 15% 内部再按 <b>80/10/10</b> 处理：80% 换 <code>[MASK]</code>、10% 换随机词、10% 保持原词。混入随机词与原词，是为了不让模型"只认识 [MASK] 位置"、并缓解预训练与微调的输入分布不一致。另有 NSP（判断 B 是否为 A 的真实下文，真下文/随机句各半）——<b>RoBERTa（2019）同算力对比证明去掉 NSP 不掉点</b>，同时把静态 mask 改成动态复制、加大数据与训练时长。</p>
+<pre><code># BERT 的 MLM 采样（2018 原论文设定）
+chosen = random.sample(all_positions, int(0.15 * n))  # 只挑 15% 参与
+for pos in chosen:                                    # 15% 内部再三分
+    r = random.random()
+    if   r &lt; 0.8: tokens[pos] = "[MASK]"              # 80% 换掩码
+    elif r &lt; 0.9: tokens[pos] = random_vocab_word()   # 10% 换随机词
+    # 其余 10% 保持原词；loss 只在这 15% 的位置上计算</code></pre>
+<p><b>GPT：单向因果 LM</b>——causal mask 下逐 token 预测下一个词，<b>整条序列每个位置都产生监督信号</b>，与人类写作/生成的方式天然一致。</p>
+<p><b>为什么 LLM 时代 decoder-only 胜出</b>（面试按四点答）：</p>
+<ul>
+<li><b>监督信号稠密</b>：因果 LM 每个 token 一份 loss；MLM 每 100 个 token 只有约 15 份——同样算力，因果 LM 吃到的训练信号多得多。</li>
+<li><b>scaling 顺手</b>：目标单一、无需任务专属设计，堆数据堆参数一路放大；GPT-3（2020，175B）展示 few-shot / in-context learning 能力随规模涌现。</li>
+<li><b>zero-shot 任务统一成生成</b>：所有任务都写成"给提示、续写答案"，不用加任务头；配指令微调（InstructGPT，2022）后成为通用交互形态。</li>
+<li><b>KV cache 推理友好</b>：单向结构下历史 token 的 K/V 永不变，增量解码天然成立（见 <a href="推理加速KVCache量化与vLLM.html">推理加速：KV Cache/量化/vLLM</a>）；双向 Encoder 没有这个红利。</li>
+</ul>
+<p><b>范式差异：微调 → 提示</b>：</p>
+<table>
+<tr><th class="l">维度</th><th>BERT 时代</th><th>GPT 时代</th></tr>
+<tr><td class="l">下游适配</td><td>加任务头 + 全量微调</td><td>prompt / 指令，免训练或轻量微调</td></tr>
+<tr><td class="l">任务切换</td><td>一任务一份微调权重</td><td>换提示词即可，一个模型通吃</td></tr>
+<tr><td class="l">交互形态</td><td>输入进、分类值/标注出</td><td>一切皆文本生成</td></tr>
+</table>
+<p>训练截止后的新知识，靠微调注入成本高、时效差——生产上事实类知识普遍改配 RAG（见 <a href="RAG从原理到落地.html">RAG 从原理到落地</a>）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span><span class="tag">AI 岗八股</span></p>
+<ul>
+<li>架构三分默写：给场景选架构（文本分类 → Encoder-only；翻译摘要 → Encoder-Decoder；对话生成 → Decoder-only）。</li>
+<li>MLM 两层比例（15% 挑选 → 80/10/10）与"为什么混入随机词/原词"。</li>
+<li>"为什么现在都做 decoder-only"——AI 岗面试出现率极高，按四点答全。</li>
+<li>RoBERTa 相对 BERT 改了什么：去 NSP、动态 mask、更多数据更长训练。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> BERT 预训练中，被随机挑选的 15% token 按什么策略处理？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 全部替换为 [MASK]，微调时自然恢复</div>
+<div class="opt" data-k="B">B. 80% 替换为 [MASK]、10% 替换为随机词、10% 保持原词</div>
+<div class="opt" data-k="C">C. 80% 保持原词、10% 替换为 [MASK]、10% 替换为随机词</div>
+<div class="opt" data-k="D">D. 50% 替换为 [MASK]、50% 保持原词</div>
+<div class="exp" hidden><b>答案 B。</b>若全换 [MASK]，微调阶段见不到 [MASK]，预训练与微调的输入分布不一致；混入 10% 随机词与 10% 原词，迫使模型对<b>每个</b>位置的表示都可靠，不能只在 [MASK] 处发力。注意两层比例：15% 是"挑选多少"，80/10/10 是"挑中后怎么改"。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 关于 BERT 与 GPT 的注意力可见性，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. BERT 双向可见（每个位置看全句），GPT 单向（只看左侧上下文）</div>
+<div class="opt" data-k="B">B. BERT 单向，GPT 双向</div>
+<div class="opt" data-k="C">C. 两者都双向，差别只在层数与参数量</div>
+<div class="opt" data-k="D">D. BERT 预训练时单向、微调时才双向</div>
+<div class="exp" hidden><b>答案 A。</b>BERT 是 Encoder-only，MLM 目标不需要因果约束，自注意力双向；GPT 是 Decoder-only，causal mask 保证只见左侧、与逐 token 生成一致。可见性差异也解释了"BERT 天生不适合自回归生成、GPT 不适合直接输出整句表示做分类"。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 BERT 式与 GPT 式两代范式，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. BERT 时代下游适配靠"加任务头 + 微调"，每个任务存一份微调权重</div>
+<div class="opt" data-k="B">B. GPT 时代把各类任务统一成文本生成，同一个模型靠 prompt/指令切换任务</div>
+<div class="opt" data-k="C">C. decoder-only 的因果 LM 让每个 token 都产生监督信号，训练信号比 MLM 稠密</div>
+<div class="opt" data-k="D">D. MLM 让全部 token 都参与 loss，所以 BERT 的预训练信号其实更稠密</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错——MLM 只在被挑中的约 15% 位置计算 loss，这正是因果 LM 同算力下信号更稠密的对照面。A、B 是两种范式（微调 vs 提示）的核心差异，也是面试里"两代范式差在哪"的标准答案。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> 为什么现在的主流大模型几乎都选 decoder-only 架构？</p>
+<details><summary>参考回答</summary>按四点答：① <b>监督信号稠密</b>——因果 LM 每个 token 都算 loss，MLM 只有 15% 的位置有信号，同算力下因果 LM 效率高；② <b>scaling 顺手</b>——目标单一，堆数据堆参数即可，GPT-3（2020）已展示 few-shot 能力随规模涌现；③ <b>任务统一成生成</b>——zero-shot/few-shot 用提示切换任务，不需要加任务头重训，InstructGPT（2022）的指令微调让它成为通用交互形态；④ <b>KV cache 推理友好</b>——单向注意力下历史 token 的 K/V 不变，增量解码天然成立，双向结构没这个红利。加分：提到 T5 的 Encoder-Decoder 在翻译类仍有优势，但通用性与工程简单性不敌 decoder-only。来源：面试高频改编。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> NSP 是什么？RoBERTa（2019）为什么把它去掉了？</p>
+<details><summary>参考回答</summary>NSP（Next Sentence Prediction）：预训练时给两句 A、B，B 有 50% 概率是 A 的真实下文、50% 是随机句，做二分类，意图学句间关系。RoBERTa 用更大语料、更长训练、动态 mask（同一序列复制多份、mask 每轮不同）重做对比，发现<b>去掉 NSP 不掉点</b>——句间关系能力主要靠 MLM 隐式学到，NSP 任务太简单、信号弱还占算力。表述注意：这是"同算力下 NSP 无益"的结论，不是"NSP 必然有害"。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 15% 是"挑选比例"、80/10/10 是"挑中后怎么改"，两层比例答混即错；② BERT 双向 ≠ 不能做生成，是与因果生成方式不匹配；③ "RoBERTa 去掉 NSP"是同算力对比结论，别绝对化成"NSP 必然有害"；④ "decoder-only 胜出"要答出信号密度、scaling、任务统一、KV cache 四点，只说"效果更好"不得分；⑤ T5/BART 是 Encoder-Decoder，别归进 decoder-only；⑥ BERT 微调范式 vs GPT 提示范式的差别在"下游适配方式"，不在"谁更强"——理解类小任务 BERT 仍能打。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

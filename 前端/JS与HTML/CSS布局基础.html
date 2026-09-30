@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSS 布局基础：盒模型/BFC/Flex · 前端/JS与HTML</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / JS与HTML</div>
+<h1>CSS 布局基础：盒模型 / BFC / Flex</h1>
+<div class="meta">适用岗位：前端（笔试选择 + 计算题） ｜ 形态：知识点 + 盒模型计算 + 居中方案 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：盒模型两模式——<b>content-box 实占宽 = width + padding + border</b>，<b>border-box = width</b>（内容被压缩），工程惯例全局 <code>* { box-sizing: border-box }</code>；BFC 独立渲染区域：触发记 <b>float / absolute·fixed / inline-block / flow-root / overflow 非 visible</b>，解决 <b>margin 塌陷、浮动高度塌陷</b>；Flex：<b>justify-content 主轴、align-items 交叉轴</b>，<b>flex:1 = 1 1 0%（完全均分）</b>，flex:auto = 1 1 auto（先按内容再分剩余）；居中三大流派：flex / grid / absolute+translate；position 四种：static / relative / absolute / fixed。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>盒模型两种模式</b>：标准盒模型 content-box（CSS 默认）里 width 只含内容区；IE 盒模型 border-box 里 width 已包含 padding 和 border。</p>
+<table>
+<tr><th class="l">模式</th><th class="l">width 指什么</th><th class="l">元素实际占宽（width:100px; padding:10px; border:5px）</th></tr>
+<tr><td class="l"><b>content-box</b>（默认）</td><td class="l">仅内容区</td><td class="l">100 + 10×2 + 5×2 = <b>130px</b></td></tr>
+<tr><td class="l"><b>border-box</b></td><td class="l">内容 + padding + border</td><td class="l"><b>100px</b>（内容区被压到 70px）</td></tr>
+</table>
+<span class="lang">CSS</span>
+<pre><code>.box { width: 100px; padding: 10px; border: 5px solid #000; }
+/* content-box：总宽 130px；border-box：总宽 100px */
+/* 工程惯例：全局走 border-box，写多大就是多大 */
+*, *::before, *::after { box-sizing: border-box; }</code></pre>
+<p><b>BFC（块级格式化上下文）</b>：一块独立的渲染区域，内部布局不影响外部。触发条件（满足其一）：根元素 html；float 非 none；position 为 absolute / fixed；display 为 inline-block / flow-root / table-cell / flex；overflow 为 hidden / auto / scroll（visible 除外）。它解决三件事：① <b>父子 margin 塌陷</b>——父元素内部第一个子元素的 margin-top 会"顶出"父元素，把父元素变成 BFC（overflow:hidden 或 display:flow-root）即可包住；② <b>浮动导致父元素高度塌陷</b>——BFC 计算高度时会包含浮动子元素；③ 相邻元素垂直 margin 合并——各自包进不同 BFC 后不再合并。</p>
+<p><b>Flex 常用属性</b>：容器的 <code>justify-content</code> 管<b>主轴</b>对齐（flex-start / center / space-between），<code>align-items</code> 管<b>交叉轴</b>对齐，另有 flex-direction（row 默认水平、column 主轴变垂直）、flex-wrap、gap；项目的 <code>flex</code> 是缩写：<b>flex:1 = flex-grow:1 + flex-shrink:1 + flex-basis:0%</b>——基准为 0，剩余空间<b>完全按比例均分</b>；<b>flex:auto = 1 1 auto</b>——基准按内容宽度，先满足内容再分剩余。一句区别：<b>flex:1 无视内容均分，flex:auto 保内容优先</b>。</p>
+<p><b>水平垂直居中至少三种</b>（子元素尺寸未知时前三种都成立）：</p>
+<span class="lang">CSS</span>
+<pre><code>/* 1. Flex（首选） */
+.parent { display: flex; justify-content: center; align-items: center; }
+/* 2. Grid（最短写法） */
+.parent { display: grid; place-items: center; }
+/* 3. 绝对定位 + transform（不脱文档流也要配合父 relative） */
+.parent { position: relative; }
+.child  { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+/* 4. 绝对定位 + margin:auto（四角归零） */
+.child  { position: absolute; inset: 0; margin: auto; width: fit-content; height: fit-content; }</code></pre>
+<p><b>position 四种</b>：</p>
+<table>
+<tr><th class="l">值</th><th class="l">定位基准</th><th class="l">是否脱离文档流</th></tr>
+<tr><td class="l">static</td><td class="l">默认值，不参与定位</td><td class="l">否</td></tr>
+<tr><td class="l">relative</td><td class="l">相对自身原本位置偏移</td><td class="l">否（原占位保留）</td></tr>
+<tr><td class="l">absolute</td><td class="l">相对最近的非 static 祖先</td><td class="l">是</td></tr>
+<tr><td class="l">fixed</td><td class="l">相对浏览器视口</td><td class="l">是</td></tr>
+</table>
+<p>补充（加分项）：sticky 粘性定位——相对最近的滚动祖先，滚到阈值前按 relative、之后固定（实现细节）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算题</span><span class="tag">面试口述</span></p>
+<ul>
+<li>笔试：盒模型两种模式下的总宽计算（给 width/padding/border 算实占宽）、BFC 触发条件判断、Flex 属性归属（主轴/交叉轴、flex 缩写展开）。</li>
+<li>面试口述：BFC 是什么、怎么触发、解决什么问题；水平垂直居中至少说三种；position 四种差异。</li>
+<li>追问储备：为什么工程上全局 border-box（心智模型简单，写多大就是多大）；margin 塌陷只发生在垂直方向相邻块级元素；flex:1 与 flex:auto 的 basis 差异。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 下列哪一项<b>能</b>创建 BFC（块级格式化上下文）？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. overflow: visible</div>
+<div class="opt" data-k="B">B. display: inline-block</div>
+<div class="opt" data-k="C">C. position: relative</div>
+<div class="opt" data-k="D">D. float: none</div>
+<div class="exp" hidden><b>答案 B。</b>触发记法：float 非 none、absolute/fixed、inline-block/flow-root/table-cell/flex、overflow 非 visible。overflow:visible 是默认值不触发；position:relative 不脱流不触发；float:none 等于没浮动。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 父元素与子元素尺寸都不确定，要做水平垂直居中，最直接可靠的方案是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 父元素 display:flex + justify-content:center + align-items:center</div>
+<div class="opt" data-k="B">B. 子元素 margin: 0 auto</div>
+<div class="opt" data-k="C">C. 子元素 position:absolute + left:50% + top:50%</div>
+<div class="opt" data-k="D">D. 父元素 text-align:center + 子元素 line-height:100px</div>
+<div class="exp" hidden><b>答案 A。</b>B 只能水平居中；C 只把子元素左上角定位到中心点，还要补 transform:translate(-50%,-50%) 才算居中；D 要求固定行高且只适合单行文本。flex 两条属性对齐主轴与交叉轴，天然适配未知尺寸。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 Flex 布局，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. justify-content 控制主轴对齐，align-items 控制交叉轴对齐</div>
+<div class="opt" data-k="B">B. flex:1 等价于 flex-grow:1; flex-shrink:1; flex-basis:0%</div>
+<div class="opt" data-k="C">C. flex:1 与 flex:auto 的差异在 flex-basis：0% 完全均分，auto 先按内容分配</div>
+<div class="opt" data-k="D">D. flex-direction: column 后主轴变为水平方向</div>
+<div class="exp" hidden><b>答案 ABC。</b>flex-direction:column 把主轴变为<b>垂直</b>方向（row 才是水平），D 错。flex:1 的 basis 是 0%——无视内容完全按比例均分；flex:auto 的 basis 是 auto——先按内容宽度占位再分剩余。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 元素样式为 <code>width: 100px; padding: 10px; border: 5px solid #000; margin: 4px;</code>。分别在 box-sizing 为 content-box 与 border-box 两种模式下，计算该元素<b>实际占据的水平宽度</b>（含 margin），并说明 border-box 下内容区宽度是多少。按 CSS 规范作答。</p>
+<details><summary>先自己算，再展开对答案</summary>content-box：width 只指内容区，总占宽 = 100（内容）+ 10×2（padding）+ 5×2（border）+ 4×2（margin）= <b>138px</b>。border-box：width 已含内容 + padding + border，元素本体就是 100px，加 margin 后总占宽 = 100 + 4×2 = <b>108px</b>；此时内容区被压缩为 100 − 20 − 10 = <b>70px</b>。记忆口径：content-box 加法越加越大，border-box 写多大是多大。来源：JavaGuide 收录题型。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> BFC 是什么？怎么触发？能解决什么问题？</p>
+<details><summary>参考回答</summary>BFC（块级格式化上下文）是一块独立的渲染区域，内部元素的布局不影响外部。触发条件挑顺手的记：overflow: hidden / auto、display: flow-root（专为触发 BFC 设计，无副作用）、display: inline-block、float 非 none、position: absolute/fixed。解决三类问题：① 父子 margin 塌陷——父元素变 BFC 就能包住子元素的 margin-top；② 浮动导致父元素高度塌陷——BFC 的高度计算包含浮动子元素；③ 相邻元素垂直 margin 合并——各自包进 BFC 后不再合并。加分点：overflow:hidden 有裁剪内容的副作用，推荐 display:flow-root；两栏布局中给右侧文字区触发 BFC 也能防环绕。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① content-box 是默认值，别想当然以为写的 width 就是最终占宽——还有 padding 和 border 要加；② margin:0 auto 只水平居中，垂直方向要 flex/grid/translate；③ absolute 定位的基准是"最近的非 static 祖先"，父元素没设 relative 就会一路找到视口；④ BFC 不会让两个 BFC 之间的垂直 margin 合并，但同一个 BFC 内相邻块级会合并；⑤ flex:1 均分的前提是 basis 0%，别和 flex:auto（basis auto）背反；⑥ 盒模型计算题属于 CSS 规范题，按规范作答即可，无需实跑。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

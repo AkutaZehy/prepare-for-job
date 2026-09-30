@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反转、合并与判环（ACM 模式） · 编程题与Java基础/算法编程题/链表</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 链表</div>
+<h1>反转、合并与判环（ACM 模式）</h1>
+<div class="meta">适用岗位：全部（小中厂 Java/Python 笔试高频） ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：反转=<b>三指针</b>（先存后继再转向）；合并=<b>哑节点 dummy</b>+双指针逐个摘小；判环=<b>快慢指针</b>（fast 一步两步），找入环点=相遇后一指针回 head 同步走（<b>a = kL − b</b>）；删倒数第 N=fast 先走 n 步再同步，一次遍历。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题 1（主打）反转链表</b>：输入 n 和 n 个整数，按顺序构建单链表，输出反转后链表的节点值（空格分隔）。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>5                       # n
+1 2 3 4 5               # n 个节点值，从头到尾</code></pre>
+<b>输出格式</b>（1 行）：
+<pre><code>5 4 3 2 1</code></pre></div>
+<p><b>题 2 合并两个有序链表</b>：给两条升序链表（长度 n、m 及各自节点值），合并为一条升序链表输出（稳定归并，相等时先取链表 1 的节点）。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="io"><b>输入格式</b>（3 行）：
+<pre><code>3 3                     # n m
+1 2 4                   # 链表 1（升序）
+1 3 4                   # 链表 2（升序）</code></pre>
+<b>输出格式</b>（1 行）：
+<pre><code>1 1 2 3 4 4</code></pre></div>
+<p><b>题 3 环形链表判环与找入环点（LC141/142）</b>：判断链表是否有环；进阶返回入环点。ACM 改编常见给法：n 个节点值 + 整数 pos（尾节点指向第 pos 个节点，0 起始；pos=-1 表示无环），输出 true/false。来源：LeetCode 经典题（ACM 改编）。</p>
+<p><b>题 4 删除链表的倒数第 N 个结点（LC19）</b>：输入 n、n 个节点值与 k，删除倒数第 k 个节点后输出剩余序列。如 5 / 1 2 3 4 5 / 2 → 输出 1 2 3 5。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="tip">笔试建链的输入约定常见三种：① 先给 n 再给 n 个值（本页约定）；② 一行值以 -1 结尾；③ 不给长度直接读到 EOF。动笔前先看样例确认，别背死一种。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<p><b>1. 反转链表（LC206）</b></p>
+<ul>
+<li><b>迭代三指针 prev/cur/next</b>：每轮 next 先记下 cur 的后继 → cur.next 改指 prev → prev、cur 同步后移。时间 O(n)、空间 O(1)，<b>链表题首选</b>（深链递归会爆栈）。</li>
+<li><b>递归两版</b>：经典版——先递归反转 head 之后的部分，再让后继回指自己（<code>head.next.next = head; head.next = null</code>）；尾递归式——把 prev 作为参数往下传 <code>f(cur, prev) = f(cur.next, cur)</code>，语义与迭代一致。两版都是 O(n) 栈空间，Java 无尾递归优化。</li>
+<li>Python 三连赋值 <code>cur.next, prev, cur = prev, cur, cur.next</code> 一行顶三行——右侧先整体求值，不怕顺序问题。</li>
+</ul>
+<pre><code>// 递归版一（经典）
+Node reverse(Node head) {
+    if (head == null || head.next == null) return head;
+    Node newHead = reverse(head.next);
+    head.next.next = head;    // 后继回指自己
+    head.next = null;         // 自己成为新尾部
+    return newHead;
+}</code></pre>
+<p><b>2. 合并两个有序链表（LC21）</b>：哑节点 dummy 收结果，双指针 p/q 每轮把较小者摘接到结果尾部；一方走完，把另一方<b>整段</b>接上。时间 O(n+m)、空间 O(1)。变体：k 条有序链合并 → 小顶堆 O(N log k)，或两两分治。</p>
+<p><b>3. 判环与找入环点（LC141/142）</b>：快慢指针 slow 一步、fast 两步——有环则 fast 每轮把差距缩小 1，必相遇；无环 fast 撞 null。哈希表法（记录访问过的节点）O(n) 空间做对照。<b>找入环点（Floyd）</b>：相遇后一个指针回 head，两指针同步一次一步，再相遇处即入口。数学一句话：设头到入口 a 步、入口到相遇点 b 步、环长 L，相遇时 fast 走了 a+b+kL = 2(a+b)，得 <b>a = kL − b</b>——头到入口的距离恰好等于相遇点绕回入口的距离，同步走必在入口碰头。时间 O(n)、空间 O(1)。</p>
+<p><b>4. 删除倒数第 N 个（LC19）</b>：哑节点 + 双指针一次遍历：fast 从 dummy 先走 n 步，然后 fast/slow 同步前进到 fast.next == null，此时 slow 停在<b>被删节点的前驱</b>，slow.next = slow.next.next。时间 O(n)、空间 O(1)。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 迭代反转链表的循环体内，正确的操作顺序是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 先执行 cur.next = prev，再保存原来的 cur.next</div>
+<div class="opt" data-k="B">B. 先执行 cur = cur.next，再修改 cur.next 指向 prev</div>
+<div class="opt" data-k="C">C. 先用临时变量保存 cur.next，再令 cur.next = prev，最后 prev、cur 同步后移</div>
+<div class="opt" data-k="D">D. 三指针各走各的，不需要临时变量</div>
+<div class="exp" hidden><b>答案 C。</b>先改 cur.next 而不保存后继，后半段链就丢了，cur 无路可走；"先存后继→改指向→同步双移"是唯一不丢链的顺序。来源：LeetCode 经典题（ACM 改编）。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 判环快慢指针相遇后，找入环点的正确做法是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 相遇点本身就是入环点</div>
+<div class="opt" data-k="B">B. 一个指针回到头节点，两指针同速（一次一步）前进，再次相遇处即入环点</div>
+<div class="opt" data-k="C">C. 快指针保持每次两步，直到再次回到相遇点</div>
+<div class="opt" data-k="D">D. 必须借助哈希表记录首次访问的节点才能找到</div>
+<div class="exp" hidden><b>答案 B。</b>数学依据 a = kL − b：头到入口的距离等于相遇点绕回入口的距离，同速前进必在入口碰头。来源：LeetCode 经典题（ACM 改编）。</div>
+</div>
+
+<div class="quiz" data-answer="AB" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于哑节点 dummy 的作用，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 合并两个有序链表时，省去"先比较两个头节点确定结果头"的特判</div>
+<div class="opt" data-k="B">B. 删除倒数第 N 个（N 可等于链长即删头）时，省去删头特判</div>
+<div class="opt" data-k="C">C. 哑节点会出现在最终输出序列里</div>
+<div class="opt" data-k="D">D. 引入哑节点会把空间复杂度从 O(1) 拉到 O(n)</div>
+<div class="exp" hidden><b>答案 AB。</b>输出从 dummy.next 开始遍历，哑节点本身不进结果，C 错；哑节点只多一个节点，空间仍 O(1)，D 错。来源：LeetCode 经典题（ACM 改编）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<p><b>题 1 反转链表（完整程序）</b>：Java 用 StreamTokenizer 快读 + StringBuilder 输出（<b>Scanner 在 10⁵+ 数据量会被卡 TLE</b>）；Python 页内真建链表（更贴面试写法）。</p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+
+public class Main {
+    static class Node {
+        int val; Node next;
+        Node(int v) { val = v; }
+    }
+
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        Node dummy = new Node(0), tail = dummy;
+        for (int i = 0; i &lt; n; i++) {          // 按输入顺序建链
+            in.nextToken(); tail.next = new Node((int) in.nval); tail = tail.next;
+        }
+
+        // 迭代三指针：next 先存后继 → cur.next 指向 prev → 双指针同步后移
+        Node prev = null, cur = dummy.next;
+        while (cur != null) {
+            Node next = cur.next;
+            cur.next = prev;
+            prev = cur;
+            cur = next;
+        }
+
+        StringBuilder sb = new StringBuilder();  // 拼好一次性输出
+        for (Node p = prev; p != null; p = p.next)
+            sb.append(p.val).append(p.next == null ? '\n' : ' ');
+        System.out.print(sb);
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+class Node:
+    def __init__(self, val):
+        self.val = val
+        self.next = None
+
+def main():
+    data = sys.stdin.read().split()
+    n = int(data[0])
+    dummy = Node(0)                  # 哑节点，建链不用特判空表
+    tail = dummy
+    for i in range(n):
+        tail.next = Node(int(data[1 + i]))
+        tail = tail.next
+
+    prev, cur = None, dummy.next
+    while cur:                       # 迭代三指针反转
+        cur.next, prev, cur = prev, cur, cur.next   # 右侧先整体求值
+
+    out = []
+    while prev:
+        out.append(str(prev.val))
+        prev = prev.next
+    print(' '.join(out))
+
+main()</code></pre>
+
+<p><b>题 2 合并两个有序链表（完整程序）</b></p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+
+public class Main {
+    static class Node {
+        int val; Node next;
+        Node(int v) { val = v; }
+    }
+
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        in.nextToken(); int m = (int) in.nval;
+        Node d1 = new Node(0), t1 = d1;
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); t1.next = new Node((int) in.nval); t1 = t1.next; }
+        Node d2 = new Node(0), t2 = d2;
+        for (int i = 0; i &lt; m; i++) { in.nextToken(); t2.next = new Node((int) in.nval); t2 = t2.next; }
+
+        Node dummy = new Node(0), tail = dummy;   // 哑节点：结果头不用特判
+        Node p = d1.next, q = d2.next;
+        while (p != null &amp;&amp; q != null) {
+            if (p.val &lt;= q.val) { tail.next = p; p = p.next; }
+            else { tail.next = q; q = q.next; }
+            tail = tail.next;
+        }
+        tail.next = (p != null) ? p : q;          // 剩余一整段直接接上
+
+        StringBuilder sb = new StringBuilder();
+        for (Node c = dummy.next; c != null; c = c.next)
+            sb.append(c.val).append(c.next == null ? '\n' : ' ');
+        System.out.print(sb);
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+class Node:
+    def __init__(self, val):
+        self.val = val
+        self.next = None
+
+def build(vals):
+    dummy = tail = Node(0)
+    for v in vals:
+        tail.next = Node(int(v))
+        tail = tail.next
+    return dummy.next
+
+def merge(p, q):
+    dummy = tail = Node(0)              # 哑节点
+    while p and q:
+        if p.val &lt;= q.val:
+            tail.next, p = p, p.next    # 摘较小的头
+        else:
+            tail.next, q = q, q.next
+        tail = tail.next
+    tail.next = p if p else q           # 剩余整段直接接上
+    return dummy.next
+
+def main():
+    data = sys.stdin.read().split()
+    n, m = int(data[0]), int(data[1])
+    p = build(data[2:2 + n])
+    q = build(data[2 + n:2 + n + m])
+    out, c = [], merge(p, q)
+    while c:
+        out.append(str(c.val))
+        c = c.next
+    print(' '.join(out))
+
+main()</code></pre>
+
+<p><b>题 3 判环与找入环点 / 题 4 删除倒数第 N 个（核心函数，ACM 建链后调用即可）</b>：判环题读入 pos 后让尾节点 next 指向第 pos 个节点即可造环。</p>
+<span class="lang">Java</span>
+<pre><code>// LC141 判环：快慢指针，O(n) 时间 O(1) 空间
+boolean hasCycle(Node head) {
+    Node slow = head, fast = head;
+    while (fast != null &amp;&amp; fast.next != null) {   // 先判后走，防空指针
+        slow = slow.next;           // 慢的一次一步
+        fast = fast.next.next;      // 快的一次两步
+        if (slow == fast) return true;   // 是"同一个节点"才叫相遇
+    }
+    return false;                   // fast 撞 null = 无环
+}
+
+// LC142 找入环点：相遇后一指针回 head，同步一步走，再相遇即入口
+Node detectCycle(Node head) {
+    Node slow = head, fast = head;
+    while (fast != null &amp;&amp; fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+        if (slow == fast) {         // 相遇 → 有环
+            Node p = head;
+            while (p != slow) { p = p.next; slow = slow.next; }
+            return p;
+        }
+    }
+    return null;
+}
+
+// LC19：哑节点 + 双指针，一次遍历删倒数第 n 个
+Node removeNthFromEnd(Node head, int n) {
+    Node dummy = new Node(0); dummy.next = head;  // 哑节点：删头免特判
+    Node fast = dummy, slow = dummy;
+    for (int i = 0; i &lt; n; i++) fast = fast.next; // fast 先走 n 步
+    while (fast.next != null) { fast = fast.next; slow = slow.next; }
+    slow.next = slow.next.next;     // slow 停在被删节点的前一个
+    return dummy.next;
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>def has_cycle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow, fast = slow.next, fast.next.next
+        if slow is fast:            # is：同一个对象
+            return True
+    return False
+
+def detect_cycle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow, fast = slow.next, fast.next.next
+        if slow is fast:            # 相遇 → 有环
+            p = head
+            while p is not slow:
+                p, slow = p.next, slow.next
+            return p                # 再相遇处即入环点
+    return None
+
+def remove_nth_from_end(head, n):
+    dummy = Node(0); dummy.next = head
+    fast = slow = dummy
+    for _ in range(n):
+        fast = fast.next            # fast 先走 n 步
+    while fast.next:
+        fast, slow = fast.next, slow.next
+    slow.next = slow.next.next      # slow 停在被删节点的前一个
+    return dummy.next</code></pre>
+<div class="tip"><b>多组输入改法</b>：Java 把主逻辑套进 <code>while (in.nextToken() != StreamTokenizer.TT_EOF)</code>；Python 在 <code>data</code> 上移动游标分块读。建链与算法逻辑不变。大数据量 Java 务必 StreamTokenizer/BufferedReader，<b>Scanner 会被卡 TLE</b>。</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 反转的<b>断链顺序</b>：先存 next 再转向，顺序颠倒后半段链就丢了；② 凡"可能动头节点"的操作（合并、删头）先挂<b>哑节点</b>，输出从 dummy.next 开始；③ 快慢指针循环条件 <code>fast != null &amp;&amp; fast.next != null</code> 先判后走，防空指针；④ 判环相等用 <code>==</code>（比较是否同一节点）而非值相等，Python 对应 <code>is</code>；⑤ 删倒数第 N 的 N 可能等于链长（即删头），哑节点让这步免特判；⑥ 输出用 StringBuilder/join 拼好再打印，行末别多空格；⑦ 链长 10⁵+ 时反转用迭代，递归可能爆栈。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

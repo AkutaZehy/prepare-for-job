@@ -46,15 +46,16 @@ h1{font-size:24px;margin:0 0 4px}
 <div class="sub">每个知识点页三态记录（未学 / 学习中 / 已完成）+ 最近学习日期；进度自动保存在本浏览器，建议定期导出 JSON 备份。</div>
 </header>
 <div class="toolbar">
-<input type="search" id="q" placeholder="过滤知识点标题…">
+<input type="search" id="q" placeholder="搜索标题或分类，如 Java、TCP、注意力…">
 <button class="btn" id="exportBtn">导出进度 JSON</button>
 <button class="btn" id="importBtn">导入进度 JSON</button>
 <input type="file" id="importFile" accept=".json" hidden>
 </div>
 <div class="total" id="total"></div>
 <div id="list"></div>
+<div id="noResult" class="hidden" style="padding:30px 0;text-align:center;color:var(--mut)">没有匹配的条目——标题和分类路径都会参与匹配，换个关键词试试。</div>
 <div class="foot">
-双击本页即用；知识点页放回对应子文件夹后运行 <code>python build_checklist.py</code> 即重新生成清单。
+双击本页即用；知识点页放回对应子文件夹后运行 <code>python tools/build_checklist.py</code> 即重新生成清单。
 进度以浏览器 localStorage（键 <code>pfj-progress-v1</code>）为准，换浏览器/清缓存前先导出。
 </div>
 </div>
@@ -98,7 +99,7 @@ h1{font-size:24px;margin:0 0 4px}
         html+='<div class="subh">'+s.name+'</div>';
         s.items.forEach(function(it){
           var p=state[it.p]||{s:0,d:''};
-          html+='<div class="item" data-t="'+it.t+'">'+
+          html+='<div class="item" data-t="'+it.t+'" data-p="'+it.p+'">'+
             '<button class="st s'+p.s+'" data-p="'+it.p+'" data-s="'+p.s+'">'+STATUS[p.s]+'</button>'+
             '<a href="'+it.p+'" target="_blank">'+it.t+'</a>'+
             '<span class="d">'+(p.d?p.d:'')+'</span></div>';
@@ -120,13 +121,27 @@ h1{font-size:24px;margin:0 0 4px}
 
   function applyFilter(){
     var q=document.getElementById('q').value.trim().toLowerCase();
+    var shown=0;
     document.querySelectorAll('.item').forEach(function(el){
-      el.classList.toggle('hidden', q && el.dataset.t.toLowerCase().indexOf(q)<0);
+      var hay=(el.dataset.t+' '+(el.dataset.p||'')).toLowerCase();
+      var hit=!q||hay.indexOf(q)>=0;
+      el.classList.toggle('hidden',!hit);
+      if(hit)shown++;
+    });
+    document.querySelectorAll('.subh').forEach(function(sh){
+      var any=false, el=sh.nextElementSibling;
+      while(el&&!el.classList.contains('subh')){
+        if(el.classList.contains('item')&&!el.classList.contains('hidden')){any=true;break;}
+        el=el.nextElementSibling;
+      }
+      sh.classList.toggle('hidden', q && !any);
     });
     document.querySelectorAll('.cat').forEach(function(cat){
       var anyVisible=cat.querySelectorAll('.item:not(.hidden)').length>0;
       cat.classList.toggle('hidden', q && !anyVisible);
     });
+    var nr=document.getElementById('noResult');
+    if(nr)nr.classList.toggle('hidden', !q || shown>0);
   }
   document.getElementById('q').addEventListener('input',applyFilter);
 

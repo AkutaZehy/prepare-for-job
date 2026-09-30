@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>训练三件套：激活函数/优化器/初始化 · 深度学习与Python进阶/深度学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习</div>
+<h1>训练三件套：激活函数 / 优化器 / 初始化</h1>
+<div class="meta">适用岗位：AI/Agent 开发 + 通用软开（面试八股 + 调参工程） ｜ 形态：表格 + 公式 + 伪代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：Sigmoid/Tanh 两端饱和、Sigmoid 非零中心；ReLU 负区梯度恒 0 → 死亡 ReLU；优化器主线 = SGD 加动量（管方向）+ 自适应步长（管步长），Adam = 两者之和 + 偏差修正，AdamW 把权重衰减与自适应缩放解耦；Xavier 配 Tanh（$\tfrac{2}{\text{fan}_{in}+\text{fan}_{out}}$）、He 配 ReLU（$\tfrac{2}{\text{fan}_{in}}$）；全零初始化破坏不了对称性。归一化算第四件套，见 <a href="归一化BN-LN-GN.html">归一化：BN/LN/GN</a> 页。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>1. 激活函数：非线性来源，也是梯度通路</b></p>
+<table>
+<tr><th>激活函数</th><th>公式</th><th>输出范围</th><th>梯度特性 / 问题</th><th>典型用途</th></tr>
+<tr><td>Sigmoid</td><td>$\sigma(x)=\dfrac{1}{1+e^{-x}}$</td><td>(0,1)</td><td>两端饱和（导数最大仅 0.25）；输出<b>非零中心</b>，后层梯度同号、走锯齿</td><td>二分类输出层、门控单元</td></tr>
+<tr><td>Tanh</td><td>$\tanh(x)$</td><td>(−1,1)</td><td>零中心缓解锯齿，但两端仍饱和</td><td>RNN 隐态 / 候选记忆</td></tr>
+<tr><td>ReLU</td><td>$\max(0,x)$</td><td>[0,+∞)</td><td>正区不饱和、梯度恒 1、计算便宜；负区梯度恒 0 → <b>死亡 ReLU</b></td><td>CNN 默认</td></tr>
+<tr><td>Leaky ReLU</td><td>$\max(\alpha x,\ x)$</td><td>(−∞,+∞)</td><td>负区斜率 α（常取 0.01），保留小梯度，缓解死亡</td><td>CNN 替代品</td></tr>
+<tr><td>GELU</td><td>$x\cdot\Phi(x)$（Φ 为标准正态 CDF）</td><td>约 (−0.17,+∞)</td><td>平滑、按高斯概率门控输入，负区有小梯度、不硬饱和</td><td>Transformer（BERT/GPT）</td></tr>
+</table>
+<p>死亡 ReLU 成因：大学习率下负梯度把权重/偏置推到"输出恒为负"，该神经元梯度恒 0、再也救不活；对策是换 Leaky/GELU、降 lr、配 He 初始化。GELU 论文 2016，BERT、GPT 系默认用它。</p>
+
+<p><b>2. 优化器演进：每一代都在修上一代的病</b></p>
+<ul>
+<li><b>SGD</b>：$\theta\leftarrow\theta-\eta g$。简单，但单一学习率 + 小批量噪声 → 震荡、沟壑地形走得慢。</li>
+<li><b>动量 Momentum</b>：$v\leftarrow\beta v+g,\ \theta\leftarrow\theta-\eta v$（β≈0.9）。方向一致的分量加速约 $1/(1-\beta)$ 倍，来回振荡的分量相互抵消——惯性。</li>
+<li><b>AdaGrad（Duchi 等 2011）</b>：累加平方梯度 $G\leftarrow G+g\odot g$，更新除以 $\sqrt{G}$——常收到大梯度的参数步长自动变小，稀疏特征受益。缺陷：$G$ 单调增，后期有效学习率趋 0，深网训不动。</li>
+<li><b>RMSProp（Hinton 2012 课堂讲义）</b>：把累加换成指数滑动平均 $E[g^2]\leftarrow\beta E[g^2]+(1-\beta)g^2$，只看"近期"幅值，修好 AdaGrad 后期停走。</li>
+<li><b>Adam（Adam 论文 2015，Kingma &amp; Ba）</b>：一阶矩 m（方向）+ 二阶矩 v（步长）双滑动平均，再加偏差修正：</li>
+</ul>
+<p style="text-align:center">$$m_t=\beta_1 m_{t-1}+(1-\beta_1)g_t,\qquad v_t=\beta_2 v_{t-1}+(1-\beta_2)g_t^2$$</p>
+<p style="text-align:center">$$\hat m_t=\frac{m_t}{1-\beta_1^{\,t}},\quad \hat v_t=\frac{v_t}{1-\beta_2^{\,t}},\quad \theta\leftarrow\theta-\eta\,\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}$$</p>
+<ul>
+<li><b>偏差修正为什么需要</b>：$m_0=v_0=0$，前几步估计整体偏小。例：β₁=0.9、$t=1$ 时 $m_1=0.1g_1$，除以 $1-0.9^1$ 后恢复到 $g_1$ 量级——让滑动平均从第一步起就近似无偏。</li>
+<li><b>AdamW（ICLR 2019）与 L2 的区别</b>：在 Adam 里做 L2 是把 $\lambda\theta$ 加进梯度，随后被 $1/\sqrt{\hat v}$ 逐参数缩放——历史梯度大的参数权重衰减被稀释，正则不均匀；AdamW 把衰减从梯度中拿出来，直接作用在参数上 $w\leftarrow w-\eta\lambda w$，所有参数均匀衰减。Transformer 时代标配（BERT/GPT 系训练均用 AdamW）。</li>
+</ul>
+<p><b>Adam 更新一小段（伪代码）</b></p>
+<pre><code>m = b1*m + (1-b1)*g              # 一阶矩：更新方向（惯性平均）
+v = b2*v + (1-b2)*g*g            # 二阶矩：更新步长（平方幅值）
+m_hat = m / (1 - b1**t)          # 偏差修正：抵消初始 0 偏置
+v_hat = v / (1 - b2**t)
+w -= lr * m_hat / (sqrt(v_hat) + eps)   # AdamW 再加一项：w -= lr*wd*w</code></pre>
+
+<p><b>3. 参数初始化：起点决定能不能训起来</b></p>
+<ul>
+<li><b>全零为什么不行</b>：同层每个神经元权重相同 → 前向输出相同 → 反向梯度相同 → 永远长得一样（对称性破坏不了），网络等效只有一个神经元。随机初始化的意义就是破坏对称；偏置 b 初始化为 0 没问题。</li>
+<li><b>方差传播视角</b>：前向 $h=Wx$ 时 $\mathrm{Var}(h)\propto \text{fan}_{in}\cdot\mathrm{Var}(W)$；反向时梯度方差 $\propto \text{fan}_{out}\cdot\mathrm{Var}(W)$——所以要按 fan 配方差，让激活和梯度"传多少层都不爆不灭"。</li>
+<li><b>Xavier / Glorot（Glorot &amp; Bengio 2010）</b>：$\mathrm{Var}(W)=\dfrac{2}{\text{fan}_{in}+\text{fan}_{out}}$（均匀版 $\pm\sqrt{6/(\text{fan}_{in}+\text{fan}_{out})}$），前向反向各让一半，适配 Tanh/Sigmoid（线性区假设）。</li>
+<li><b>He / Kaiming（He 等 2015，ICCV）</b>：ReLU 把负半轴置零，激活方差减半，补偿翻倍：$\mathrm{Var}(W)=\dfrac{2}{\text{fan}_{in}}$，适配 ReLU 系；ResNet 论文（arXiv 2015）用的就是它。</li>
+<li><b>warmup 一句</b>：训练初期参数随机、梯度噪声大，直接上大学习率容易飞——先从很小的 lr 线性升到目标值（几百到几千步）再衰减，是 Transformer + AdamW 组合的标配。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span><span class="tag">调参工程</span></p>
+<ul>
+<li>激活函数：饱和 / 零中心 / 死亡三连问；"为什么 ReLU 比 Sigmoid 好"（不饱和 + 正区梯度恒 1 + 计算便宜）。</li>
+<li>优化器演进叙事：能顺着"SGD 缺什么 → 动量补什么 → AdaGrad 缺什么 → RMSProp 补什么 → Adam 合体 → AdamW 修正则"讲一遍，是 AI 岗面试最爱的追问链。</li>
+<li>AdamW 与 L2 的区别、偏差修正的数值例子、Adam 两个动量各自作用——口述高频。</li>
+<li>初始化：He 配 ReLU、Xavier 配 Tanh 的"为什么"，全零初始化的对称性问题；warmup 什么时候必须。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 关于常见激活函数的梯度特性，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Sigmoid 输出以 0 为中心，因此收敛通常比 Tanh 更快</div>
+<div class="opt" data-k="B">B. ReLU 负区输出恒为 0、梯度也恒为 0，输入长期为负的神经元会"死亡"</div>
+<div class="opt" data-k="C">C. Tanh 两端不会饱和，梯度恒为 1</div>
+<div class="opt" data-k="D">D. Leaky ReLU 负区梯度为 0，与 ReLU 一样会死亡</div>
+<div class="exp" hidden><b>答案 B。</b>Sigmoid 输出在 (0,1)，非零中心（A 反了）；Tanh 两端饱和、导数最大为 1（C 错）；Leaky ReLU 负区梯度为 α（如 0.01），正是为缓解死亡 ReLU 设计（D 错）。延伸：死亡 ReLU 多由大 lr 下大负梯度把参数推入恒负区导致，换 Leaky/GELU 或降 lr。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> Adam 的偏差修正 $\hat m_t=\frac{m_t}{1-\beta_1^t}$、$\hat v_t=\frac{v_t}{1-\beta_2^t}$ 的目的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 让学习率随训练自动衰减</div>
+<div class="opt" data-k="B">B. 防止梯度爆炸，可以替代梯度裁剪</div>
+<div class="opt" data-k="C">C. 修正 m、v 从 0 初始化造成的前几步估计偏小问题</div>
+<div class="opt" data-k="D">D. 把梯度归一化到单位量纲，替代输入归一化</div>
+<div class="exp" hidden><b>答案 C。</b>$m_0=v_0=0$ 使初期估计偏向 0：β₁=0.9、$t=1$ 时 $m_1=0.1g_1$，除以 $1-0.9$ 后恢复 $g_1$ 量级。它不是学习率衰减（A），也不处理爆炸（B，那是梯度裁剪的事）。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于神经网络参数初始化，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Xavier 取 $\mathrm{Var}(W)=\frac{2}{\text{fan}_{in}+\text{fan}_{out}}$，兼顾前向激活与反向梯度的方差，常配 Tanh/Sigmoid</div>
+<div class="opt" data-k="B">B. He 取 $\mathrm{Var}(W)=\frac{2}{\text{fan}_{in}}$，补偿 ReLU 置零负半轴造成的方差减半，常配 ReLU</div>
+<div class="opt" data-k="C">C. 把所有权重初始化为 0，只要网络够深也能正常训练</div>
+<div class="opt" data-k="D">D. 偏置 b 通常可以初始化为 0，不影响对称性的破坏</div>
+<div class="exp" hidden><b>答案 ABD。</b>全零初始化使同层各神经元前向输出相同、反向梯度相同，永远保持一致，网络退化成"一个宽神经元"（C 错）；对称性必须靠随机初始化破坏。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> Adam 里的两个"动量"各自起什么作用？为什么两个都要？</p>
+<details><summary>参考回答</summary>m 是一阶矩（梯度滑动平均），管<b>方向</b>：平滑小批量噪声，方向一致的维度加速、来回振荡的维度抵消（惯性）。v 是二阶矩（梯度平方滑动平均），管<b>步长</b>：按参数各自的梯度幅值自适应缩放学习率，常收到大梯度的参数走小步、稀疏参数保住大步。只留 m 是带动量 SGD（全局统一 lr），只留 v 是 RMSProp（方向噪声大），Adam = 方向与步长各管一层。加分点：偏差修正 $\hat m=m/(1-\beta_1^t)$、AdamW 解耦权重衰减、默认 β₁=0.9、β₂=0.999（Adam 论文 2015）。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 非零中心的是 Sigmoid，零中心的是 Tanh，别背反；② "Adam + L2 正则" ≠ AdamW——L2 混进梯度会被 $1/\sqrt{\hat v}$ 缩放稀释，AdamW 是解耦的均匀衰减；③ He 配 ReLU、Xavier 配 Tanh/Sigmoid，配反了方差失配；④ 死亡 ReLU 的现场症状：激活里 0 的比例畸高 + loss 不降——排查思路见 <a href="训练实操过拟合排查与loss不降.html">训练实操页</a>，归一化选型见 <a href="归一化BN-LN-GN.html">归一化页</a>。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

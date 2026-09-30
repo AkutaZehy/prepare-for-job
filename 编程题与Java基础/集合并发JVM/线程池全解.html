@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>线程池全解 · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>线程池全解</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（八股与笔试双高频） ｜ 形态：参数 + 流程 + 模板代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：七大参数 core / max / keepAlive+unit / workQueue / threadFactory / handler；<b>执行流程（易错重灾区）：核心线程 → 任务入队 → 队列满了才开非核心线程 → 达到 maximum 就拒绝</b>（不是先开满线程再入队！）；拒绝四策略 AbortPolicy 默认抛 RejectedExecutionException；Executors 两大坑：Fixed 无界队列 OOM、Cached 线程数 Integer.MAX_VALUE；线程数经验：CPU 密集 N+1、IO 密集 N×(1+等待/计算)；shutdown 跑完已提交任务 vs shutdownNow 中断；submit 的异常吞进 Future。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>为什么用线程池</b>：①线程创建/销毁有系统调用开销，池化复用降低开销；②控制并发线程上限，防止资源被无限线程拖垮（限流）；③统一管理：排队、命名、监控、拒绝策略，任务提交方与执行方解耦。</p>
+<p><b>七大参数（ThreadPoolExecutor 构造器顺序）</b>：</p>
+<table>
+<tr><th>参数</th><th>含义</th><th>要点</th></tr>
+<tr><td class="l">corePoolSize</td><td class="l">核心线程数</td><td class="l">默认常驻不回收（allowCoreThreadTimeOut(true) 可让核心也超时回收）</td></tr>
+<tr><td class="l">maximumPoolSize</td><td class="l">最大线程数</td><td class="l">核心 + 非核心的总上限</td></tr>
+<tr><td class="l">keepAliveTime + unit</td><td class="l">空闲存活时间</td><td class="l">非核心线程空闲超过它就被回收</td></tr>
+<tr><td class="l">workQueue</td><td class="l">任务队列</td><td class="l">提交了但还没执行的任务；有界/无界直接决定池的行为</td></tr>
+<tr><td class="l">threadFactory</td><td class="l">线程工厂</td><td class="l">起线程名、设优先级/守护态——排障全靠名字</td></tr>
+<tr><td class="l">handler</td><td class="l">拒绝策略</td><td class="l">队列满且线程也满时触发</td></tr>
+</table>
+<p><b>执行流程（背到条件反射）</b>：提交任务后——①运行线程数 &lt; corePoolSize？新建核心线程执行；②否则任务<b>先入队</b>（队列没满就不开新线程！）；③队列也满了？才开非核心线程，直到 maximumPoolSize；④线程达到 maximum 且队列满？触发拒绝策略。</p>
+<pre><code>提交任务 execute(task)
+    │
+    ├─ 线程数 &lt; corePoolSize ？ ── 是 ──→ 新建核心线程执行
+    │        ↓ 否
+    ├─ workQueue 未满 ？       ── 是 ──→ 任务入队等待（不开新线程！）
+    │        ↓ 否
+    ├─ 线程数 &lt; maximumPoolSize？── 是 ──→ 新建非核心线程执行
+    │        ↓ 否
+    └─ 触发拒绝策略 handler.rejectedExecution(...)</code></pre>
+<p><b>四种拒绝策略</b>：</p>
+<table>
+<tr><th>策略</th><th>行为</th><th>备注</th></tr>
+<tr><td class="l">AbortPolicy</td><td class="l">直接抛 RejectedExecutionException</td><td class="l"><b>默认策略</b>，让提交方立刻感知过载</td></tr>
+<tr><td class="l">CallerRunsPolicy</td><td class="l">由提交任务的线程（调用者）自己执行</td><td class="l">天然反压：提交被拖慢，任务不丢</td></tr>
+<tr><td class="l">DiscardPolicy</td><td class="l">静默丢弃新任务</td><td class="l">无任何感知，慎用</td></tr>
+<tr><td class="l">DiscardOldestPolicy</td><td class="l">丢弃队首最老任务，再重试提交当前任务</td><td class="l">老任务让位新任务</td></tr>
+</table>
+<p><b>为什么阿里规约禁止直接用 Executors</b>：<code>newFixedThreadPool</code> / <code>newSingleThreadExecutor</code> 用默认容量的 LinkedBlockingQueue（容量 Integer.MAX_VALUE，<b>无界</b>）——任务无限堆积 OOM；<code>newCachedThreadPool</code> / <code>newScheduledThreadPool</code> 的 maximumPoolSize 是 <b>Integer.MAX_VALUE</b>——线程无限膨胀 OOM。规约要求手动 new ThreadPoolExecutor，显式给<b>有界队列 + 命名线程工厂 + 明确拒绝策略</b>。</p>
+<p><b>线程数经验公式（经验值非定理，最终以压测为准）</b>：CPU 密集型 = 核数 + 1（+1 防偶发缺页等暂停浪费一核）；IO 密集型 = 核数 × (1 + 等待时间/计算时间)——等待占比越高，线程数可以越多。</p>
+<p><b>shutdown vs shutdownNow</b>：shutdown()——不再接收新任务，<b>已提交（含队列中）的任务全部跑完</b>后关闭；shutdownNow()——不再接收新任务，并<b>尝试中断正在执行的线程</b>，返回队列中未执行的任务列表。</p>
+<p><b>submit vs execute</b>：execute(Runnable) 无返回值，任务抛的异常直接走线程的未捕获异常处理（默认打印堆栈）；submit(...) 返回 Future，<b>异常被捕获存进 Future，不调用 get() 就完全看不到</b>——"任务静默失败"的经典来源。</p>
+<p><b>常用排队策略</b>：ArrayBlockingQueue——有界，必须指定容量，配合拒绝策略形成反压；LinkedBlockingQueue——可有界可无界（默认容量 Integer.MAX_VALUE ≈ 无界，风险所在）；SynchronousQueue——不存任务、直接交接，CachedThreadPool 的选择，每个提交立刻需要一个空闲线程接住。</p>
+<p><b>动态调参一句</b>：ThreadPoolExecutor 提供 setCorePoolSize / setMaximumPoolSize 等运行时修改接口，是配置中心热调线程池的基础。</p>
+<span class="lang">Java</span>
+<pre><code>ThreadPoolExecutor pool = new ThreadPoolExecutor(
+        4,                                  // corePoolSize：核心线程数
+        8,                                  // maximumPoolSize：最大线程数
+        60L, TimeUnit.SECONDS,              // keepAliveTime+unit：非核心空闲 60s 回收
+        new ArrayBlockingQueue&lt;&gt;(100),      // workQueue：有界队列，容量 100
+        r -&gt; {                              // threadFactory：命名线程工厂（排障必备）
+            Thread t = new Thread(r, "biz-pool-" + SEQ.getAndIncrement());
+            t.setDaemon(false);
+            return t;
+        },
+        new ThreadPoolExecutor.CallerRunsPolicy()   // handler：池满由提交线程自己跑（反压）
+);
+static final AtomicInteger SEQ = new AtomicInteger(1);
+
+try {
+    pool.execute(() -&gt; System.out.println("无返回值任务"));  // execute：异常直接打印堆栈
+    Future&lt;Integer&gt; f = pool.submit(() -&gt; 42);               // submit：返回 Future
+    System.out.println(f.get(1, TimeUnit.SECONDS));          // 任务异常在 get() 时才抛出
+} catch (Exception e) {
+    e.printStackTrace();
+} finally {
+    pool.shutdown();                       // 温和关闭：不再收新任务，已提交的跑完
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code># 对照：concurrent.futures.ThreadPoolExecutor 只有 max_workers 一个旋钮
+from concurrent.futures import ThreadPoolExecutor
+with ThreadPoolExecutor(max_workers=4) as pool:
+    results = list(pool.map(lambda x: x * x, range(10)))
+# IO 密集任务同样适用；CPU 密集改用 ProcessPoolExecutor 绕开 GIL</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">机试手写</span><span class="tag">面试口述</span></p>
+<ul>
+<li>笔试：数字题（给核心/队列/最大三参数，问"第 N 个任务的命运"）、拒绝策略归属、Executors 风险、submit/execute 差异。</li>
+<li>机试：手写简版线程池（阻塞队列 + worker 线程）、生产者消费者模型。</li>
+<li>面试：七参数逐个说、执行流程顺序、线程数怎么定（追问：公式是经验值怎么落地——压测）、动态调参与监控。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 线程池参数：核心线程 3、队列容量 10、最大线程 6。假设前 13 个任务都长时间未执行完，问提交<b>第 14 个</b>任务时发生什么？提交<b>第 20 个</b>呢？写出过程。</p>
+<details><summary>先自己算，再展开对答案</summary>容量账本：核心 3 + 队列 10 = 前 13 个任务"无压力"——第 1~3 个开满核心线程，第 4~13 个依次入队（第 13 个把队列装满）。<b>第 14 个</b>：队列已满 → 开第 1 个非核心线程（池中第 4 个线程）执行；第 15、16 个各再开一个非核心线程，到第 16 个时线程达 maximum=6。<b>第 17 个起（含第 20 个）</b>：核心满 + 队列满 + 线程满 → 触发拒绝策略，默认 AbortPolicy 抛 RejectedExecutionException。记忆点：池的总承载力 = 核心 + 队列 + 非核心 = 3+10+3 = 16 个。来源：牛客经典题。</details>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于四种拒绝策略，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. AbortPolicy 是默认策略，直接抛 RejectedExecutionException</div>
+<div class="opt" data-k="B">B. CallerRunsPolicy 由提交任务的线程自己执行，能起到反压降速作用</div>
+<div class="opt" data-k="C">C. DiscardOldestPolicy 丢弃刚刚提交的最新任务</div>
+<div class="opt" data-k="D">D. DiscardPolicy 静默丢弃新提交的任务，不抛异常</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 反了——DiscardOldestPolicy 丢的是<b>队首最老的</b>任务，给新任务腾位。CallerRuns 的反压原理：提交线程亲自执行任务期间，就没法继续提交，整体速度被拖回池的处理能力。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="AB" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 Executors 工厂方法的风险（阿里规约禁用），正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. newFixedThreadPool / newSingleThreadExecutor 用默认容量 Integer.MAX_VALUE 的 LinkedBlockingQueue，任务堆积可能 OOM</div>
+<div class="opt" data-k="B">B. newCachedThreadPool 的 maximumPoolSize 是 Integer.MAX_VALUE，线程可能无限膨胀 OOM</div>
+<div class="opt" data-k="C">C. newSingleThreadExecutor 使用有界队列，天然安全</div>
+<div class="opt" data-k="D">D. 只要配置了拒绝策略，就不会发生 OOM</div>
+<div class="exp" hidden><b>答案 AB。</b>C 错——newSingleThreadExecutor 同样是无界 LinkedBlockingQueue；D 错——拒绝策略只在"队列满且线程满"时触发，无界队列永远不满，拒绝策略形同虚设，OOM 风险照样存在。正解：手动 new ThreadPoolExecutor + 有界队列。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> 线程池核心线程已满、队列未满，此时提交新任务会（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 立即创建非核心线程执行</div>
+<div class="opt" data-k="B">B. 任务入队等待，不开新线程</div>
+<div class="opt" data-k="C">C. 触发拒绝策略</div>
+<div class="opt" data-k="D">D. 丢弃队首任务给新任务腾位置</div>
+<div class="exp" hidden><b>答案 B。</b>执行流程最经典陷阱：非核心线程只在"队列<b>也</b>满了"之后才创建，入队永远优先于扩线程。推论（面试加分）：newFixedThreadPool 的队列无界 → 永远不会满 → 最大线程数形同虚设，永远只有核心线程在干活。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>5.</b> 用 submit 提交的任务抛出运行时异常，且代码从不调用返回的 Future.get()，现象是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 异常堆栈打印到控制台/日志</div>
+<div class="opt" data-k="B">B. 异常被存进 Future，不调用 get() 就无人感知，任务静默失败</div>
+<div class="opt" data-k="C">C. 异常导致整个线程池关闭</div>
+<div class="opt" data-k="D">D. 异常触发拒绝策略重跑任务</div>
+<div class="exp" hidden><b>答案 B。</b>submit 把任务包成 FutureTask，异常被捕获存进去，get() 时才以 ExecutionException 抛出——不 get 就"消失"。execute 提交的任务异常才直接走线程的未捕获异常处理。生产上排查"任务悄悄没跑成"先想到这一条。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>6.</b> 8 核机器上有两类任务：①纯 CPU 计算；②调用外部 HTTP，单次 200ms 中约 180ms 在等响应。两类任务各自的线程池线程数怎么设？队列怎么选？</p>
+<details><summary>参考回答</summary>①CPU 密集：核数 + 1 = 9 个上下（公式 N+1），线程再多只会增加上下文切换开销；②IO 密集：N × (1 + 等待/计算) = 8 × (1 + 180/20) = 8 × 10 = 80 作为起点（等待占比 90%，大部分时间线程在睡，可以多放），再压测微调。队列选<b>有界</b> ArrayBlockingQueue（容量按峰值容忍度定），避免无界堆积 OOM；拒绝策略视业务：不能丢选 CallerRuns，可降级选 Abort + 监控告警；线程工厂必须命名。收尾强调：公式是经验起点，<b>最终以压测为准</b>，CPU 密集也可按"核数±1"微调。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 顺序口诀：核心 → 队列 → 非核心 → 拒绝；"先入队还是先开线程"答反即丢分；② 无界队列 = 最大线程数与拒绝策略同时失效（队列永远不满）；③ submit 异常进 Future、execute 异常直接抛——排查静默失败的第一反应；④ shutdown 与 shutdownNow 都不接新任务，差别只在是否中断正在执行的线程；⑤ 线程数公式是起点不是终点，压测才是终点。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

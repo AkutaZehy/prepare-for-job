@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图的存储与遍历 · 408基础/数据结构</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>图的存储与遍历</h1>
+<div class="meta">适用岗位：全部（笔试选择 + 手算遍历序列） ｜ 形态：结构对比 + DFS/BFS 手算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>邻接矩阵 O(n²)、判边 O(1)、适合稠密图</b>（无向图对称，行非零元数 = 度）；<b>邻接表 O(n+e)、适合稀疏图</b>（有向图链长得出度，入度要逆邻接表）。DFS 走到底再回退（递归栈），BFS 按层扩散（队列，无权图首达即最短跳数）；邻接表遍历 O(n+e)、矩阵 O(n²)。<b>非连通图调用遍历的次数 = 连通分量个数</b>，连通图一次遍历得 n−1 条边的生成树。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>邻接矩阵 vs 邻接表</b>：</p>
+<table>
+<tr><th class="l">维度</th><th class="l">邻接矩阵</th><th class="l">邻接表</th></tr>
+<tr><td class="l">空间</td><td class="l">O(n²)，与边数无关</td><td class="l">O(n+e)</td></tr>
+<tr><td class="l">判边 (u,v)</td><td class="l">O(1)，直接查矩阵元素</td><td class="l">O(度(u))，要扫 u 的邻接链</td></tr>
+<tr><td class="l">求度（无向）</td><td class="l">第 i 行（列）非零元个数 = 顶点 i 的度</td><td class="l">边结点个数 = 度（一条边存两份）</td></tr>
+<tr><td class="l">出度/入度（有向）</td><td class="l">第 i 行非零元 = 出度，第 i 列 = 入度</td><td class="l">链长 = 出度好求；入度要遍历全表或建<b>逆邻接表</b>（每条边反向再存一份）</td></tr>
+<tr><td class="l">适合</td><td class="l">稠密图（e 接近 n²）</td><td class="l">稀疏图（e 远小于 n²）</td></tr>
+</table>
+<p><b>DFS（深度优先）</b>：类似树的先根遍历——访问 u 后挑一个<b>未访问</b>的邻接点扎进去，走不动了自动回退换路；实现用递归（系统栈）或显式栈。<b>BFS（广度优先）</b>：访问 s 后把未访问邻接点依次入队，出队时同样处理；按"离起点的跳数"分层扩散，所以<b>无权图里 BFS 首次到达某点走过的跳数就是最短跳数</b>。两者时间复杂度：邻接表 O(n+e)，邻接矩阵 O(n²)（每个顶点要扫一整行找邻接点）。</p>
+<p><b>连通分量与生成树</b>：连通图一次遍历就能访问全部 n 个顶点，走过的 n−1 条边构成生成树（DFS 生成树与 BFS 生成树形态不同，边数都是 n−1）；<b>非连通图要对每个未访问顶点各调一次遍历，实际启动的次数 = 连通分量个数</b>，所有分量的生成树合起来是生成森林。</p>
+<p><b>并查集</b>（两行带过）：用"双亲数组"维护若干棵树，find(x) 沿双亲找到集合代表元（根），union(a,b) 把两棵树并成一棵；配上路径压缩 + 按秩合并，单次操作近似 O(1)。无向图判连通、Kruskal 判环都靠它（见最小生成树一页）。</p>
+<p>本页统一用下面这个 6 顶点无向图做例题（7 条边，邻接表中邻接点按序号升序）：</p>
+<pre class="ascii-fallback"><code>边表: v1-v2, v1-v3, v2-v4, v2-v5, v3-v5, v4-v6, v5-v6
+邻接表(邻接点按序号升序):
+v1 -&gt; v2 -&gt; v3
+v2 -&gt; v1 -&gt; v4 -&gt; v5
+v3 -&gt; v1 -&gt; v5
+v4 -&gt; v2 -&gt; v6
+v5 -&gt; v2 -&gt; v3 -&gt; v6
+v6 -&gt; v4 -&gt; v5</code></pre>
+<pre class="mermaid">
+flowchart TD
+    v1["v1"] --- v2["v2"]
+    v1 --- v3["v3"]
+    v2 --- v4["v4"]
+    v2 --- v5["v5"]
+    v3 --- v5
+    v4 --- v6["v6"]
+    v5 --- v6
+</pre>
+<pre><code>import java.util.*;
+
+// 邻接表: adj.get(u) 是 u 的邻居列表(按序号升序存, 遍历序列才唯一)
+static boolean[] vis = new boolean[N];
+
+// DFS: 递归栈. 能深入就深入, 走不动自动回退
+static void dfs(int u, List&lt;List&lt;Integer&gt;&gt; adj, List&lt;Integer&gt; order) {
+    vis[u] = true;
+    order.add(u);
+    for (int v : adj.get(u))
+        if (!vis[v]) dfs(v, adj, order);
+}
+
+// BFS: 队列. 出队时把未访问邻居依次入队, 按层扩散
+static void bfs(int s, List&lt;List&lt;Integer&gt;&gt; adj, boolean[] vis, List&lt;Integer&gt; order) {
+    Queue&lt;Integer&gt; qe = new ArrayDeque&lt;&gt;();
+    vis[s] = true;
+    qe.offer(s);
+    while (!qe.isEmpty()) {
+        int u = qe.poll();
+        order.add(u);
+        for (int v : adj.get(u))
+            if (!vis[v]) { vis[v] = true; qe.offer(v); }
+    }
+}</code></pre>
+<pre><code>def dfs(u, adj, vis, order):
+    vis[u] = True
+    order.append(u)
+    for v in adj[u]:
+        if not vis[v]:
+            dfs(v, adj, vis, order)
+
+from collections import deque
+def bfs(s, adj, vis, order):
+    qe = deque([s]); vis[s] = True
+    while qe:
+        u = qe.popleft(); order.append(u)
+        for v in adj[u]:
+            if not vis[v]:
+                vis[v] = True; qe.append(v)</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">手算</span><span class="tag">机试手写</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：两种存储的复杂度与适用场景、矩阵行/列与度数的对应、DFS/BFS 用栈还是队列、非连通图遍历次数。</li>
+<li>手算：给邻接表写 DFS/BFS 序列（必须先声明邻接点顺序）、BFS 求最短跳数、生成森林边数。</li>
+<li>机试：邻接表存图 + DFS/BFS 模板，算法题打底。</li>
+<li>面试口述：DFS 与 BFS 空间开销的差异来源。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（选择题点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 对本页知识点中的 6 顶点无向图（邻接表中邻接点按序号升序），从 v1 出发进行 DFS，得到的访问序列是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. v1，v2，v3，v4，v5，v6</div>
+<div class="opt" data-k="B">B. v1，v2，v5，v6，v4，v3</div>
+<div class="opt" data-k="C">C. v1，v2，v4，v6，v5，v3</div>
+<div class="opt" data-k="D">D. v1，v3，v5，v6，v4，v2</div>
+<div class="exp" hidden><b>答案 C。</b>DFS 是"能深就深"：v1 的最小未访问邻接点是 v2 → v2 的是 v4（v1 已访问）→ v4 的是 v6 → v6 的是 v5 → v5 剩下 v3 → v3 的邻接点全访问过，逐层回退。A 是 BFS 的味道（按层选点），D 是第一步就选了 v3。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 对同一张图从 v1 出发进行 BFS：① 写出访问序列；② 列出队列演化的每一步；③ 给出 v1 到各顶点的最短跳数。</p>
+<details><summary>先自己算，再展开对答案</summary>① 序列：<b>v1，v2，v3，v4，v5，v6</b>。② 队列演化（出队即访问）：出 v1 → 入 v2、v3；出 v2 → 入 v4、v5；出 v3 →（无新点）；出 v4 → 入 v6；出 v5、出 v6。③ 跳数表：<br>
+<table>
+<tr><th>顶点</th><td>v1</td><td>v2</td><td>v3</td><td>v4</td><td>v5</td><td>v6</td></tr>
+<tr><th>最短跳数</th><td>0</td><td>1</td><td>1</td><td>2</td><td>2</td><td>3</td></tr>
+</table>
+v6 的邻居 v4、v5 都在第 2 层，所以 v6 在第 3 层——无权图 BFS 首达即最短。来源：牛客经典题。</details>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于图的邻接矩阵存储，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 无向图的邻接矩阵是对称矩阵，可只存上三角压缩空间</div>
+<div class="opt" data-k="B">B. 无向图的边数等于邻接矩阵中非零元素的个数</div>
+<div class="opt" data-k="C">C. 无向图邻接矩阵第 i 行（或第 i 列）非零元素的个数等于顶点 i 的度</div>
+<div class="opt" data-k="D">D. 有向图邻接矩阵中，第 i 行非零元个数是 i 的出度，第 j 列非零元个数是 j 的入度</div>
+<div class="opt-submit"><button class="submit" type="button">提交</button></div>
+<div class="exp" hidden><b>答案 ACD。</b>B 错：无向图每条边在对称位置贡献<b>两个</b>非零元，边数 = 非零元个数 ÷ 2（这是选择题的经典陷阱）。D 是"行出列入"口诀。邻接矩阵空间 O(n²) 与边数无关，稠密图才划算。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 某无向非连通图有 10 个顶点、3 个连通分量。① 从每个顶点出发各调用一次 DFS（已访问的顶点调用直接返回），真正"新启动"的遍历共几次？② 得到的生成森林共有几条边？</p>
+<details><summary>先自己算，再展开对答案</summary>① 每次新启动的 DFS 恰好访问其出发顶点所在<b>连通分量的全部顶点</b>，之后同分量的调用都被"已访问"挡住，所以新启动次数 = 连通分量数 = <b>3</b> 次（另外 7 次调用直接空手而归）。② 每个分量的生成树边数 = 分量顶点数 − 1，求和 = 10 − 3 = <b>7</b> 条。通式：n 个顶点 k 个分量，森林边数 = n − k。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> DFS 和 BFS 的时间复杂度相同，空间复杂度也都是 O(n)，但两者的 O(n) 来源不同——说说差在哪。</p>
+<details><summary>参考回答</summary>DFS 的空间在<b>栈（递归栈）</b>：同一时刻栈里存的是"从起点到当前点的一条路径"，大小取决于图的<b>深度</b>，最坏是一条长链，栈深 O(n)；一条细长路径的图 DFS 只用很小的栈。BFS 的空间在<b>队列</b>：同一时刻队列里存的是"同一层及下一层的顶点"，大小取决于最宽一层的<b>宽度</b>，星形图/完全图一层就能有 O(n) 个顶点同时入队。一句话：<b>DFS 吃深度，BFS 吃宽度</b>，时间同为邻接表 O(n+e)、矩阵 O(n²)。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 遍历序列只有在"邻接点顺序"确定后才唯一，题目没给顺序要先按序号升序处理；② 非连通图遍历新启动次数 = 分量数，不是 n；③ BFS 求的是"跳数"最短，只对无权图成立，带权图要找 Dijkstra；④ 无向图邻接表一条边存两个边结点，空间按 2e 算；⑤ 有向图邻接表表头链长给出度、给不出入度，入度靠逆邻接表或全表扫描；⑥ 矩阵判边 O(1) 但找邻接点要扫整行，复杂度别记混。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

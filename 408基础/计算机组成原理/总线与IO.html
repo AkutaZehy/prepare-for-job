@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>总线与 I/O · 408基础/计算机组成原理</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机组成原理</div>
+<h1>总线与 I/O</h1>
+<div class="meta">适用岗位：全部（笔试选择 + 计算；嵌入式/驱动/测开更爱问） ｜ 形态：概念 + 对比表 + 手算过程 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：三总线——数据（双向）/地址（<b>单向</b>，位数 n 决定可寻址 2<sup>n</sup> 个单元）/控制；<b>带宽 = 工作频率 × (位宽/8) × 每周期传输次数</b>；中断流程：关中断 → 保存断点与现场 → 中断服务 → 恢复现场 → 开中断返回，<b>中断隐指令 = 硬件自动做的关中断 + 保存断点 + 引出入口</b>；屏蔽字 1=屏蔽、每源自屏蔽、<b>1 越多优先级越高</b>；DMA 三方式（停 CPU / 周期挪用 / 交替访问），<b>外设↔内存直接通路、一块数据传完才中断一次</b>；通道 = 跑通道程序的专用 I/O 处理机。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>系统总线三分类</b>：</p>
+<table>
+<tr><th class="l">总线</th><th>方向</th><th class="l">作用与要点</th></tr>
+<tr><td class="l"><b>数据总线 DB</b></td><td>双向</td><td class="l">传数据（也可传指令码、中断类型号）；位数 = 一次能并行传输的位数，与机器字长相关</td></tr>
+<tr><td class="l"><b>地址总线 AB</b></td><td><b>单向</b>（CPU→外）</td><td class="l">指出源/目的地址；<b>位数 n 决定寻址空间：最多 2<sup>n</sup> 个单元</b>（按字节编址即 2<sup>n</sup> 字节）</td></tr>
+<tr><td class="l"><b>控制总线 CB</b></td><td>整体双向（每根线单向）</td><td class="l">传时序与命令：读/写命令、中断请求、总线请求/授权、时钟；对 CPU 有出（读写命令）有入（中断请求）</td></tr>
+</table>
+<p><b>总线带宽</b> = 工作频率 × 每次传输的字节数 = f × (位宽/8)。</p>
+<ul>
+<li>例：数据总线 32 位（4B）、工作频率 100MHz、每时钟周期传一次 → 100M × 4B = <b>400MB/s</b>。</li>
+<li>若每周期传 2 次（时钟上升沿、下降沿各传一次，DDR 口径）→ 带宽翻倍为 800MB/s。做题先看清"每周期传几次"，按题目给的口径算。</li>
+</ul>
+<p><b>串行 vs 并行、半双工 vs 全双工</b>：串行 = 一根线逐位传（USB、SATA，成本低、适合长距离）；并行 = 多根线同时传一个字节/字（机内总线，长距离受线间串扰与偏移限制）；半双工 = 可双向但不能同时（对讲机）；全双工 = 同时双向（电话）。</p>
+<p><b>总线仲裁</b>：解决多个主设备同时申请总线的冲突。<b>集中式</b>三种：① <b>链式查询</b>——总线授权信号 BG 沿设备链串行传递，<b>离控制器越近优先级越高</b>（固定、省线、对故障敏感）；② <b>计数器定时查询</b>——控制器用计数器逐个询问设备号；③ <b>独立请求方式</b>——每台设备独立请求线，优先级灵活可编程、速度最快、控制线最多。<b>分布式仲裁</b>：无中央控制器，各设备自行竞争裁决。</p>
+<p><b>中断处理全流程（单重中断）</b>：</p>
+<pre><code>中断请求 → 中断判优 → 中断响应（中断隐指令，硬件自动完成）
+  → 保护现场 → 中断服务 → 恢复现场 → 开中断 → 中断返回</code></pre>
+<ul>
+<li><b>中断隐指令</b>：不是指令系统里的真指令，而是中断响应周期<b>由硬件自动完成的动作</b>——① 关中断；② 保存断点（PC 压栈或存入指定单元）；③ 引出中断服务程序入口地址。</li>
+<li><b>中断向量 = 中断服务程序的入口地址</b>；<b>中断向量表</b>存放各中断向量；<b>向量地址</b> = 中断向量在向量表中的单元地址（指向入口地址的"指针"）。三者别混。</li>
+<li><b>单重 vs 多重（中断嵌套）</b>：单重中断在服务期间不再响应新中断；多重中断运行中若出现更高级请求，可暂停当前服务转去处理（嵌套）。运行优先级由<b>屏蔽字</b>控制。</li>
+<li><b>屏蔽字判处理次序</b>：每个中断源对应一个屏蔽字，某位 =1 表示屏蔽对应中断源、=0 表示开放。规则：<b>每个中断源必屏蔽自己</b>；优先级越高的源屏蔽字中 <b>1 越多</b>（把不高于自己的全部屏蔽）。拿到一组屏蔽字：数每行 1 的个数，从多到少即处理次序。</li>
+</ul>
+<p><b>DMA（直接存储器存取）</b>：在主存与高速外设之间开辟<b>直接数据通路</b>，成块传送由 DMA 控制器硬件全权管理，CPU 不当搬运工。三种方式：</p>
+<ul>
+<li><b>停止 CPU 访存</b>：DMA 传送期间 CPU 暂停访存——控制最简单，CPU 利用率最低；</li>
+<li><b>周期挪用（周期窃取）</b>：DMA 挪用一个存储周期传一个字/字节，DMA 与 CPU 交替使用内存——<b>最常用</b>；</li>
+<li><b>交替访问</b>：CPU 与 DMA 各按固定时间片轮流访存，无需申请/归还总线，硬件最复杂。</li>
+</ul>
+<p><b>DMA 传送三阶段</b>：<b>预处理</b>（CPU 初始化：主存起始地址、传送字数、方向，启动设备）→ <b>数据传送</b>（DMA 控制器独立完成，与 CPU 并行工作）→ <b>后处理</b>（一块传完，DMA 向 CPU 发<b>一次中断</b>，CPU 做校验、善后）。所以一块数据从头到尾只在结束时打扰 CPU 一次。</p>
+<table>
+<tr><th class="l">对比</th><th>中断方式</th><th>DMA 方式</th></tr>
+<tr><td class="l">数据传送单位</td><td>字节/字（每次一个）</td><td>数据块</td></tr>
+<tr><td class="l">CPU 介入程度</td><td>每传一个数据都要执行一段中断服务程序</td><td>仅预处理与后处理介入</td></tr>
+<tr><td class="l">数据通路</td><td>外设 → CPU 寄存器 → 内存（CPU 搬运）</td><td><b>外设 ↔ 内存直接</b>，不经过 CPU</td></tr>
+<tr><td class="l">响应时机</td><td>指令执行周期结束后才可响应</td><td><b>存取周期结束后</b>即可响应</td></tr>
+<tr><td class="l">优先级</td><td>低</td><td>高（不及时响应会丢失数据）</td></tr>
+<tr><td class="l">适用场景</td><td>中低速、少量数据设备（键盘）</td><td>高速成块设备（磁盘、网卡）</td></tr>
+</table>
+<p><b>通道</b>一句：通道是能执行<b>通道程序</b>的专用 I/O 处理机，CPU 只负责启动，整块甚至多块数据的传送与调度都由通道完成，独立性比 DMA 更高（大中型机配置，成本高）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算</span><span class="tag">面试口述</span></p>
+<ul>
+<li>选择：三总线方向与位数含义、仲裁三方式优缺点、中断隐指令做什么、向量地址 vs 中断向量、DMA 三方式、中断 vs DMA 对比、通道概念。</li>
+<li>计算：总线带宽（注意每周期传输次数的口径）、给屏蔽字排中断处理次序。</li>
+<li>面试口述：中断和 DMA 的区别（粒度/通路/CPU 介入/响应时机四点）、为什么磁盘用 DMA 而键盘用中断、DMA 优先级为什么比中断高。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 某同步总线的数据线宽 32 位，工作频率 200MHz，每个时钟周期传送一次数据。(1) 求总线带宽；(2) 若改为时钟上升沿与下降沿各传送一次（DDR 口径），带宽又是多少？</p>
+<details><summary>先自己算，再展开对答案</summary>① 每次传送 32 位 = 4B，带宽 = 200M 次/s × 4B = <b>800MB/s</b>。<br>② 上下沿各传一次 → 每周期传 2 次 → 带宽翻倍 = <b>1600MB/s</b>。<br>验算：带宽 = 频率 × 每次字节数 × 每周期次数 = 200M × 4 × 2 = 1600MB/s ✓。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 某机有 4 个中断源 A、B、C、D，运行时采用的屏蔽字如下（每行 4 位，从左到右对应 A、B、C、D；"1"=屏蔽，"0"=开放）：A：1011　B：0100　C：1111　D：0101。给出 CPU 实际处理这些中断的优先次序，并说明判断依据。</p>
+<details><summary>先自己算，再展开对答案</summary>判断依据：每个源都屏蔽自己（自查：A 行第 1 位、B 行第 2 位、C 行第 3 位、D 行第 4 位均为 1 ✓）；<b>屏蔽字中 1 越多，处理优先级越高</b>。<br>数 1 的个数：C=4 个、A=3 个、D=2 个、B=1 个 → 处理次序 <b>C → A → D → B</b>。<br>语义自洽性检查：C 屏蔽所有人（1111，谁也打不断它）；A 屏蔽自己/B/D、放开 C（C 能打断 A）；D 屏蔽自己/B、放开 A/C；B 只屏蔽自己（谁都能打断它）✓。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于中断方式与 DMA 方式，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. DMA 方式下数据在外设与主存之间直接传送，不经过 CPU 内部寄存器</div>
+<div class="opt" data-k="B">B. 中断方式下每传送一个字节/字，CPU 都要执行一段中断服务程序</div>
+<div class="opt" data-k="C">C. DMA 请求与中断请求一样，都要等到一条指令执行结束后才被响应</div>
+<div class="opt" data-k="D">D. 一块数据传送结束时，DMA 控制器才向 CPU 发出一次中断请求做善后处理</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：中断请求在<b>指令执行周期结束</b>后查询响应，而 DMA 请求在<b>存取周期结束</b>后即可响应（不等整条指令结束），这也是 DMA 优先级更高的原因之一——不及时响应可能丢失数据。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>4.</b> 采用 DMA 方式传送数据时，数据的传送通路是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 外设 ↔ 主存直接传送，不经过 CPU</div>
+<div class="opt" data-k="B">B. 外设 → CPU 通用寄存器 → 主存，由 CPU 逐字搬运</div>
+<div class="opt" data-k="C">C. 外设 → CPU 的程序计数器 PC → 主存</div>
+<div class="opt" data-k="D">D. 外设必须先送入 Cache，再由 Cache 写入主存</div>
+<div class="exp" hidden><b>答案 A。</b>DMA 全称"直接存储器存取"：由 DMA 控制器接管总线，数据在外设与主存间直传，CPU 只做预处理（设地址/字数/方向）和后处理（收一次中断善后）。B 是中断方式的通路；C 的 PC 与数据传送无关；D 无此要求。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>5.</b> 下列关于系统总线的说法，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 地址总线是双向的，用于在 CPU 与主存间来回传输地址</div>
+<div class="opt" data-k="B">B. 数据总线的位数决定了主存的最大寻址空间</div>
+<div class="opt" data-k="C">C. 地址总线是单向的，其位数 n 决定 CPU 可直接寻址的空间为 2<sup>n</sup> 个单元</div>
+<div class="opt" data-k="D">D. 控制总线上的所有信号都由 CPU 发出</div>
+<div class="exp" hidden><b>答案 C。</b>地址总线单向（CPU 发出），n 位 → 可寻址 2<sup>n</sup> 个单元；A 方向说反；B 张冠李戴——决定寻址空间的是地址总线位数；D 错：控制总线整体双向，中断请求、总线请求等信号是设备发往 CPU 的。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 数据总线双向、地址总线单向，"位数决定寻址空间"的是地址总线；② 带宽 = 频率 × 每次字节数 × 每周期传输次数，DDR 口径乘 2；③ 中断隐指令只有三件事（关中断、保存断点、引出入口），<b>保存现场是中断服务程序用指令做的</b>，两者别混；④ 屏蔽字 1=屏蔽、每源自屏蔽、1 越多优先级越高（个别题目用 0 表屏蔽，按题给口径换算）；⑤ 中断响应看指令周期结束、DMA 响应看存取周期结束；⑥ DMA 只在预处理/后处理被 CPU 打扰，一块数据结束才中断一次；链式查询优先级离控制器越近越高且固定。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 从原理到落地 · 深度学习与Python进阶/大模型与LLM应用</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 大模型与LLM应用</div>
+<h1>RAG 从原理到落地</h1>
+<div class="meta">适用岗位：AI/Agent 开发（面试必问 + 场景选择题） ｜ 形态：架构图 + 全链路拆解 + 选型对比 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：RAG = 检索增强生成——先从知识库检索相关片段，再让 LLM<b>基于片段</b>作答；对症五个痛点：幻觉、知识截止、私有知识、可溯源、比微调省；链路背顺序：<b>加载清洗→切块→Embedding→向量库→召回 Top-K→重排→拼 Prompt→生成</b>；<b>双塔快而糙、cross-encoder 准而慢</b>，所以先召回后重排；知识常更新/要溯源选 RAG，改风格与领域行为选微调，两者可叠加。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>为什么需要 RAG（五个痛点逐条对）</b>：① <b>幻觉</b>——模型自由生成会编造事实，限定"仅依据检索到的资料回答"显著缓解；② <b>知识截止</b>——训练数据有截止日期，而知识库可随时增删、即时生效；③ <b>私有知识不可见</b>——企业内部文档不在训练语料里，也没必要为它重训；④ <b>答案可溯源</b>——答案能标注"引用了哪几个片段"，可人工核查（企业落地硬需求）；⑤ <b>比微调便宜</b>——不用 GPU 训练和数据标注，知识更新 = 更新库。</p>
+<pre class="ascii-fallback"><code>离线建库：文档 → 切块(chunk+overlap) → Embedding → 入向量库
+在线生成：query → 召回 Top-K → 重排 Rerank → 拼 Prompt → LLM 生成 → 答案（可溯源）
+（向量库由离线侧写入，在线侧只从库中召回）</code></pre>
+<pre class="mermaid">
+flowchart LR
+    subgraph 离线建库
+        A[文档] --&gt; B[切块]
+        B --&gt; C[Embedding]
+        C --&gt; D[(向量库)]
+    end
+    subgraph 在线检索生成
+        E[召回 Top-K] --&gt; F[重排]
+        F --&gt; G[拼 Prompt]
+        G --&gt; H[LLM 生成]
+    end
+    D --&gt; E
+</pre>
+<ul>
+<li><b>①② 离线：加载清洗与切块</b>：文档（PDF/Word/网页）解析成纯文本并清洗（去页眉页脚乱码，清洗不干净后面全白搭）；<b>切块 chunking</b>——块太<b>小</b>丢上下文（召回回来的片段模型看不懂），块太<b>大</b>稀释相关度（一段里有效内容占比低，向量被平均冲淡，还挤占 Prompt 窗口）；按<b>语义/标题层级</b>切优于定长切，相邻块留 <b>overlap</b> 防句子被切断。</li>
+<li><b>③④ 离线：Embedding 与向量库</b>：Embedding 模型把文本映射为高维向量，语义越近向量距离越近；入库时相似度用<b>余弦或内积</b>（向量归一化后两者等价——实现细节）；索引常用 <b>HNSW</b>：图结构的近似最近邻（ANN）索引，用一点点召回率换数量级检索提速（实现细节）。</li>
+<li><b>⑤⑥ 在线：召回与重排（本页核心考点）</b>：召回用<b>双塔 bi-encoder</b>——query 与文档<b>各自独立编码</b>，文档向量可离线预计算，快，但两段文本互不见面、精度有限；重排用 <b>cross-encoder</b>——把 query 和文档<b>拼在一起联合编码</b>打分，准但慢得多，只能对召回的小集合（几十条）做。生产链路固定是"<b>快模型大海捞针，慢模型精挑细选</b>"。</li>
+<li><b>⑦⑧ 在线：拼 Prompt 与生成</b>：系统指令 + 检索片段 + 用户问题拼成 Prompt，通常要求"仅依据资料作答并标注引用编号"；LLM 生成带引用的答案。</li>
+<li><b>进阶优化三件套</b>：<b>混合检索</b>——BM25 关键词一路 + 向量一路，各取 Top-K 再融合排序（向量路管同义改写，关键词路兜住专有名词/型号/编号——这些恰是 Embedding 弱项）；<b>query 改写</b>——口语化、省主语、带指代的问题先改写成适合检索的形式；<b>评估</b>——检索侧看<b>命中率 / Recall@K</b>（需要的片段进没进 Top-K），生成侧看<b>忠实度</b>（答案是否忠于检索片段）。排查顺序先检索后生成：检索不对，生成再好也是空中楼阁。</li>
+</ul>
+<p><b>RAG vs 微调</b>：</p>
+<table>
+<tr><th class="l">维度</th><th>RAG</th><th>微调</th></tr>
+<tr><td class="l">知识时效</td><td>更新知识库即时生效</td><td>需重新训练，周期长</td></tr>
+<tr><td class="l">可溯源</td><td>答案可标注引用片段</td><td>难以给出出处</td></tr>
+<tr><td class="l">成本</td><td>建库 + 检索服务</td><td>GPU 训练 + 标注 + 版本管理</td></tr>
+<tr><td class="l">擅长</td><td>答事实、查资料、给依据</td><td>改输出风格/格式、塑造领域行为</td></tr>
+</table>
+<p><b>向量库选型一句话</b>：FAISS（本地库，原型/单机）、Milvus（分布式，大规模生产）、PGVector（复用 Postgres，运维省心）——口径："按数据规模与运维成本选"。RAG 与微调不冲突：<b>微调教"怎么答"，RAG 供"答什么"</b>，可叠加。</p>
+<span class="lang">Python</span>
+<pre><code># 极简 RAG 骨架（示意流程，不依赖任何具体框架）
+docs   = load_files("knowledge/")                        # 1. 文档加载
+texts  = [clean(d) for d in docs]                        #    清洗：去噪/去格式
+chunks = []
+for t in texts:
+    chunks += split_by_heading(t, size=400, overlap=50)  # 2. 切块：语义/标题切 + 重叠
+
+embedder = EmbeddingModel()                              # 3. Embedding 模型
+store    = VectorDB(metric="cosine")                     # 4. 向量库（余弦相似度）
+store.add(embedder.encode(chunks), chunks)               #    向量与原文一起入库
+
+def ask(question):                                       # ---- 在线：每次提问 ----
+    q_vec   = embedder.encode([question])[0]             # 5. 查询向量化
+    top_k   = store.search(q_vec, k=10)                  #    召回 Top-K（粗筛）
+    refined = cross_encoder.rerank(question, top_k)[:3]  # 6. 重排（精排取前 3）
+    prompt  = PROMPT.format(context=join(refined),       # 7. 拼 Prompt
+                            question=question)
+    return llm.generate(prompt)                          # 8. 生成（要求带引用）</code></pre>
+<span class="lang">伪代码</span>
+<pre><code>输入：用户问题 q
+v_q  ← Embed(q)
+C    ← 向量库.近邻(v_q, K)           # 粗召回：双塔向量检索，快、可近似
+C    ← CrossEncoder(q, C) 取前 N 条   # 精排：联合编码，准、慢、只对小集合
+P    ← 模板(系统指令, C, q)           # 拼上下文
+输出 ← LLM(P)                        # 生成时要求仅依据资料作答并标出处</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">面试必问</span><span class="tag">场景选择题</span><span class="tag">AI 岗笔试</span></p>
+<ul>
+<li>链路顺序默写级：八步链路给打乱步骤排顺序；"先召回还是先重排"不能答反。</li>
+<li>场景选择：给一段业务描述，判断用 RAG 还是微调——AI 岗面试高频开场题。</li>
+<li>rerank 原理：双塔 vs cross-encoder 的编码方式与快慢取舍。</li>
+<li>典型面试追问清单：
+  <ul>
+  <li>为什么不直接拿 cross-encoder 扫全库？——全库联合编码代价爆炸，召回负责把候选从百万级降到几十条。</li>
+  <li>chunk 大小怎么定？——没有万能值，按文档类型调参并用 Recall@K 验证。</li>
+  <li>专有名词检索不准怎么办？——混合检索，BM25 那一路兜底。</li>
+  <li>RAG 效果怎么评估？——检索侧命中率 / Recall@K，生成侧忠实度。</li>
+  <li>向量库怎么选？——FAISS 本地、Milvus 分布式、PGVector 复用 Postgres。</li>
+  <li>RAG 和微调二选一吗？——不冲突，常叠加使用。</li>
+  </ul></li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 企业内部知识库每天更新大量文档，且要求答案能标注出处供人工核查，最合适的方案是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 对 LLM 做微调，把内部知识训练进模型参数里</div>
+<div class="opt" data-k="B">B. 搭建 RAG：文档切块入库，检索相关片段拼进 Prompt 再生成</div>
+<div class="opt" data-k="C">C. 每天重新预训练一个小模型</div>
+<div class="opt" data-k="D">D. 调高 temperature，让模型自由发挥补全知识</div>
+<div class="exp" hidden><b>答案 B。</b>知识每天更新 → 微调每次都要重训、无法即时生效；要求可溯源 → 只有 RAG 能标注引用片段，微调答不出出处。微调适合改风格与领域行为，不适合装"频繁更新的知识"。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 已有双塔模型做向量召回，为什么还需要重排（cross-encoder）？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 双塔把 query 与文档分别独立编码、互不交互，精度有限；cross-encoder 联合编码更准但慢，只适合对召回的小集合做</div>
+<div class="opt" data-k="B">B. 双塔只能处理英文，cross-encoder 才支持中文</div>
+<div class="opt" data-k="C">C. 重排能把向量库数据重新写盘，加快下次检索</div>
+<div class="opt" data-k="D">D. cross-encoder 参数更多，重排顺便完成了大模型微调</div>
+<div class="exp" hidden><b>答案 A。</b>双塔快在"文档向量可离线预计算"，但 query 与文档编码时互不见面，只能算出粗粒度相似度；cross-encoder 把两者拼在一起过同一模型，交互充分、打分准，代价是每个 query-文档对都要现场算，扫全库不可行——所以固定"召回粗筛 + 重排精选"。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> 下列步骤已打乱：①拼 Prompt ②Embedding ③切块 ④召回 Top-K ⑤文档加载与清洗 ⑥重排 ⑦生成 ⑧入向量库。正确顺序是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. ⑤③②⑧④⑥①⑦</div>
+<div class="opt" data-k="B">B. ⑤②③⑧④⑥①⑦</div>
+<div class="opt" data-k="C">C. ⑤③②⑧⑥④①⑦</div>
+<div class="opt" data-k="D">D. ⑤③⑧②④⑥①⑦</div>
+<div class="exp" hidden><b>答案 A。</b>⑤加载清洗 → ③切块 → ②Embedding → ⑧入向量库 → ④召回 Top-K → ⑥重排 → ①拼 Prompt → ⑦生成。B 错在先 Embedding 后切块（必须先切块再向量化，整篇文档一个向量会稀释语义）；C 错在重排跑到召回前面（没有召回结果可排）；D 错在先入库后向量化。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABCD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> RAG 主要解决 / 改善哪些问题？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 缓解幻觉：限定模型基于检索到的片段作答</div>
+<div class="opt" data-k="B">B. 知识截止：知识库可随时更新、即时生效</div>
+<div class="opt" data-k="C">C. 私有知识不可见：内部文档入库即可被检索</div>
+<div class="opt" data-k="D">D. 答案可溯源：答案可标注引用了哪些片段</div>
+<div class="opt" data-k="E">E. 改变模型说话的风格与输出格式</div>
+<div class="exp" hidden><b>答案 ABCD。</b>E 是微调的活——RAG 只影响"模型看到什么资料"，不改模型本身的风格与格式偏好。记忆口径：RAG 管"答什么"，微调管"怎么答"。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 切块 chunk 的大小与 overlap 怎么权衡？为什么不建议纯定长切？</p>
+<details><summary>参考回答</summary>块太<b>小</b>：片段缺上下文，召回回来模型读不懂、答不全；块太<b>大</b>：块内有效内容占比被稀释，向量相似度变"钝"，还会挤占 Prompt 窗口。overlap 让跨块边界的句子在相邻两个块里各出现一次，防止语义被切断。切分策略上优先按<b>语义边界</b>（标题层级、段落、句子）切，纯定长切只做兜底；chunk 大小没有万能值，按文档类型调参、用检索侧 Recall@K 验证效果。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 重排是"对召回结果精排"，不替代召回——顺序是先④召回后⑥重排，答反即错；② 双塔快在文档向量可离线预计算，cross-encoder 慢在每个 query-文档对都要现场联合编码——取舍记"快模型捞针、慢模型挑针"；③ chunk 不是越大越好也不是越小越好，两头的坏处要都能说出来；④ BM25 不是过时技术，专有名词/编号场景它比向量强，混合检索是标配答法；⑤ 评估先看检索侧 Recall@K——检索不行，生成无从谈起；⑥ 别拿微调硬刚"知识频繁更新"，那是 RAG 的主场；微调改的是风格与行为，不是知识时效。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

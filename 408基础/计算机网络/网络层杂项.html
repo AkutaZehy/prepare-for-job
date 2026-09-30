@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网络层杂项 · 408基础/计算机网络</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机网络</div>
+<h1>网络层杂项</h1>
+<div class="meta">适用岗位：全部（分片计算必考；面试常问 ARP/DHCP/ICMP/ping） ｜ 形态：字段 + 分片手算 + 协议原理 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>TTL 每过一个路由器减 1、减为 0 丢弃并回 ICMP 超时</b>（防环路兜底，也是 traceroute 的原理）；协议字段标识上层（TCP=6、UDP=17）；<b>首部校验和只查首部、每跳重算</b>；分片：<b>片偏移以 8B 为单位</b>、除最后一片每片数据长须为 8 的倍数、<b>重组只在目的主机</b>；跨网段 ARP 解析的是<b>默认网关</b>的 MAC；DHCP 四步 <b>Discover→Offer→Request→ACK</b>（应用层、UDP 67/68）；NAT/NAPT 出公网改写 IP+端口。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>IPv4 首部关键字段（挑必考的）</b>：</p>
+<ul>
+<li><b>总长度</b>：首部+数据，单位 <b>1 字节</b>；<b>首部长度</b>：单位 <b>4 字节</b>（最大 15×4=60B）；<b>片偏移</b>：单位 <b>8 字节</b>——三个单位不同，专出选择题。</li>
+<li><b>TTL</b>（生存时间）：每经过一个路由器减 1，减为 0 时路由器丢弃该分组，并向源点发回 <b>ICMP 超时</b>差错报告——作用是防止分组在路由环路里永久兜圈。</li>
+<li><b>协议字段</b>：标识数据部分交给哪个上层协议——ICMP=1、TCP=6、UDP=17、OSPF=89。</li>
+<li><b>首部校验和</b>：只校验<b>首部</b>、不校验数据；每过一个路由器 TTL 变了都要重新计算。</li>
+<li><b>源/目的 IP</b>：正常转发途中不变（NAT 改写源地址除外）。</li>
+</ul>
+<p><b>IP 分片（计算题重灾区）</b>：链路层 MTU 限制帧长，IP 数据报超长必须分片。相关字段：<b>标识</b>（同一数据报的分片取值相同）；<b>DF</b>=1 禁止分片（此时需要分片就丢弃并回 ICMP 差错）；<b>MF</b>=1 表示"后面还有分片"（最后一片 MF=0）；<b>片偏移</b> = 该片数据在原数据部分的相对起点，<b>以 8B 为单位</b>。重组只发生在<b>最终目的主机</b>（中间路由器不重组——各分片可能走不同路径，中途凑不齐）。</p>
+<p>逐步算例：总长度 3820B、首部 20B，出接口 MTU=1420B。</p>
+<pre><code>① 数据部分 = 3820 − 20 = 3800B
+② 每片数据 ≤ MTU−20 = 1400B，且（除最后一片）必须是 8 的倍数
+   → 取 1400B（1400÷8=175，整除 ✓）
+③ 3800 = 1400 + 1400 + 1000 → 分 3 片
+④ 片偏移 = 前面累计数据长度 ÷ 8：0、1400/8=175、2800/8=350</code></pre>
+<table>
+<tr><th class="l">分片</th><th>总长度(B)</th><th>数据(B)</th><th>片偏移(8B 单位)</th><th>MF</th><th>DF</th></tr>
+<tr><td class="l">原始</td><td>3820</td><td>3800</td><td>—</td><td>—</td><td>0</td></tr>
+<tr><td class="l">片 1</td><td>1420</td><td>1400</td><td>0</td><td>1</td><td>0</td></tr>
+<tr><td class="l">片 2</td><td>1420</td><td>1400</td><td>175</td><td>1</td><td>0</td></tr>
+<tr><td class="l">片 3</td><td>1020</td><td>1000</td><td>350</td><td>0</td><td>0</td></tr>
+</table>
+<p>每片都要加自己的 20B 首部：片 1/2 总长 1400+20=1420，片 3 总长 1000+20=1020。</p>
+<p><b>IPv6 一句</b>：动机是 IPv4 的 32 位地址即将枯竭，IPv6 用 128 位地址；过渡技术：<b>双协议栈</b>（设备同时跑 v4 与 v6）、<b>隧道</b>（把 IPv6 分组整个封装进 IPv4 数据报穿越 IPv4 网络）。</p>
+<p><b>ARP（IP→MAC）</b>：同一网段——先查本机 ARP 缓存，没有就<b>广播</b> ARP 请求（目的 MAC = FF-FF-FF-FF-FF-FF），目的主机单播回 ARP 响应，请求方把映射写入缓存（动态条目有老化时间）。<b>跨网段（高频判断点）</b>：主机用掩码判断目的 IP 与自己不在同一子网 → 把分组交给<b>默认网关</b>转发 → 因此 ARP 请求解析的是<b>默认网关的 MAC，不是目的主机的 MAC</b>！IP 地址端到端不变，MAC 地址逐跳更换（每过一个路由器就重新 ARP 下一跳）。ARP 欺骗一句：攻击者伪造 ARP 响应冒充网关/他人 IP，把流量引到自己（中间人攻击），防御：静态绑定、交换机动态 ARP 检测（DAI）。</p>
+<p><b>DHCP（自动获取 IP 等配置）</b>：<b>应用层协议、基于 UDP</b>（服务器 67 / 客户端 68）。客户机首次入网四步交互（DORA）：</p>
+<pre class="ascii-fallback"><code>客户端（初为 0.0.0.0）                    DHCP 服务器（67 端口）
+    │ ① Discover（广播 255.255.255.255）   │
+    │ ——————————————————————————————————→ │  "有谁能给我地址？"
+    │ ② Offer（提供 IP/掩码/网关/DNS/租期） │
+    │ ←—————————————————————————————————— │
+    │ ③ Request（广播：我选这个服务器）      │
+    │ ——————————————————————————————————→ │
+    │ ④ ACK（确认生效，开始计租用期）        │
+    │ ←—————————————————————————————————— │</code></pre>
+<pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant C as 客户端（0.0.0.0，68 端口）
+    participant S as DHCP 服务器（67 端口）
+    C->>S: Discover（广播）
+    S-->>C: Offer（提供配置）
+    C->>S: Request（广播确认选择）
+    S-->>C: ACK（确认 + 租用期）
+</pre>
+<p>Discover 广播：源 <b>0.0.0.0</b>（此时还没有 IP）、目的 <b>255.255.255.255</b>；Request 也广播（让落选的服务器知道客户的选择）。租用期过半可申请续租。<b>跨网段用 DHCP 中继代理</b>：路由器把广播的 Discover 以单播转交给远端 DHCP 服务器。</p>
+<p><b>ICMP</b>：网络层协议，报文封装在 IP 中传送。两大类：<b>差错报告</b>——终点不可达、超时（TTL 耗尽 / 分片重组超时）、参数问题、改变路由；<b>询问</b>——回送请求/应答、时间戳请求/应答。<code>ping</code> 就是"回送请求（type 8）/回送应答（type 0）"，应用直接调用 ICMP（无端口号）；<b>traceroute（tracert）原理：从 TTL=1 开始逐个递增发包</b>，路径上第 n 个路由器把 TTL 减为 0 时丢弃分组并回送 ICMP 超时报文——源主机借此收集沿途路由器地址，直到到达终点。</p>
+<p><b>NAT / NAPT</b>：私网地址（10.0.0.0/8、172.16.0.0/12、192.168.0.0/16）不能在公网路由。NAT 路由器把出网分组的<b>源 IP 改写为公网地址</b>；NAPT 进一步连<b>端口号一起改写</b>，多台私网主机共享一个公网 IP，并维护"私网 IP:端口 ↔ 公网 IP:端口"转换表，回程分组查表反译。副作用：外网主机无法主动发起访问内网（P2P 打洞/内网穿透的由来）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">计算题</span><span class="tag">笔试选择</span><span class="tag">面试口述</span></p>
+<ul>
+<li>计算：IP 分片全套（片数、每片总长度/数据长度、片偏移、MF/DF），给 MTU 与总长度逐步算。</li>
+<li>选择：首部三种字段单位、TTL/协议字段/首部校验和行为、ARP 跨网段问谁、DHCP 四步与端口、ICMP 报文分类、NAT/NAPT 表。</li>
+<li>面试口述：ping 与 traceroute 的原理、ARP 欺骗与防御、"打开一个网页背后经过哪些协议"（DHCP→ARP→DNS→TCP→HTTP 串讲）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 一个 IP 数据报总长度 2420B（首部 20B），需要经过一条 MTU=620B 的链路。(1) 要分几片？(2) 写出每片的总长度、数据长度、片偏移与 MF 位；(3) 若该数据报 DF=1，路由器会如何处理？</p>
+<details><summary>先自己算，再展开对答案</summary>① 数据部分 = 2420−20 = 2400B；每片数据 ≤ 620−20 = 600B，且（除最后一片）须为 8 的倍数：600÷8=75 ✓ → 每片数据取 <b>600B</b>。<br>② 2400 = 600×4 → <b>分 4 片</b>；每片加 20B 首部 → 每片总长 <b>620B</b>；片偏移 = 前面累计数据 ÷8 = <b>0、75、150、225</b>；MF = <b>1、1、1、0</b>（最后一片为 0）。<br>验算：4×600 = 2400 ✓；600/8=75、1200/8=150、1800/8=225 均为整数 ✓。<br>③ DF=1 且超 MTU → 路由器<b>丢弃该数据报，并向源点回送 ICMP 差错报告</b>（终点不可达/需要分片）。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 关于 IPv4 分组在网络中的传输，下列说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. TTL 每经过一个路由器减 1，减为 0 时路由器丢弃分组并向源点发回 ICMP 超时报文</div>
+<div class="opt" data-k="B">B. TTL 减为 0 时，路由器把分组送回源主机重新计时</div>
+<div class="opt" data-k="C">C. 首部校验和每经过一个路由器都无需重新计算</div>
+<div class="opt" data-k="D">D. 分片可以在传输路径上的任意路由器重新组装，以减轻目的主机负担</div>
+<div class="exp" hidden><b>答案 A。</b>TTL 是防环路的兜底机制，减到 0 就地丢弃 + 回 ICMP 超时（traceroute 正是利用这一点探路）；B 无此机制；C 错——TTL 每跳都变，首部校验和每跳重算；D 错——重组只在<b>最终目的主机</b>进行（各分片可能走不同路径，中间路由器凑不齐）。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 主机 A（IP 192.168.1.10/24，网关 192.168.1.1）要向另一网段的服务器 10.0.0.5 发送数据。A 发出 ARP 请求，解析的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 服务器 10.0.0.5 的 MAC 地址</div>
+<div class="opt" data-k="B">B. 默认网关 192.168.1.1 的 MAC 地址</div>
+<div class="opt" data-k="C">C. DNS 服务器的 MAC 地址</div>
+<div class="opt" data-k="D">D. 无需 ARP，直接把分组广播到全网</div>
+<div class="exp" hidden><b>答案 B。</b>A 用掩码判断：10.0.0.5 与自己不在同一子网 → 下一跳是默认网关 → <b>ARP 请求解析网关的 MAC</b>，帧的目的 MAC 填网关、分组的目的 IP 仍是 10.0.0.5（IP 端到端不变、MAC 逐跳更换，路由器每跳重新 ARP 下一跳）。选 A 是本考点最经典的错误。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 一台新入网的客户机通过 DHCP 自动获取网络配置。(1) 按顺序写出四个报文交互；(2) 指出哪些步是广播，Discover 报文的源/目的地址；(3) 使用什么传输层协议与端口？(4) 客户机与服务器不在同一网段怎么办？</p>
+<details><summary>先自己算，再展开对答案</summary>① 顺序：<b>Discover → Offer → Request → ACK</b>（口诀 DORA）。<br>② Discover 与 Request 是广播：Discover 源 <b>0.0.0.0</b>（此时还没有 IP）、目的 <b>255.255.255.255</b>；Request 也广播（让落选服务器知道客户的选择）。<br>③ <b>UDP</b>，服务器端口 <b>67</b>、客户端端口 <b>68</b>。<br>④ 在路由器上配 <b>DHCP 中继代理</b>，把广播的 Discover 以单播转交给远端 DHCP 服务器。来源：牛客经典题。</details>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>5.</b> 关于路由协议 RIP、OSPF、BGP，下列说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. RIP 是应用层协议，路由信息封装在 UDP 报文（端口 520）中传送</div>
+<div class="opt" data-k="B">B. OSPF 的报文直接封装在 IP 数据报中（IP 协议号 89），按 408 口径归入网络层</div>
+<div class="opt" data-k="C">C. BGP 是网络层协议，报文直接封装在 IP 数据报中传送</div>
+<div class="opt" data-k="D">D. RIP 与 OSPF 是内部网关协议（域内），BGP 是外部网关协议（域间）</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：BGP 是<b>应用层</b>协议，报文封装在 <b>TCP 报文段（端口 179）</b>中。记忆三连：RIP 跑 UDP、OSPF 直接封 IP、BGP 跑 TCP——"三个路由协议三种承载"，408 必考。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 三种单位：总长度 1B、首部长度 4B、片偏移 8B；除最后一片，每片数据长必须是 8 的倍数；MF=1 表示后面还有分片；② 分片只在目的主机重组，中间路由器不重组；DF=1 时需分片就丢弃并回 ICMP 差错；③ 跨网段 ARP 的是默认网关 MAC——"ARP 目的主机 MAC"是最大陷阱；④ TTL 减为 0 → ICMP 超时，这正是 traceroute 递增 TTL 探路的原理；首部校验和每跳重算；⑤ DHCP 是应用层协议（UDP 67/68），Discover 源 0.0.0.0 目的 255.255.255.255，跨网段靠中继代理；⑥ 私网地址三段：10/8、172.16/12、192.168/16；NAPT 连端口一起改写，所以外网无法主动连内网。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

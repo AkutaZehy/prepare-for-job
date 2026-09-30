@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>computed/watch 与 diff 概览 · 前端/Vue</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / Vue</div>
+<h1>computed/watch 与虚拟 DOM diff 概览</h1>
+<div class="meta">适用岗位：前端、通用软开 ｜ 形态：选型对比 + 缓存输出题 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>computed 有缓存</b>——依赖不变时反复访问只算一次，方法调用每次渲染都执行；选型口诀：<b>要一个派生值用 computed，要做一件事（副作用/异步）用 watch</b>；watch 监听对象内部深层变化要 <code>deep: true</code>。diff 三原则：<b>同层比较、类型相同才复用、key 标识身份</b>；列表不用 index 当 key 的经典翻车：带复选框的列表删中间项后勾选错位。Vue3 diff 编译期优化：静态提升、patchFlag、最长递增子序列。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<table>
+<tr><th>维度</th><th>computed</th><th>watch / watchEffect</th></tr>
+<tr><td class="l">定位</td><td class="l">产生一个<b>派生值</b>（模板/逻辑要用）</td><td class="l">执行一段<b>副作用</b>（发请求、写 localStorage、操作 DOM）</td></tr>
+<tr><td class="l">缓存</td><td class="l"><b>有</b>：依赖不变则不重算</td><td class="l">无缓存概念，依赖变了就跑回调</td></tr>
+<tr><td class="l">返回值</td><td class="l">必须有（不该改原数据、不该有副作用）</td><td class="l">无返回值</td></tr>
+<tr><td class="l">异步</td><td class="l">不适合（getter 需同步算出值）</td><td class="l">适合，回调里随便发请求</td></tr>
+<tr><td class="l">典型场景</td><td class="l">全名 = 姓 + 名；过滤后的列表</td><td class="l">搜索词变化 → 防抖请求；路由变化 → 重取数据</td></tr>
+</table>
+<span class="lang">JS · computed 缓存 vs 方法调用（输出题母题）</span>
+<pre><code>let calc = 0;
+const count = ref(0);
+const double = computed(() =&gt; { calc++; return count.value * 2 });
+
+double.value;      // calc=1  首次访问，真正计算
+double.value;      // calc=1  依赖没变 → 直接走缓存，函数没执行
+count.value = 2;   // 依赖变化，缓存失效（也只是标记脏，还没算）
+double.value;      // calc=2  重新计算
+double.value;      // calc=2  再次走缓存
+
+// 对比普通方法 getDouble()：模板里渲染几次就执行几次，没有任何缓存
+// 版本结论：Vue2 与 Vue3 的 computed 缓存行为一致；
+//          Vue3 改用 Proxy 做依赖追踪（见 <a href="响应式原理.html">响应式原理</a> 页）。</code></pre>
+<span class="lang">JS · watch 的三个高频选项 + watchEffect</span>
+<pre><code>watch(obj, (nv) =&gt; console.log(nv), {
+  deep: true,       // 对象内部属性变化也触发（不用时 obj.x = 1 收不到）
+  immediate: true,  // 立即先执行一次回调（进页面就要初始化的场景）
+  flush: 'post'     // 默认 'pre'（DOM 更新前）；'post' 在 DOM 更新后跑，可拿最新节点
+});
+
+watchEffect(() =&gt; {              // 立即执行一遍，回调里读到谁就自动把谁收为依赖
+  console.log(count.value);      // 依赖 count → count 变自动重跑
+});                              // vs watch：显式声明监听源、默认惰性（不 immediate）</code></pre>
+<ul>
+<li><b>虚拟 DOM 与 diff 三原则</b>：数据变化先生成新虚拟 DOM（描述 UI 的 JS 对象树），diff 新旧两棵树后只把差异打补丁到真实 DOM。三大原则：<b>只同层比较</b>（不跨层挪节点）、<b>标签类型相同才复用</b>（不同直接重建）、<b>列表靠 key 认身份</b>。</li>
+<li><b>为什么列表别用 index 当 key</b>——复选框错位经典例子：</li>
+</ul>
+<pre><code>数据 ['a','b','c']，用户勾选了 b（勾选是 DOM 内部状态，Vue 不接管）
+删除 a 后数据 ['b','c']
+
+key = index：旧节点 key [0,1,2]，新节点 key [0,1]
+  → diff 认为 0、1 号节点还在，就地复用并更新文本：节点1 文本 b 改成 c
+  → 但勾选状态留在节点1 上 → 画面变成"c 被勾选了"（错位！）
+
+key = 唯一 id：b 的 key 没变
+  → diff 知道 b 节点还是 b，整体移动它，勾选状态跟着 b 走 → 正确</code></pre>
+<ul>
+<li><b>Vue3 diff 优化一句</b>（编译期能力，模板独有）：静态节点<b>静态提升</b>（只创建一次、diff 跳过）；动态部分打 <b>patchFlag</b> 标记，diff 只比对带标记的属性；列表 diff 用<b>最长递增子序列</b>求出尽量少动的节点，其余移动——对比 React 只能从左到右单向对比。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出题必考</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：computed 与 methods 区别（缓存）、watch 的 deep/immediate、key 的作用、index 当 key 的问题。</li>
+<li>面试链路："computed 为什么能缓存"→ 依赖收集（接响应式原理）→ computed vs watch 选型 → watchEffect → 虚拟 DOM 好处 → diff 三原则 → index key 翻车案例 → Vue3 编译优化三板斧。</li>
+<li>场景：搜索防抖该用 computed 还是 watch；watch 监听对象收不到内部变化怎么排查。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> computed 计算属性与 methods 方法调用的核心区别是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. computed 不能访问 this，methods 可以</div>
+<div class="opt" data-k="B">B. computed 基于响应式依赖缓存：依赖不变时多次访问只计算一次，方法每次调用都重新执行</div>
+<div class="opt" data-k="C">C. methods 有缓存，computed 没有</div>
+<div class="opt" data-k="D">D. computed 只能在模板中使用，methods 只能在脚本中使用</div>
+<div class="exp" hidden><b>答案 B。</b>缓存是 computed 的身份证：getter 里读到的响应式数据就是它的依赖集合，依赖没变直接返回上次结果。这也解释了为什么 computed 里不该写副作用——没被依赖收集的变化不会触发重算。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 需求是"搜索词变化 500ms 后发一次请求"。应该用 computed 还是 watch？正确理由是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 用 computed：computed 也能发请求，还能缓存结果</div>
+<div class="opt" data-k="B">B. 都不行，必须写在模板表达式里</div>
+<div class="opt" data-k="C">C. 用 watch：发请求是副作用/异步操作，computed 的定位是产出派生值，不应有副作用</div>
+<div class="opt" data-k="D">D. 用 watchEffect：它比 watch 性能更好</div>
+<div class="exp" hidden><b>答案 C。</b>选型口诀：要"值"用 computed，要"做事"用 watch。computed 里发请求既违反单一职责，又会因缓存语义产生说不清的触发时机。D 的 watchEffect 也常用于副作用，但此处需要防抖和明确监听源，watch 更合适。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于虚拟 DOM 的 key，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. key 帮助 diff 在同层节点中识别"哪些元素只是移动了而不是新建了"</div>
+<div class="opt" data-k="B">B. 带内部状态的控件（复选框、输入框）的列表用 index 当 key，插入/删除后可能出现状态错位</div>
+<div class="opt" data-k="C">C. key 只影响性能，不影响渲染结果的正确性</div>
+<div class="opt" data-k="D">D. key 应在同列表内稳定且唯一，与数据项绑定而不是与位置绑定</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：key 直接影响正确性——index 当 key 时 diff 就地复用节点，复选框勾选、输入框已输入内容等 DOM 内部状态会串位。经典翻车：删除列表中间一项后，勾选"跟着位置走"而不是"跟着数据走"。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">输出题</span><b>4.</b> 按知识点梳理里的代码：<code>let calc = 0</code>，computed 依次执行 <code>double.value</code>、<code>double.value</code>、<code>count.value = 2</code>、<code>double.value</code>、<code>double.value</code>。问最终 <code>calc</code> 的值是多少？若把 computed 换成普通方法调用五次，<code>calc</code> 又是多少？</p>
+<details><summary>先自己数，再展开对答案</summary>computed 版本 <b>calc = 2</b>：第 1 次 true 计算、第 2 次走缓存、改 count 后第 3 次因依赖变化重算、第 4 次又走缓存——依赖不变不重算。普通方法版本 <b>calc = 5</b>：每次调用都执行。追问版：若中间再改一次 count 但没访问 double.value，calc 不变（Vue3 的 computed 是懒求值，只标脏不立刻算）。来源：面试高频改编。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 一条链讲完：虚拟 DOM 是什么、diff 怎么比、Vue3 做了哪些优化、为什么列表不用 index 当 key。</p>
+<details><summary>参考回答</summary>虚拟 DOM 是用 JS 对象描述 UI 结构；数据变化后生成新树，diff 新旧树找出最小变更再打补丁，避免全量操作真实 DOM。diff 三原则：同层比较、类型相同才复用、key 认身份。Vue3 优化三板斧（编译期）：静态提升让静态节点只创建一次且 diff 跳过；patchFlag 给动态部分打标记，diff 只比对标记位；列表 diff 用最长递增子序列计算最少的节点移动。index 当 key：diff 会按位置就地复用节点，删除/插入后内容被"错位复用"，复选框勾选、输入框内容等 DOM 内部状态跟着节点走就串行了——所以 key 要用数据自身的唯一 id。加分点：Vue3 的编译信息只在模板语法下可用，JSX 拿不到，这也是 Vue 选模板的原因之一（对照 React 见 <a href="../React/React与Vue对比.html">React vs Vue 对比</a> 页）。来源：JavaGuide 收录题型。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① computed 里发请求、改 DOM 是反模式——它可能因缓存而"不执行"，副作用会丢；② watch 监听对象不改 deep 收不到内部变化，或改用函数式源 <code>() =&gt; obj.x.y</code> 精确监听；③ watchEffect 自动收集依赖且立即执行，"不想它马上跑"就要用 watch；④ index 当 key 对纯静态展示列表勉强无害，但列表一旦有增删+内部状态就翻车，统一用唯一 id 最省心；⑤ updated 钩子里修改自身依赖的数据会触发递归更新，副作用放 watch 里做。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

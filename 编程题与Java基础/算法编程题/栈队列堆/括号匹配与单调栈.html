@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>括号匹配与单调栈（ACM 模式） · 编程题与Java基础/算法编程题/栈队列堆</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 栈队列堆</div>
+<h1>括号匹配与单调栈（ACM 模式）</h1>
+<div class="meta">适用岗位：全部（小中厂 Java/Python 笔试高频） ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：有效括号=<b>栈配对</b>（右括号查栈顶，结束栈必须空）；单调栈三句话——<b>栈存下标、栈内对应值保持递减、遇到更大元素弹栈结算</b>；最小栈=<b>辅助栈同步压"当前最小"</b>，getMin O(1)。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题 1（主打）有效括号（LC20）</b>：每行一个仅含 ( ) [ ] { } 的字符串，逐行判断括号是否全部正确配对，输出 true / false，读到 EOF。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="io"><b>输入格式</b>（多行，每行一个字符串）：
+<pre><code>{[]}
+([)]</code></pre>
+<b>输出格式</b>（每行一个）：
+<pre><code>true
+false</code></pre></div>
+<p><b>题 2 每日温度（LC739）</b>：第一行 n，第二行 n 个整数表示当日气温；对每个位置输出"等几天会遇到更高气温"，没有更高则 0，空格分隔。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>8                       # n
+73 74 75 71 69 72 76 73 # n 个气温</code></pre>
+<b>输出格式</b>（1 行）：
+<pre><code>1 1 4 2 1 1 0 0</code></pre></div>
+<p><b>题 3 下一个更大元素 I（LC496，核心函数）</b>：nums1 是 nums2 的子集，对 nums1 每个元素找它在 nums2 中的下一个更大元素，没有则 -1。来源：LeetCode 经典题（ACM 改编）。</p>
+<p><b>题 4 最小栈（LC155，核心类）</b>：设计支持 push / pop / top / getMin 且各操作 O(1) 的栈。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="tip">字符串输入用 BufferedReader.readLine / 逐行 sys.stdin（StreamTokenizer 只认数字）；Windows 环境行尾可能带 \r，readLine 后先 trim。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<p><b>1. 有效括号（LC20）</b>：左括号入栈；右括号来时<b>查栈顶</b>——栈空或栈顶不是配对的左括号 → false；遍历结束<b>栈必须为空</b>（还剩左括号没配对也是 false）。配对关系用 Map（右 → 左）一次写好，避免写三个 if。时间 O(n)、空间 O(n)。</p>
+<p><b>2. 每日温度 / 下一个更大元素（LC739/496）——单调栈模板三句话</b>：① <b>栈存下标</b>（温度题要算"隔几天" = i − j，存下标才算得出）；② <b>栈内对应值保持严格递减</b>——还没找到"下一个更大"的元素都压在栈里；③ <b>遇到更大元素就反复弹栈结算</b>——被弹者的"下一个更大"就是当前元素。每个下标至多进栈、出栈各一次，时间 O(n)、空间 O(n)。LC496 先对 nums2 跑一遍单调栈，把"值 → 下一个更大值"存进 Map，再按 nums1 查表。</p>
+<p><b>3. 最小栈（LC155）</b>：辅助栈与主栈<b>同步压</b>"压入后的当前最小值"（mn.push(min(x, mn.top))），pop 同步弹；任意时刻 mn 栈顶 = 主栈当前最小，getMin O(1)。示例：依次压 5、3、7 → mn 为 [5,3,3]，getMin=3；pop 一次 → getMin 仍 3；再 pop → getMin=5。进阶 O(1) 空间版存差值，面试口述思路即可。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 用栈配对判断 "([)]"，第一次判定失败发生在（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 读入 '(' 时</div>
+<div class="opt" data-k="B">B. 读入 '[' 时</div>
+<div class="opt" data-k="C">C. 读入 ')' 时——栈顶是 '['，与 ')' 不配对</div>
+<div class="opt" data-k="D">D. 读入 ']' 时</div>
+<div class="exp" hidden><b>答案 C。</b>'(' 入栈、'[' 入栈，')' 来时查栈顶是 '[' 不配对，直接 false——"([)]" 是最经典的错序样例。来源：LeetCode 经典题（ACM 改编）。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 每日温度的单调栈中存放的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 温度值本身</div>
+<div class="opt" data-k="B">B. 下标（方便算"隔几天" = i − j）</div>
+<div class="opt" data-k="C">C. 温度差值</div>
+<div class="opt" data-k="D">D. 已结算的天数</div>
+<div class="exp" hidden><b>答案 B。</b>要输出隔几天，存下标才算得出；栈内对应温度保持递减，来更大元素弹栈结算。来源：LeetCode 经典题（ACM 改编）。</div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<p><b>题 1 有效括号（完整程序）</b>：逐行读、逐行输出。Java 读字符串用 BufferedReader（<b>Scanner 慢，大数据量会被卡 TLE</b>，且 StreamTokenizer 只能读数字）。</p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        String s;
+        while ((s = br.readLine()) != null) {   // 每行一个字符串，读到 EOF
+            s = s.trim();                        // 防 Windows 行尾 \r
+            System.out.println(isValid(s));
+        }
+    }
+
+    static boolean isValid(String s) {
+        // Map 配对写法：右括号做 key，对应的左括号做 value
+        Map&lt;Character, Character&gt; pair = new HashMap&lt;&gt;();
+        pair.put(')', '(');
+        pair.put(']', '[');
+        pair.put('}', '{');
+        Deque&lt;Character&gt; st = new ArrayDeque&lt;&gt;();
+        for (char c : s.toCharArray()) {
+            if (!pair.containsKey(c)) {
+                st.push(c);                      // 左括号入栈
+            } else {
+                // 栈空先判；Character 对象用 equals 比，别用 ==
+                if (st.isEmpty() || !st.pop().equals(pair.get(c))) return false;
+            }
+        }
+        return st.isEmpty();     // 别忘了：还剩左括号没配对也是 false
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def is_valid(s):
+    pair = {')': '(', ']': '[', '}': '{'}   # 右括号 → 左括号
+    st = []
+    for c in s:
+        if c not in pair:
+            st.append(c)                    # 左括号入栈
+        elif not st or st.pop() != pair[c]:
+            return False                    # 栈空或顶上不是配对的左括号
+    return not st                           # 还剩左括号也是 false
+
+def main():
+    out = []
+    for line in sys.stdin:                  # 每行一个字符串，读到 EOF
+        s = line.strip()
+        if s:
+            out.append('true' if is_valid(s) else 'false')
+    print('\n'.join(out))
+
+main()</code></pre>
+
+<p><b>题 2 每日温度（完整程序）</b></p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        int[] t = new int[n];
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); t[i] = (int) in.nval; }
+
+        int[] ans = new int[n];
+        Deque&lt;Integer&gt; st = new ArrayDeque&lt;&gt;();   // 栈存"下标"，栈内温度保持递减
+        for (int i = 0; i &lt; n; i++) {
+            while (!st.isEmpty() &amp;&amp; t[i] &gt; t[st.peek()]) {
+                int j = st.pop();        // i 是 j 右边第一个更大元素
+                ans[j] = i - j;          // 弹栈结算：隔 i-j 天
+            }
+            st.push(i);                  // 没被弹掉的留在栈里等更大的
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i &lt; n; i++)
+            sb.append(ans[i]).append(i == n - 1 ? '\n' : ' ');
+        System.out.print(sb);
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def daily(t):
+    n = len(t)
+    ans = [0] * n
+    st = []                       # 栈存下标，栈内对应温度严格递减
+    for i, x in enumerate(t):
+        while st and x &gt; t[st[-1]]:
+            j = st.pop()
+            ans[j] = i - j        # i 是 j 右侧第一个更大元素的下标
+        st.append(i)
+    return ans
+
+def main():
+    data = sys.stdin.read().split()
+    n = int(data[0])
+    t = list(map(int, data[1:1 + n]))
+    print(' '.join(map(str, daily(t))))
+
+main()</code></pre>
+
+<p><b>题 3 下一个更大元素 I / 题 4 最小栈（核心函数）</b></p>
+<span class="lang">Java</span>
+<pre><code>// LC496：先对 nums2 跑单调栈，把"值 → 下一个更大值"存进 Map，再按 nums1 查表
+int[] nextGreater(int[] nums1, int[] nums2) {
+    Map&lt;Integer, Integer&gt; ans = new HashMap&lt;&gt;();
+    Deque&lt;Integer&gt; st = new ArrayDeque&lt;&gt;();   // 这题按值查 Map，栈里存值即可
+    for (int x : nums2) {
+        while (!st.isEmpty() &amp;&amp; x &gt; st.peek()) ans.put(st.pop(), x);
+        st.push(x);
+    }
+    int[] res = new int[nums1.length];
+    for (int i = 0; i &lt; nums1.length; i++) res[i] = ans.getOrDefault(nums1[i], -1);
+    return res;
+}
+
+// LC155 最小栈：辅助栈同步压"当前最小"，各操作 O(1)
+class MinStack {
+    private Deque&lt;Integer&gt; st = new ArrayDeque&lt;&gt;();   // 主栈
+    private Deque&lt;Integer&gt; mn = new ArrayDeque&lt;&gt;();   // mn 栈顶 = 主栈当前最小
+    public void push(int x) {
+        st.push(x);
+        mn.push(mn.isEmpty() ? x : Math.min(x, mn.peek()));
+    }
+    public void pop() { st.pop(); mn.pop(); }         // 同步弹
+    public int top() { return st.peek(); }
+    public int getMin() { return mn.peek(); }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>def next_greater(nums1, nums2):
+    ans, st = {}, []              # 值 → 右边第一个更大值
+    for x in nums2:
+        while st and x &gt; st[-1]:
+            ans[st.pop()] = x
+        st.append(x)
+    return [ans.get(v, -1) for v in nums1]
+    # 例：nums1=[4,1,2]、nums2=[1,2,3,4] → 输出 [-1, 2, 3]
+
+class MinStack:
+    def __init__(self):
+        self.st, self.mn = [], []     # mn 与 st 同步压"当前最小"
+
+    def push(self, x):
+        self.st.append(x)
+        self.mn.append(min(x, self.mn[-1]) if self.mn else x)
+
+    def pop(self):
+        self.st.pop()
+        self.mn.pop()
+
+    def top(self):
+        return self.st[-1]
+
+    def getMin(self):
+        return self.mn[-1]            # O(1)</code></pre>
+<div class="tip">判题对 true/false 大小写敏感，按样例输出小写。多组输入改法同前两页：Java while 读 token/行，Python 的 <code>for line in sys.stdin</code> 本身就是逐行多组写法。</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 栈空先判再 peek/pop，右括号先到（如 "())"）就是空栈场景；② 遍历完<b>栈非空也是 false</b>（"((" 只剩左括号没配对）；③ Java 泛型栈里是 Character 对象，比较用 <code>equals</code> 别用 <code>==</code>——小字符恰好命中缓存时 == "看起来对"，换字符就出错；④ 单调栈<b>存下标</b>不存值（每日温度要算距离）；⑤ 弹栈用 while 不是 if（可能连续结算多个）；⑥ 行末空格与行数严格对齐样例；⑦ 输入行先 trim，防 \r 混进字符串。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

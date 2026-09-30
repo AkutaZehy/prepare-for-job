@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pandas核心操作速查 · 深度学习与Python进阶/NumPy与Pandas</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / NumPy与Pandas</div>
+<h1>Pandas 核心操作速查</h1>
+<div class="meta">适用岗位：AI 开发、数据分析、测开(Python) ｜ 形态：速查 + 输出判断 + 工程坑（数据岗笔试主力） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>loc 按标签、iloc 按位置</b>——标签切片含右端、位置切片不含；运算按<b>索引对齐</b>，对不齐出 NaN；<b>groupby = split-apply-combine</b>；<b>merge 是按键连接</b>（SQL 式）、<b>concat 是沿轴堆叠</b>；缺失值算术向 NaN 传播、聚合默认 skipna；<b>链式赋值 <code>df[cond][col] = x</code> 不生效</b>（老版本警告 SettingWithCopyWarning，CoW 时代是 ChainedAssignmentError）——写回一律 <code>df.loc[mask, col] = …</code>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>Series / DataFrame 与索引对齐</b></p>
+<ul>
+<li>Series = 带标签的一维数组（构建于 NumPy，见 <a href="NumPy广播索引与向量化.html">NumPy广播索引与向量化</a>）；DataFrame = 共用行索引的列集合。</li>
+<li>两个 Series 运算<b>按索引对齐而不是按位置</b>，对不齐的位置填 NaN——本机实跑：{'a': nan, 'b': 12.0, 'c': 23.0, 'd': nan}。</li>
+<li>dict 传入构造时，键顺序即 Series 顺序（dict 保序自 Python 3.7 起写入语言规范）。</li>
+</ul>
+
+<p><b>loc vs iloc：标签 vs 位置</b></p>
+<span class="lang">Python</span>
+<pre><code>df = pd.DataFrame({"v": [10, 20, 30, 40]}, index=["a", "b", "c", "d"])
+
+df.loc["a":"c", "v"]    # 10 20 30 —— 标签切片【含】右端 c
+df.iloc[0:2, 0]         # 10 20    —— 位置切片【不含】下标 2</code></pre>
+<ul>
+<li>loc 接标签、布尔掩码；iloc 只接整数位置。取"前 n 行"这类位置语义用 iloc，按行列名取用 loc。</li>
+</ul>
+
+<p><b>布尔过滤与 query</b></p>
+<span class="lang">Python</span>
+<pre><code>df[df["v"] &gt; 10]                       # 布尔掩码
+df[(df["v"] &gt; 10) &amp; (df["dept"] == "A")]   # 多条件必须加括号
+df.query("v &gt; 10 and dept == 'A'")     # 字符串写法，长条件更可读</code></pre>
+
+<p><b>groupby：split-apply-combine</b></p>
+<ul>
+<li>split 按键切开 → apply 聚合/变换 → combine 拼回结果。本机实跑：</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>df = pd.DataFrame({"dept": ["A", "B", "A", "B", "A"],
+                   "pay":  [10, 20, 30, 40, 50]})
+
+g = df.groupby("dept")["pay"].sum()
+print(g)
+# dept
+# A    90        # 10+30+50
+# B    60        # 20+40
+# Name: pay, dtype: int64
+print(g.index.tolist())    # ['A', 'B'] —— 默认 sort=True 按组键排序
+
+print(df.groupby("dept")["pay"].agg(["sum", "mean"]))
+#       sum  mean
+# dept
+# A      90  30.0
+# B      60  30.0</code></pre>
+<ul>
+<li>常用聚合：count/size/sum/mean/max/min/nunique；<code>transform</code> 输出与原表同形（组内标准化用）。</li>
+</ul>
+
+<p><b>merge / join / concat：键连接 vs 轴拼接</b></p>
+<span class="lang">Python</span>
+<pre><code>df1 = pd.DataFrame({"k": ["a", "b"], "x": [1, 2]})
+df2 = pd.DataFrame({"k": ["a", "c"], "y": [3, 4]})
+
+pd.merge(df1, df2, on="k")          # 按键做 SQL 式连接，how 默认 inner
+#    k  x  y           →  只有 a 匹配上，shape (1, 3)
+# 0  a  1  3
+
+pd.concat([df1, df2], axis=1)       # 沿轴 1 左右拼，shape (2, 4)
+pd.concat([df1, df2], axis=0, ignore_index=True)
+# 上下堆 4 行：列取并集，对不上的格子填 NaN（默认 outer）</code></pre>
+<ul>
+<li>merge：按<b>键</b>（列或索引）连接，how = inner/left/right/outer；join 是"按索引 merge"的快捷方式；concat：沿<b>轴</b>堆叠，axis=0 上下、axis=1 左右。</li>
+</ul>
+
+<p><b>缺失值：传播与 skipna</b></p>
+<ul>
+<li>算术运算向 NaN 传播（10 + NaN = NaN）；<b>聚合默认 skipna=True 跳过缺失</b>——本机实跑：Series([1, nan, 3]).sum() = 4.0，isna().sum() = 1。</li>
+<li>工具：<code>isna/notna</code> 检测、<code>fillna(0)/ffill/bfill</code> 填充、<code>dropna()</code> 丢弃。先 <code>isna().sum()</code> 摸清缺口再决定填法，别拿 0 盲填。</li>
+</ul>
+
+<p><b>apply vs 向量化：apply 慢，优先内置</b></p>
+<ul>
+<li>apply 是 Python 层逐行/逐元素回调，带函数调用开销，比内置向量化慢一到两个量级。</li>
+<li>优先级：数值列直接整列运算 → <code>np.where</code>/<code>map(dict)</code> 替换 → <code>str</code>/<code>dt</code> 访问器（df["s"].str.upper()）→ 实在无法向量化的复杂行逻辑才 apply。</li>
+</ul>
+
+<p><b>经典坑（本机 pandas 3.0.5 实测）</b></p>
+<span class="lang">Python</span>
+<pre><code>dfc = pd.DataFrame({"a": [1, 2, 3], "b": [0, 0, 0]})
+
+dfc[dfc["a"] &gt; 1]["b"] = 9      # 链式赋值：第一步返回的是临时副本
+# 告警 ChainedAssignmentError，且赋值【不生效】—— b 保持 [0, 0, 0]
+# （pandas 3.0 起默认 Copy-on-Write；老版本这里的告警名是 SettingWithCopyWarning）
+
+dfc.loc[dfc["a"] &gt; 1, "b"] = 9   # 正确姿势：一次索引写回 → [0, 9, 9]</code></pre>
+<ul>
+<li>低基数字符串列 <code>astype("category")</code> 省内存：20 万行两值字符串实测 1600132 字节 → 200148 字节（约 8 倍），groupby/排序也更快。</li>
+<li>索引对齐坑：两表相加按索引对齐，索引没 reset 会"叉乘"出一堆 NaN，算前先想清楚索引状态。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断：groupby 聚合结果与组键排序、缺失值 sum 的 skipna 行为、索引对齐的结果。</li>
+<li>概念选择：loc/iloc 切片边界、merge/concat 的区别与默认值、apply 与向量化的取舍。</li>
+<li>面试口述：大 CSV 读入的第一步；追难点在 SettingWithCopyWarning/CoW、dtype 优化、分块读取。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>import pandas as pd
+
+df = pd.DataFrame({
+    "dept": ["A", "B", "A", "B", "A"],
+    "pay":  [10, 20, 30, 40, 50],
+})
+g = df.groupby("dept")["pay"].sum()
+print(g["B"])
+print(g.index.tolist())</code></pre>
+<div class="opt" data-k="A">A. 60 和 ['A', 'B']</div>
+<div class="opt" data-k="B">B. 90 和 ['A', 'B']</div>
+<div class="opt" data-k="C">C. 60 和 ['B', 'A']（按组键出现顺序）</div>
+<div class="opt" data-k="D">D. 抛出 KeyError</div>
+<div class="exp" hidden><b>答案 A。</b>split-apply-combine：A 组 10+30+50=90，B 组 20+40=60，g["B"]=60；groupby 默认 sort=True 按组键排序，索引是 ['A', 'B']。本机 pandas 3.0.5 实跑核对。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 关于 loc 与 iloc 的切片行为，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. df.loc["a":"c"] 含右端标签 c；df.iloc[0:2] 不含右端位置——标签闭区间、位置左闭右开</div>
+<div class="opt" data-k="B">B. loc 与 iloc 的切片都是左闭右开</div>
+<div class="opt" data-k="C">C. df.iloc[0:2] 取的是标签为 0 和 2 的两行</div>
+<div class="opt" data-k="D">D. loc 只能接布尔数组，不能接标签切片</div>
+<div class="exp" hidden><b>答案 A。</b>本机实跑：索引 ['a','b','c','d'] 的表，loc["a":"c"] 得 [10, 20, 30]（3 行），iloc[0:2] 得 [10, 20]（2 行）。C 错：iloc 是纯位置语义与标签无关；D 错：loc 的主业就是标签（外加布尔掩码）。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>s = pd.Series([1, np.nan, 3])
+print(s.sum())
+print(s.isna().sum())</code></pre>
+<div class="opt" data-k="A">A. 4.0 和 1 —— 聚合默认 skipna=True；isna 得到布尔序列，求和即缺失个数</div>
+<div class="opt" data-k="B">B. nan 和 1 —— sum 也向 NaN 传播</div>
+<div class="opt" data-k="C">C. 4.0 和 0</div>
+<div class="opt" data-k="D">D. 抛出 ValueError</div>
+<div class="exp" hidden><b>答案 A。</b>算术运算向 NaN 传播，但 sum/mean 等聚合默认 skipna=True 跳过缺失（1+3=4.0）；要保留 NaN 语义需显式 skipna=False。数缺失个数的惯用法就是 isna().sum()（True 求和）。本机 pandas 3.0.5 实跑核对。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于 merge 与 concat，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. merge 按键（列或索引）做 SQL 式连接，how 默认 inner</div>
+<div class="opt" data-k="B">B. concat 沿轴堆叠：axis=0 上下接、axis=1 左右接，默认保留所有索引（outer）</div>
+<div class="opt" data-k="C">C. merge 后的行数一定等于两表行数之和</div>
+<div class="opt" data-k="D">D. concat(axis=1) 对不上的索引位置填 NaN</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：merge 行数由键匹配方式（how）决定，与两表行数之和无关。本机实跑：df1(k,x) 与 df2(k,y) 在 on="k" 下 inner 连接得 (1,3) 只剩 a；concat(axis=1) 得 (2,4)；concat(axis=0) 上下堆 4 行、列并集补 NaN。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 拿到一个 1GB 的 CSV 要读进 pandas 处理，第一步做什么？怎么让后续处理不吃满内存？</p>
+<details><summary>参考回答</summary>第一步永远是"先看再算"：不要直接 read_csv 全量读。先用 <code>nrows=1000</code>（或 usecols 挑几列）读个样本，看 dtypes、列含义和 <code>memory_usage(deep=True)</code>，心里有谱再定策略。<br>
+瘦身的常规四招：① 指定 dtype——低基数枚举列转 category（20 万行两值字符串实测省 8 倍），数字列能 float32/int32 就降档；② usecols 只读真正要用的列；③ 日期列 parse_dates 现场解析，别留字符串；④ 真的大就 chunksize 分块流式读、逐块聚合，或一次性转 Parquet，之后按列存读取又快又省。<br>
+加分点：engine="pyarrow" 解析更快；千万行级先问"该不该进数据库/列存"而不是硬读；读完后 isna().sum() 和 describe 各跑一遍再动手。来源：AI 岗笔试高频。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 链式赋值 df[cond][col]=x 不生效，写回一律 df.loc[mask, col]=… 一次索引到底（CoW 时代告警 ChainedAssignmentError，老版本是 SettingWithCopyWarning）。② loc 标签闭区间、iloc 左闭右开，前 n 行用 iloc。③ 运算按索引对齐、聚合默认 skipna——sum 结果"少数"先查 NaN。④ merge 键连接 vs concat 轴拼接，merge 默认 inner、concat 默认 outer。⑤ apply 慢一到两个量级，先想整列运算/np.where/str 访问器。⑥ 低基数列 astype("category")，groupby 前先 reset_index 想清楚索引状态。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

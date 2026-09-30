@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>React vs Vue 对比 · 前端/React</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / React</div>
+<h1>React vs Vue 对比</h1>
+<div class="meta">适用岗位：前端、通用软开 ｜ 形态：大对比表 + 选型口述 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：一句话分层背——<b>模板 vs JSX</b>（Vue 编译期能优化、React 表达力强）；<b>响应式机制</b>：Vue3 Proxy 精确追踪自动更新 vs React 不可变数据 + 显式 setState；<b>更新粒度</b>：Vue 依赖级（只更用到数据的组件）vs React 组件级（setState 的组件整棵子树重跑，靠 memo 手动掐）；<b>diff</b>：Vue3 最长递增子序列求最少移动 vs React 单向从左到右；<b>React 18 并发</b>：自动批处理 + startTransition 可中断渲染。</div>
+
+<section class="card k">
+<h2>一、知识点梳理：大对比表</h2>
+<table>
+<tr><th>维度</th><th>Vue3</th><th>React</th></tr>
+<tr><td class="l">写法</td><td class="l">SFC 单文件 + 模板指令，受限但编译器可静态分析</td><td class="l">JSX = JS 表达式，图灵完备、表达力强，编译期几乎不做优化</td></tr>
+<tr><td class="l">响应式机制</td><td class="l"><b>Proxy 精确追踪</b>：读数据自动收集依赖、改数据自动触发（见 <a href="../Vue/响应式原理.html">响应式原理</a> 页）</td><td class="l"><b>不可变数据 + 显式 setState</b>：没有依赖追踪，靠"引用变没变" + 重跑组件函数</td></tr>
+<tr><td class="l">更新粒度</td><td class="l"><b>依赖级</b>：谁用这个数据谁更新，组件树其他部分不动</td><td class="l"><b>组件级</b>：setState 的组件连同其子树默认全部重渲染，子组件要 <code>memo</code> 手动挡</td></tr>
+<tr><td class="l">diff 策略</td><td class="l">同层比较 + <b>最长递增子序列</b>求最少节点移动（双端思想）</td><td class="l">同层比较 + <b>单向从左到右</b>遍历，key 标识复用</td></tr>
+<tr><td class="l">编译优化</td><td class="l">静态提升、patchFlag、块树（模板独享）</td><td class="l">基本没有，优化靠人写 memo/useMemo/useCallback</td></tr>
+<tr><td class="l">状态管理</td><td class="l">Pinia（官方出品，见 <a href="../Vue/Router与Pinia.html">Router 与 Pinia</a> 页）</td><td class="l">自由市场：Redux（含 RTK）/ Zustand / Jotai 自选</td></tr>
+<tr><td class="l">路由</td><td class="l">Vue Router 官方维护</td><td class="l">社区事实标准 React Router / Next.js 内置</td></tr>
+<tr><td class="l">逻辑复用</td><td class="l">Composition API（Vue3 起）</td><td class="l">Hooks（React 16.8 引入）</td></tr>
+<tr><td class="l">并发能力</td><td class="l">无同级概念，调度器按优先级更新队列</td><td class="l"><b>React 18 并发特性</b>：自动批处理、<code>startTransition/useDeferredValue</code> 让大更新可中断不卡输入</td></tr>
+<tr><td class="l">心智模型</td><td class="l">"框架替你追踪"，改数据即可，自动更新</td><td class="l">"UI = f(state)"，显式声明不可变更新，一切靠重跑</td></tr>
+</table>
+<ul>
+<li><b>模板 vs JSX 的本质</b>：模板语法受限（不能随便写语句），换来的是编译器能静态标记哪些节点永远不变——Vue3 的性能优化全建立在这上面；JSX 自由，能写任意 JS，但编译器看不懂意图，优化责任转给开发者。</li>
+<li><b>更新粒度举例</b>：一个大列表页改一个计数器，Vue3 里只有用到它的组件重渲染；React 里该组件 + 其子树默认全跑一遍 render 再 diff（子树大时要 memo/useMemo 兜）——这也是"React 写大页面更吃优化功力"的原因。</li>
+<li><b>概念对照表</b>（迁移记忆用）：<code>ref/reactive ≈ useState</code>、<code>computed ≈ useMemo</code>、<code>watch ≈ useEffect([deps])</code>、<code>provide/inject ≈ Context</code>、组合式函数 ≈ 自定义 Hook。</li>
+<li><b>选型建议</b>：① 团队技术栈与存量代码优先——迁移成本大于一切理论优劣；② 无偏好时：中后台、表单密集、快速交付、团队偏新手 → Vue 生态顺手；大型复杂交互、强 TS 工程化、跨端 RN、招人池 → React；③ 两者心智已趋同（Composition API vs Hooks），会一个另一个上手很快。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">面试必问</span><span class="tag">选型口述</span><span class="tag">跨框架对照</span></p>
+<ul>
+<li>高频原题："React 和 Vue 有什么区别？"——别只答语法，按"响应式机制 → 更新粒度 → diff → 生态 → 心智"五层讲。</li>
+<li>追问链：React 为什么没有依赖收集 → memo 为什么需要 → Vue3 编译优化为什么 JSX 没有 → React 18 并发是什么 → 新项目你选哪个。</li>
+<li>答案不封顶，但更新粒度与响应式机制两题是硬知识，答错直接出局。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> React 函数组件内调用一次 setState 后，默认（未做任何优化时）重新执行的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 只重新渲染用到该 state 的那部分子组件</div>
+<div class="opt" data-k="B">B. 该组件函数本身重新执行，其所有子组件也默认跟着重新渲染</div>
+<div class="opt" data-k="C">C. 整个应用所有组件重新渲染</div>
+<div class="opt" data-k="D">D. 什么都不重渲染，只做 DOM 属性修补</div>
+<div class="exp" hidden><b>答案 B。</b>React 没有"谁用了数据谁更新"的依赖级粒度——setState 所在组件整棵子树默认重跑 render 再 diff，大子树要靠 React.memo/useMemo/useCallback 手动掐断。对照：Vue3 是依赖级，Proxy 知道哪些组件读过这个数据。版本结论：React 18 的并发特性（transition）改变的是调度的可中断性，不改变这个默认粒度。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>2.</b> Vue3 修改数据后框架"自动知道"该更新谁，React 需要开发者显式 setState。这一差异的根源是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Vue3 性能更强，React 不想做这个功能</div>
+<div class="opt" data-k="B">B. React 的组件不能是纯函数，所以无法自动追踪</div>
+<div class="opt" data-k="C">C. Vue3 用了虚拟 DOM，React 没有用</div>
+<div class="opt" data-k="D">D. Vue3 用 Proxy 代理数据，读写都被拦截所以能精确收集依赖；React 的 state 是普通值，没有拦截层，只能靠"显式通知 + 重跑函数"驱动更新</div>
+<div class="exp" hidden><b>答案 D。</b>双方都有虚拟 DOM，C 先排除。机制分层背：Vue3 = Proxy 拦截读写 → 自动 track/trigger → 依赖级更新；React = 不可变数据 + 显式 setState → 组件函数重跑 → 组件级更新 + memo 优化。两条路线没有绝对优劣，Vue 省心、React 心智更"显式"。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于两者生态与工程化，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Vue 的 Router/Pinia/Vite 均为官方团队维护，全家桶风格统一</div>
+<div class="opt" data-k="B">B. React 生态自由度高：状态管理 Redux/Zustand/Jotai、数据请求 React Query 等自行组队</div>
+<div class="opt" data-k="C">C. 两者都有成熟的 SSR/全栈方案：Nuxt 对应 Vue，Next.js 对应 React</div>
+<div class="opt" data-k="D">D. React 官方内置了路由和状态管理，开箱即用</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：React 是库不是全家桶，路由、状态管理全交给社区生态，自由但也意味着选型成本。选型口述时"官方统一 vs 社区自由"是必提的一对词。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> "如果让你启动一个新项目，你选 React 还是 Vue？为什么？"给出一套有立场的回答模板。</p>
+<details><summary>参考回答</summary>先亮立场再给判据，切忌"都行"。模板：① 团队与存量——团队熟悉谁、公司现有项目用什么，迁移成本大于理论优劣，这是第一判据；② 无偏好时按场景：中后台表单密集、要快速交付、团队新人多 → 选 Vue3，官方全家桶（Router/Pinia/Vite）风格统一、响应式自动追踪心智负担小；大型复杂交互、重度 TS 工程化、未来要跨端 RN、招聘池大 → 选 React，生态自由且 Next.js 全栈方案成熟；③ 兜底展示深度：两者心智已收敛——Composition API 与 Hooks 几乎同构，diff 上 Vue3 最长递增子序列编译期优化更省心、React 18 并发调度（自动批处理、transition）在超大列表交互上更有想象空间，最终选型是工程决策不是信仰问题。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① "React 有依赖收集/响应式"是硬伤级错误——它没有，靠显式 setState + 重跑；② memo 只做 props 浅比较，传对象/函数 props 不配合 useMemo/useCallback 等于白 memo；③ Vue 模板的"受限"正是编译优化的来源，别把它当缺点背；④ diff 差异别背反：Vue3 最长子序列求最少移动、React 单向从左到右；⑤ 概念对照表（ref≈useState、computed≈useMemo、watch≈useEffect、provide/inject≈Context）是跨框架面试的送分工具，背熟。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

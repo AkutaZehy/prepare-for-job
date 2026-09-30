@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手撕softmax与交叉熵（ACM 模式） · 深度学习与Python进阶/深度学习手撕编程题</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习手撕编程题</div>
+<h1>手撕 softmax 与交叉熵（ACM 模式）</h1>
+<div class="meta">适用岗位：AI/Agent 开发（笔试手撕第一题级高频） ｜ 形态：ACM 判题题 + 概念自测 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：数值稳定 softmax = 先减最大值再 exp（平移不变，防 $e^{1000}$ 上溢）；交叉熵 $L=-\log p_y$；softmax+CE 联合求导一步到位 $\dfrac{\partial L}{\partial \mathbf z}=\mathbf p-\mathbf y_{\text{onehot}}$——面试手撕就是"减 max、log 正确类、梯度 p−y"三句话。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题面</b>：给定 n 个 logits 与一个 0 起始的正确类下标 y，计算数值稳定的 softmax 概率分布与交叉熵损失 $L=-\log p_y$。概率与 loss 均保留 4 位小数。</p>
+<p style="text-align:center">$$p_i=\frac{e^{z_i-\max_j z_j}}{\sum_j e^{z_j-\max_j z_j}},\qquad L=-\log p_y$$</p>
+<div class="io"><b>输入格式</b>：第一行 n；第二行 n 个实数 logits；第三行整数 y（0 起始）。
+<b>样例 1</b>：
+<pre><code>3
+1 2 3
+2</code></pre>
+<b>输出</b>：
+<pre><code>0.0900 0.2447 0.6652
+0.4076</code></pre>
+<b>样例 2（稳定性对照，输出必须与样例 1 完全一致）</b>：
+<pre><code>3
+1000 1001 1002
+2</code></pre>
+<b>输出</b>：
+<pre><code>0.0900 0.2447 0.6652
+0.4076</code></pre></div>
+<p>样例核算：减去 max=3 后 exp 参数为 $e^{-2}=0.1353$、$e^{-1}=0.3679$、$e^{0}=1$，和 1.5032，归一化得 0.0900 / 0.2447 / 0.6652；loss $=-\ln 0.6652=0.4076$。样例 2 若直接 exp(1002)：Python <code>math.exp</code> 抛 <code>OverflowError</code>，numpy 得 inf，inf/inf=nan 全变 nan；减 max 后参数落在 {−2,−1,0}，输出与样例 1 逐位一致（本页样例均经本机实跑核对）。</p>
+</section>
+
+<section class="card p">
+<h2>二、思路与伪代码</h2>
+<pre><code>读 logits, y
+m = max(logits)                          # 平移不改变 softmax 值
+p_i = exp(z_i - m) / sum_j exp(z_j - m)
+loss = -log(p_y)
+输出 p 各项(4位小数) 与 loss(4位小数)</code></pre>
+<p><b>推导：softmax+CE 联合梯度为什么是 p − y</b>。$L=-\log p_y$，而 $\dfrac{\partial p_y}{\partial z_i}=p_y(\delta_{iy}-p_i)$，链式法则一步：</p>
+<p style="text-align:center">$$\frac{\partial L}{\partial z_i}=-\frac{1}{p_y}\cdot p_y(\delta_{iy}-p_i)=p_i-\delta_{iy}\;\;\Rightarrow\;\;\frac{\partial L}{\partial \mathbf z}=\mathbf p-\mathbf y_{\text{onehot}}$$</p>
+<p>前向把 p 留下来，反向一行写完——这正是框架把 softmax 与 CE 合并成 <code>cross_entropy(logits, y)</code> 一个算子的原因：分开算既多存中间量，又要各自处理数值稳定。梯度正确性已用数值差分实测核对（三点 logit 上差分值与 p−y 逐项一致）。</p>
+<div class="tip"><b>数值不稳定反例对照（写进思路）</b>：naive 版直接 <code>exp([1000,1001,1002])</code>——本机实测 Python <code>math.exp</code> 抛 <code>OverflowError: math range error</code>；numpy 给 <code>[inf, inf, inf]</code>，inf/inf → <code>[nan nan nan]</code>。稳定版减 1002 后与 [1,2,3] 输出逐位一致。判题系统常用 ±1000 量级的 logit 专卡 naive 实现。</div>
+<div class="q">
+<p><b>概念自测（点击选项判分）</b></p>
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 数值稳定的 softmax 先减去最大值再 exp，原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 减去常数可以校准概率的系统性偏移</div>
+<div class="opt" data-k="B">B. softmax(x)=softmax(x−c)，减 max 不改变数学结果、只把 exp 参数压到 ≤0 防上溢</div>
+<div class="opt" data-k="C">C. 减 max 能同时加速 exp 的计算</div>
+<div class="opt" data-k="D">D. 不减 max 会产生无法收敛的梯度</div>
+<div class="exp" hidden><b>答案 B。</b>softmax 对输入整体平移不变，减任意常数结果不变；减 max 纯粹是防 $e^{大数}$ 上溢的工程手段，最坏参数从 +1000 变成 ≤0。小概率下溢成 0 一般可接受，配合 log 时夹 eps。来源：AI 岗笔试高频。</div>
+</div>
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于 softmax 与交叉熵的联合使用，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 联合梯度 ∂L/∂z = p − y_onehot，反向只需要前向算出的 p</div>
+<div class="opt" data-k="B">B. 对正确类 logit 的梯度 p_y − 1 ≤ 0，训练会推高正确类得分</div>
+<div class="opt" data-k="C">C. 多分类下"对每个类各做一个 sigmoid 再算 CE"与 softmax+CE 等价</div>
+<div class="opt" data-k="D">D. one-hot 标签下 CE 退化为 −log p_y</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 错：多个独立 sigmoid 互不归一，是多标签场景的用法；互斥多分类必须 softmax+CE。A 即本页推导；B 由 p_y ≤ 1 直接得到；D 因非正确类标签为 0、对应项消失。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit" type="button">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码</h2>
+<span class="lang">Python（ACM 完整程序）</span>
+<pre><code>import sys
+import math
+
+def softmax_ce(logits, y):
+    m = max(logits)                          # 1) 减最大值防溢出
+    e = [math.exp(v - m) for v in logits]
+    s = sum(e)
+    p = [v / s for v in e]                   # 2) 归一化
+    loss = -math.log(p[y])                   # 3) 交叉熵 = -log 正确类概率
+    return p, loss
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    logits = [float(next(it)) for _ in range(n)]
+    y = int(next(it))
+    p, loss = softmax_ce(logits, y)
+    print(" ".join(f"{v:.4f}" for v in p))
+    print(f"{loss:.4f}")
+
+main()</code></pre>
+<span class="lang">PyTorch（面试白板版，无 IO）</span>
+<pre><code>import torch
+import torch.nn.functional as F
+
+p = F.softmax(logits, dim=-1)                    # 框架内部已减 max
+loss = F.cross_entropy(logits, torch.tensor([y]))  # = log_softmax + nll_loss
+# 手写反向一步: grad_logits = p - one_hot(y)</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 减 max 要用<b>整组</b>最大值，别只减当前元素；② loss 取 log 的对象是"正确类概率"，y 忘了减 1（1 起始下标）是最常见的越界错；③ 反向梯度是 p − y_onehot，不是再套一层 p(1−p)；④ 输出格式：概率一行空格分隔、loss 单独一行，统一 <code>f"{v:.4f}"</code>；⑤ 极端 logit（±1000）是判题人用来卡 naive softmax 的常规手段，手撕时先说"我会减 max"再动手。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>垃圾回收与收集器 · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>垃圾回收与收集器</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（面试 JVM 必问） ｜ 形态：原理 + 对比 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：判断存活用<b>可达性分析</b>（Java 不用引用计数——循环引用救不了），GC Roots 包括栈引用/静态变量/常量/JNI；四种引用<b>强软弱虚</b>；三大算法：标记清除（碎片）、复制（新生代，无碎片费空间）、标记整理（老年代）；<b>CMS 并发标记清除</b>：低停顿但有碎片与浮动垃圾，已废弃；<b>G1</b>：Region 分区+按停顿目标优先回收价值最高的区；ZGC 一句话：着色指针、停顿亚毫秒。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>对象存活判定</b>：引用计数法（每对象计数器，循环引用会死锁泄漏，<b>JVM 不采用</b>）；<b>可达性分析</b>——从 GC Roots 出发能摸到的就是活的。GC Roots 常考清单：虚拟机栈中引用的对象（局部变量）、方法区<b>静态变量</b>与<b>常量</b>引用的对象、本地方法栈 JNI 引用、被 synchronized 持有的对象。注意"堆内两个对象互相引用但无 Roots 可达"＝垃圾（引用计数的死穴恰是可达性分析的常规操作）。对象真正死亡前有"两次标记 + finalize() 自救一次"的机制（概念级，实际别用）。</p>
+<table>
+<tr><th>引用类型</th><th>回收时机</th><th>典型用途</th></tr>
+<tr><td>强引用</td><td class="l">永不回收（宁可 OOM）</td><td class="l">普通 new</td></tr>
+<tr><td>软引用 SoftReference</td><td class="l">内存不足时回收</td><td class="l">缓存</td></tr>
+<tr><td>弱引用 WeakReference</td><td class="l">下次 GC 必回收</td><td class="l">ThreadLocalMap 的 key、WeakHashMap</td></tr>
+<tr><td>虚引用 PhantomReference</td><td class="l">形同虚设，只为回收通知</td><td class="l">堆外内存回收管理（DirectByteBuffer）</td></tr>
+</table>
+<p><b>三大回收算法</b>：</p>
+<table>
+<tr><th>算法</th><th>过程</th><th>优点</th><th>缺点</th><th>用在</th></tr>
+<tr><td>标记-清除</td><td class="l">标记活对象→直接清除</td><td class="l">简单</td><td class="l"><b>空间碎片</b>；效率不稳</td><td class="l">CMS</td></tr>
+<tr><td>标记-复制</td><td class="l">内存分两块，活对象整体搬到另一块</td><td class="l">无碎片、分配快（指针碰撞）</td><td class="l">浪费一半空间（Survivor 优化为 10% 浪费）</td><td class="l">新生代（存活率低才划算）</td></tr>
+<tr><td>标记-整理</td><td class="l">标记→活对象向一端移动→清理边界外</td><td class="l">无碎片</td><td class="l">移动对象成本高（STW 长）</td><td class="l">老年代</td></tr>
+</table>
+<p><b>分代收集</b>：新生代对象朝生夕死→复制算法（Eden+S0 存活对象复制到 S1，年龄 +1，默认 <b>15 岁</b>晋升老年代，或动态年龄判断：同年龄对象总和超 Survivor 一半；大对象直接进老年代避免反复复制）。GC 分类：Minor GC（新生代，频繁、快）、Full GC/Major GC（整堆或老年代，慢、应尽量避免）；Full GC 触发线索：老年代空间不足、元空间不足、System.gc() 建议、空间分配担保失败。</p>
+<p><b>收集器谱系（重点 CMS 与 G1）</b>：</p>
+<table>
+<tr><th>收集器</th><th>区域/算法</th><th>特点</th></tr>
+<tr><td>Serial / Serial Old</td><td class="l">单线程，STW</td><td class="l">客户端模式、小内存</td></tr>
+<tr><td>ParNew / Parallel Scavenge+Old</td><td class="l">多线程并行，STW</td><td class="l">吞吐量优先（Parallel 系可设吞吐目标）</td></tr>
+<tr><td><b>CMS</b>（已废弃，JDK14 移除）</td><td class="l">老年代，标记-清除</td><td class="l">四阶段：<b>初始标记(STW)→并发标记→重新标记(STW)→并发清除</b>；优点停顿短；缺点：CPU 敏感、<b>浮动垃圾</b>（并发清除期新垃圾留到下次）、<b>碎片</b>导致提前 Full GC、并发失败退化 Serial Old</td></tr>
+<tr><td><b>G1</b>（JDK9 起默认）</td><td class="l">Region 分区（每区可代际角色动态变化），整体标记-整理+局部复制</td><td class="l">可预测停顿（-XX:MaxGCPauseMillis），优先回收"垃圾最多"的 Region（名字由来 Garbage First）；跨 Region 引用用 Remembered Set 记忆集；SATB 记录并发期对象变化（概念）</td></tr>
+<tr><td>ZGC / Shenandoah</td><td class="l">着色指针/转发指针</td><td class="l">停顿亚毫秒级、TB 级堆（概念即可）</td></tr>
+</table>
+<p><b>面试串词模板</b>：内存区域（见 JVM 内存页）→ 怎么判定垃圾（可达性）→ 怎么收（三算法+分代）→ 谁来收（收集器演进：吞吐优先 Parallel → 停顿优先 CMS → 可控+均衡 G1 → 极致停顿 ZGC）——一条线讲下来就是满分结构。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span></p>
+<ul>
+<li>GC Roots 判断（多选：堆内对象互引不能当 Roots）。</li>
+<li>四种引用的回收时机与用途匹配。</li>
+<li>三算法优缺点与"新生代为什么用复制"。</li>
+<li>CMS 四阶段与三大缺点、G1 与 CMS 的区别（多选/口述）。</li>
+<li>Minor/Full GC 触发条件；对象晋升老年代的途径。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 口述题先自答）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 下列关于垃圾判定的说法，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. JVM 采用引用计数法，对象被引用次数为 0 即回收</div>
+<div class="opt" data-k="B">B. 堆中两个对象互相引用但没有任何 GC Roots 可达，仍会被回收</div>
+<div class="opt" data-k="C">C. 被静态变量引用的对象随时可能被回收</div>
+<div class="opt" data-k="D">D. finalize() 方法可靠地阻止对象被回收</div>
+<div class="exp" hidden><b>答案 B。</b>可达性分析从 GC Roots 出发，互引孤岛照样回收——这正是引用计数法做不到的（计数永远 &gt;0），也是 JVM 弃用引用计数的主因。C 反了，静态变量是 GC Roots；D 的 finalize 只能自救一次且不可靠。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于 CMS 收集器，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 采用标记-清除算法，会产生内存碎片</div>
+<div class="opt" data-k="B">B. 并发标记与并发清除阶段用户线程仍在运行，会产生浮动垃圾</div>
+<div class="opt" data-k="C">C. 因为是并发收集，全程不需要 STW</div>
+<div class="opt" data-k="D">D. 并发阶段老年代分配失败可能"并发失败"退化为 Serial Old 单线程 Full GC</div>
+<div class="exp" hidden><b>答案 ABD。</b>CMS 有两段短 STW（初始标记、重新标记），C 错。碎片导致大对象放不下、预留空间跟不上浮动垃圾，都会触发退化。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>3.</b> 新生代采用复制算法收集垃圾，主要原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 新生代对象存活率高</div>
+<div class="opt" data-k="B">B. 复制算法不需要额外内存空间</div>
+<div class="opt" data-k="C">C. 新生代对象"朝生夕死"存活率低，复制少量存活对象成本远低于整理</td></div>
+<div class="opt" data-k="D">D. 复制算法不会产生任何内存碎片且不浪费空间</div>
+<div class="exp" hidden><b>答案 C。</b>复制算法的成本与<b>存活对象</b>成正比——存活率越低越划算；D 自相矛盾（要留 Survivor 空间，牺牲 10%）。老年代存活率高，才用标记-清除/整理。来源：408 外 Java 笔试高频（牛客经典题）。</div>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>4.</b> 下列哪种情况<b>不会</b>直接导致对象进入老年代？（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 对象在 Survivor 区 年龄达到阈值（默认 15）</div>
+<div class="opt" data-k="B">B. 新创建的大数组超过大对象阈值</div>
+<div class="opt" data-k="C">C. 动态年龄判断：Survivor 中某年龄以下对象总和超过其一半</div>
+<div class="opt" data-k="D">D. 对象在 Eden 区首次分配</div>
+<div class="exp" hidden><b>答案 D。</b>对象通常在 Eden 出生；进老年代的三条路：年龄达标、大对象直入、动态年龄判断提前晋升。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> CMS 和 G1 的核心区别？什么场景选 G1？</p>
+<details><summary>参考回答</summary>①内存布局：CMS 基于连续分代，G1 把堆切成等大 Region，每个 Region 动态扮演 Eden/Survivor/Old；②算法：CMS 标记-清除（碎片），G1 整体标记-整理+Region 间复制（无碎片）；③停顿：CMS 尽力而为，G1 可以设定停顿目标（MaxGCPauseMillis），按"每个 Region 回收价值/成本"排序优先收垃圾最多的区（Garbage First 得名）；④适用：堆大（6GB+）、要求可预测低停顿选 G1。CMS 的问题（碎片/并发失败/浮动垃圾）正好是 G1 的改进点；再往新是 ZGC 停顿亚毫秒。加分：G1 跨 Region 引用靠 Remembered Set，避免全堆扫描。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 年龄阈值默认 15 不是 16（对象头 Mark Word 里分代年龄只有 4 位）；② "Minor GC 必触发 Full GC"是错的，两者独立；③ 复制算法浪费的是 Survivor 的 10% 而不是一半（两 Survivor 轮换+Eden 占 8）；④ CMS 是"并发"，但初始/重新标记仍要 STW——"全程不停顿"是经典错误项；⑤ 强引用宁可 OOM 也不回收，软引用才是缓存首选。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

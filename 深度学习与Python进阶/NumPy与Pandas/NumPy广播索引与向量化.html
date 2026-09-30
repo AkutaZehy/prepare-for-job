@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NumPy广播索引与向量化 · 深度学习与Python进阶/NumPy与Pandas</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / NumPy与Pandas</div>
+<h1>NumPy 广播、索引与向量化</h1>
+<div class="meta">适用岗位：AI 开发、机器学习岗、测开(Python) ｜ 形态：概念 + 形状判断 + 输出判断 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：<b>广播从右对齐</b>——逐维比较，相等、或一方为 1、或缺维即可；(3,1)+(1,4)→(3,4)，(3,2)+(4,) 直接报错；<b>基本切片是 view</b>（改切片 = 改原数组），<b>花式索引与布尔掩码是 copy</b>；聚合时<b>沿哪个轴运算就消掉哪个轴</b>；向量化 = 把循环下沉到 C：免解释器开销、免对象装箱、内存连续——本机实测 10⁷ 求和约 <b>17 倍</b>，元素级运算差距更大。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>ndarray 一句话</b>：同构多维数组，三要素——<code>shape</code>（各维长度）、<code>dtype</code>（元素类型）、<code>strides</code>（每维走一步跳多少字节）。切片之所以"免费"，就是只改 shape/strides/指针、不搬数据。</p>
+
+<p><b>广播规则：从右对齐</b></p>
+<ul>
+<li>两个形状<b>从最后一维开始逐维比较</b>：相等，或其中一方为 1，或某方缺维 → 该维兼容；为 1 的维被"拉伸"成对方长度（逻辑上广播，不真复制内存）。</li>
+<li>任何一维既不相等又没有一方是 1 → <code>ValueError</code>。</li>
+</ul>
+<span class="lang">Python</span>
+<pre><code>import numpy as np
+
+print((np.ones((3, 1)) + np.ones((1, 4))).shape)    # (3, 4)  1→3、1→4 双向拉伸
+print((np.ones((8, 1, 6, 1)) + np.ones((7, 1, 5))).shape)
+# (8, 7, 6, 5)：右对齐 1vs5→5、6vs1→6、1vs7→7、缺维当 1→8
+
+try:
+    np.ones((3, 2)) + np.ones((4,))    # (4,)→(1,4)→(3,4)：末维 4 撞上 2
+except ValueError as e:
+    print("ValueError:", e)
+# operands could not be broadcast together with shapes (3,2) (4,)</code></pre>
+
+<p><b>索引：切片是 view，花式/布尔是 copy</b></p>
+<table>
+<tr><th class="l">操作</th><th>返回</th><th class="l">含义</th></tr>
+<tr><td class="l">基本切片 <code>a[1:3]</code>、<code>a[:, 0:2]</code></td><td><b>view</b></td><td class="l">同一块内存，改切片 = 改原数组</td></tr>
+<tr><td class="l">花式索引 <code>a[[0, 2]]</code></td><td><b>copy</b></td><td class="l">新数组，改它不影响原数组</td></tr>
+<tr><td class="l">布尔掩码 <code>a[a &gt; 2]</code></td><td><b>copy</b></td><td class="l">先选后拷，同样独立</td></tr>
+</table>
+<span class="lang">Python</span>
+<pre><code>a = np.arange(4)
+
+v = a[1:3]        # 切片 = view
+v[0] = 99
+print(a)          # [ 0 99  2  3] —— 原数组被改了
+
+f = a[[0, 2]]     # 花式索引 = copy
+f[0] = -1
+print(a)          # [ 0 99  2  3] —— 原数组无恙（f 自身是 [-1, 2]）</code></pre>
+<ul>
+<li>与 Python 列表的"深浅拷贝"同构（见 <a href="../Python进阶/可变不可变与深浅拷贝.html">可变不可变与深浅拷贝</a>）：切片共享底层，想要独立副本显式 <code>.copy()</code>。</li>
+<li>reshape 在可能时返回 view（只改 shape/strides），不是一定 copy。</li>
+</ul>
+
+<p><b>axis 语义：沿哪个轴聚合，就消掉哪个轴</b></p>
+<span class="lang">Python</span>
+<pre><code>a = np.arange(6).reshape(2, 3)     # [[0,1,2],
+                                   #  [3,4,5]]
+print(a.sum(axis=0))               # [3 5 7]  沿轴 0（跨行）聚合 → 形状 (3,)
+print(a.sum(axis=1))               # [ 3 12]  每行内部求和 → 形状 (2,)</code></pre>
+<ul>
+<li>记忆法：axis=i 就是"把第 i 个下标跑遍后折叠掉"，结果形状 = 原形状抹掉第 i 维。</li>
+<li><code>keepdims=True</code> 保留被消的轴为 1，方便再广播回原形状（如"每行减去该行均值"）。</li>
+</ul>
+
+<p><b>向量化为什么快一个量级以上</b></p>
+<ul>
+<li>把"逐元素 for"下沉成一条 C 循环：① 免掉每个元素的解释器调度与字节码分发；② 免掉 Python 对象装箱（一个 int 对象 28 字节 vs 连续 C 数组 8 字节/元素）；③ 内存连续、缓存友好，还能吃 SIMD。</li>
+<li><b>本机实测（Python 3.12.9 / numpy 2.4.4）</b>：10⁷ 个数求和，纯 Python <code>sum(range(10**7))</code> ≈ 0.14s，<code>np.arange(10**7).sum()</code> ≈ 0.008s，约 <b>17 倍</b>；乘法/条件类元素运算的差距通常更大。</li>
+<li>选型口径：能广播/掩码/聚合就不写 for；实在有复杂依赖的循环再考虑 numba/C 扩展。</li>
+</ul>
+
+<p><b>常用操作速查</b>（数值为本机实跑）</p>
+<span class="lang">Python</span>
+<pre><code>x = np.array([3, 1, 3, 2])
+print(x.argmax())                          # 0 —— 最大值首次出现的位置
+print(np.where(np.array([1, 2, 3, 4]) &gt; 2, 1, 0))   # [0 0 1 1]
+print(np.unique(np.array([2, 1, 2, 3, 1])))         # [1 2 3] —— 去重并排序
+print(np.concatenate([np.ones((2, 2)), np.zeros((2, 2))], axis=0).shape)  # (4, 2)</code></pre>
+
+<p>上层用法承接页：<a href="Pandas核心操作速查.html">Pandas核心操作速查</a>（Pandas 建立在 NumPy 之上，view/copy 与向量化的心智直接沿用）。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">形状判断</span><span class="tag">输出判断</span></p>
+<ul>
+<li>形状判断：广播结果 shape（右对齐补 1 拉伸）、失败反例；axis 聚合后的维度。</li>
+<li>输出判断：布尔掩码筛选、切片 view 改原数组、花式索引 copy 不改原数组。</li>
+<li>概念选择：view vs copy 的边界、reshape 行为、argmax/where/unique 用法。</li>
+<li>面试口述：把带 for 的 NumPy 代码向量化；追难点在 keepdims 广播与对拍验证。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> a 的 shape 是 (8, 1, 6, 1)，b 的 shape 是 (7, 1, 5)，则 <code>a + b</code> 的 shape 是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. (8, 7, 6, 5)</div>
+<div class="opt" data-k="B">B. (8, 1, 6, 5)</div>
+<div class="opt" data-k="C">C. (8, 7, 6, 1)</div>
+<div class="opt" data-k="D">D. 抛出 ValueError，形状不兼容</div>
+<div class="exp" hidden><b>答案 A。</b>从右对齐逐维比较：1 vs 5 → 5；6 vs 1 → 6；1 vs 7 → 7；b 缺维当 1 vs 8 → 8。结果 (8, 7, 6, 5)。本机 numpy 2.4.4 实跑核对。失败反例对照：(3,2)+(4,) 会报 ValueError（末维 4 拉伸后撞上 2）。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> <code>a = np.arange(6).reshape(2, 3)</code>，<code>a.sum(axis=1)</code> 的 shape 与语义是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. (3,)，按列求和</div>
+<div class="opt" data-k="B">B. (2,)，每行内部求和——沿轴 1 聚合，轴 1 被消掉</div>
+<div class="opt" data-k="C">C. (2, 3)，原形状不变</div>
+<div class="opt" data-k="D">D. (6,)，全部元素求和</div>
+<div class="exp" hidden><b>答案 B。</b>聚合"沿哪个轴就消掉哪个轴"：(2,3) 对 axis=1 聚合 → (2,)，即每行的三个元素相加，本机实跑得 [ 3 12]；axis=0 才是按列得 (3,)。全量求和不带 axis。要"每行减该行均值"这类回写，用 keepdims=True 保住被消的轴再广播。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>3.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>import numpy as np
+a = np.arange(6)
+m = a % 3 == 0
+print(a[m])
+print(m.sum())</code></pre>
+<div class="opt" data-k="A">A. [0 3] 和 2</div>
+<div class="opt" data-k="B">B. [0 3 6] 和 3</div>
+<div class="opt" data-k="C">C. [1 4] 和 2</div>
+<div class="opt" data-k="D">D. [0 1 2] 和 3</div>
+<div class="exp" hidden><b>答案 A。</b>arange(6) 是 [0..5]；掩码 m = [True, False, False, True, False, False]，布尔掩码选出 %3==0 的 [0 3]（注意 6 不在数组里）；布尔数组求和 = True 的个数 = 2。掩码结果是 copy，改 a[m] 不影响 a。本机 Python 3.12.9 / numpy 2.4.4 实跑核对。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于 NumPy 的 view 与 copy，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 基本切片 a[1:3] 返回 view，修改它会影响原数组</div>
+<div class="opt" data-k="B">B. 花式索引 a[[0, 2]] 返回 copy，修改它不影响原数组</div>
+<div class="opt" data-k="C">C. 布尔掩码 a[a &gt; 2] 返回 copy</div>
+<div class="opt" data-k="D">D. a.reshape(2, 3) 一定返回 copy</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：reshape 在可能时返回 view（只改 shape/strides 不搬数据），"一定"不成立。要独立副本一律显式 <code>.copy()</code>。本机反例实测：切片 v[0]=99 后原数组变 [ 0 99  2  3]；花式 f[0]=-1 原数组纹丝不动。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 接手一段对 ndarray 逐元素写 for 的代码，你怎么把它向量化？</p>
+<details><summary>参考回答</summary>三步走。<br>
+① 认模式：循环体若是逐元素算术/比较 → 直接改写成数组表达式；两边形状不齐用广播补——行向量/列向量用 reshape 或 <code>mean(axis=1, keepdims=True)</code> 拿到 (n,1) 再与 (n,m) 相减。<br>
+② 换零件：条件分支 → <code>np.where(条件, x, y)</code> 或掩码赋值 <code>a[mask] = v</code>；聚合 → sum/mean/max 带 axis；找位置 → argmax；重命名/去重 → where/unique。<br>
+③ 兜底：真有"当前步依赖上一步"或提前退出的循环才保留，或丢给 numba/C 扩展，不硬旋。<br>
+验证姿势：<code>np.allclose(新结果, 旧结果)</code> 对拍小样本；性能上用 %timeit 确认提速，顺手检查有没有隐藏 copy（大数组就地运算用 out= 或 *=）。<br>
+加分点：解释为什么快——免解释器开销、免 int 装箱、内存连续缓存友好（本机实测 10⁷ 求和约 17 倍）；提醒 view/copy 心智，向量化后 profile 确认瓶颈真的转移了。来源：AI 岗笔试高频。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 广播从右对齐：(3,2)+(4,) 报错——4 → (1,4) → (3,4)，末维 4 撞上 2；拿不准就先 reshape 成显式 (n,1)/(1,m)。② 切片 view、花式/掩码 copy：改切片=改原数组，要独立显式 .copy()；reshape 通常 view。③ axis 消轴：聚合后形状 = 原形状抹掉该维，(2,3) 按 axis=1 得 (2,)。④ 向量化前先 profile 找准热点，改完 allclose 对拍。⑤ 布尔数组求和 = 计数 True，是 isna/掩码统计的惯用法。⑥ argmax 返回的是下标不是值，并列取第一个。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

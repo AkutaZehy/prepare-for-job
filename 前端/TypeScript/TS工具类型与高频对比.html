@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TS 工具类型与高频对比 · 前端/TypeScript</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / TypeScript</div>
+<h1>TS 工具类型与高频对比</h1>
+<div class="meta">适用岗位：前端（TS 笔试 + 面试必问） ｜ 形态：知识点 + 给类型问结果题（tsc 实跑核对） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：工具类型全家桶 <b>Partial / Required / Readonly / Pick / Omit / Record / ReturnType / Parameters</b>；底层三件套：<b>keyof 取键联合、typeof 取值的类型、索引访问 T['a']</b>；映射类型 <code>[K in keyof T]</code> 逐键改写——<b>Partial&lt;T&gt; = { [K in keyof T]?: T[K] }</b> 一行实现；泛型约束 <b>extends</b> 限定 T 的形状；TS vs JS 两连：<b>类型擦除</b>（编译后无类型、运行时不存在）与<b>结构化类型</b>（鸭子判断，看形状不看名字）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>内置工具类型表</b>（示例基于 <code>interface User { name: string; age: number; id: number }</code>）：</p>
+<table>
+<tr><th class="l">工具类型</th><th class="l">作用</th><th class="l">示例结果</th></tr>
+<tr><td class="l"><code>Partial&lt;T&gt;</code></td><td class="l">全部属性变可选</td><td class="l">{ name?: string; age?: number; id?: number }</td></tr>
+<tr><td class="l"><code>Required&lt;T&gt;</code></td><td class="l">全部属性变必填</td><td class="l">可选修饰符 ? 被移除</td></tr>
+<tr><td class="l"><code>Readonly&lt;T&gt;</code></td><td class="l">全部属性变只读</td><td class="l">赋值后二次修改编译报错</td></tr>
+<tr><td class="l"><code>Pick&lt;T, K&gt;</code></td><td class="l">从 T 中挑出 K 指定的键</td><td class="l">Pick&lt;User,'name'|'age'&gt; → { name; age }</td></tr>
+<tr><td class="l"><code>Omit&lt;T, K&gt;</code></td><td class="l">从 T 中剔除 K 指定的键</td><td class="l">Omit&lt;User,'id'&gt; → { name; age }</td></tr>
+<tr><td class="l"><code>Record&lt;K, V&gt;</code></td><td class="l">用键集合 K 构造 V 类型的键值对</td><td class="l">Record&lt;'x'|'y', number&gt; → { x: number; y: number }</td></tr>
+<tr><td class="l"><code>ReturnType&lt;F&gt;</code></td><td class="l">取函数返回值类型</td><td class="l">() =&gt; string → string</td></tr>
+<tr><td class="l"><code>Parameters&lt;F&gt;</code></td><td class="l">取函数参数为元组类型</td><td class="l">(a: string, b: number) =&gt; void → [string, number]</td></tr>
+</table>
+<p><b>背后的底层语法三件套</b>：<code>keyof T</code> 取键的联合（keyof User → 'name' | 'age' | 'id'）；<code>typeof 变量</code> 取该值的类型（与运行时 typeof 同名不同物，这是类型空间的运算符）；索引访问 <code>User['name']</code> 直接取出属性类型。</p>
+<p><b>映射类型与极简实现</b>：<code>[K in keyof T]</code> 遍历键联合、对每个键做改写——内置工具类型多半就是几行映射类型：</p>
+<span class="lang">TypeScript</span>
+<pre><code>type Partial&lt;T&gt;  = { [K in keyof T]?: T[K] };   // 逐键加可选
+type Readonly&lt;T&gt; = { readonly [K in keyof T]: T[K] };
+type Pick&lt;T, K extends keyof T&gt; = { [P in K]: T[P] };</code></pre>
+<p><b>泛型约束 extends</b>：限制 T 必须满足的形状，约束内可以使用被约束的成员：</p>
+<span class="lang">TypeScript</span>
+<pre><code>function pluck&lt;T, K extends keyof T&gt;(obj: T, key: K): T[K] {
+  return obj[key];          // K 被约束为 T 的键，编译通过
+}</code></pre>
+<p><b>TS vs JS 面试对比</b>：① <b>类型擦除</b>——TS 只在编译期做静态检查，编译产物是纯 JS、类型全部消失，运行时不能依赖类型信息（判断得手写类型守卫），换来零运行时开销；② <b>结构化类型（鸭子判断）</b>——赋值兼容只看<b>形状</b>不看声明名与继承关系：Point3D 的值可以直接赋给 Point2D（形状是子集），这正是"长得像就行"。反例细节：对象<b>字面量</b>直接赋值会触发"多余属性检查"（excess property check），多出的属性反而报错（tsc 实跑：TS2353）。</p>
+<p><b>给类型问结果（tsc 5.5.4 strict 实跑核对）</b>：<code>Record&lt;'x'|'y', number&gt;</code> 赋值 <code>{ x: 1, y: '2' }</code> 报 TS2322；<code>Readonly</code> 对象二次赋值报 TS2540；<code>Parameters</code> 元组错位赋值报 TS2322；Point3D 值赋给 Point2D 类型<b>通过</b>。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试类型推断</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：给类型问结果（Record/Pick/Partial 组合的赋值正误）、哪几行编译报错。</li>
+<li>面试：unknown 为什么比 any 好、工具类型的实现原理（映射类型 + keyof）、TS 与 JS 的类型擦除与结构化差异。</li>
+<li>追问储备：Partial/Readonly 可叠加（建模"草稿→定稿"两阶段表单）；Omit 不校验键是否存在（实现细节）；excess property check 只对对象字面量直接赋值生效。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 下面代码的编译结果是（&nbsp;&nbsp;）</p>
+<span class="lang">TypeScript</span>
+<pre><code>type T2 = Record&lt;'x' | 'y', number&gt;;
+const w: T2 = { x: 1, y: '2' };  // 行①</code></pre>
+<div class="opt" data-k="A">A. 编译通过，y 的类型被拓宽为 string | number</div>
+<div class="opt" data-k="B">B. 编译报错：Record 两个键都要求 number，y 是 string</div>
+<div class="opt" data-k="C">C. 编译报错：Record 只接受 string 类型的键</div>
+<div class="opt" data-k="D">D. 编译通过，y 被推断为 any</div>
+<div class="exp" hidden><b>答案 B。</b>tsc 5.5.4 strict 实跑：error TS2322: Type 'string' is not assignable to type 'number'（指 y）。Record&lt;'x'|'y', number&gt; 的结果是 { x: number; y: number }——字面量联合当键、同一类型当值，全部键都必须满足。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于工具类型的底层语法，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. keyof User 的结果是 'name' | 'age' | 'id' 这样的键联合</div>
+<div class="opt" data-k="B">B. Partial&lt;T&gt; 的极简实现是 { [K in keyof T]?: T[K] }</div>
+<div class="opt" data-k="C">C. Parameters&lt;F&gt; 取到的是函数参数的元组类型</div>
+<div class="opt" data-k="D">D. ReturnType&lt;F&gt; 是在运行时反射函数计算出来的</div>
+<div class="exp" hidden><b>答案 ABC。</b>工具类型全部是<b>编译期</b>的类型运算：映射类型 [K in keyof T] 逐键改写、索引访问 T[K] 取成员类型；类型擦除后运行时根本没有类型，D 错。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> 下面代码行① 的编译结果是（&nbsp;&nbsp;）</p>
+<span class="lang">TypeScript</span>
+<pre><code>interface Point2D { x: number; y: number }
+interface Point3D { x: number; y: number; z: number }
+const p3: Point3D = { x: 1, y: 2, z: 3 };
+const p2: Point2D = p3;  // 行①</code></pre>
+<div class="opt" data-k="A">A. 编译报错：两个 interface 名字不同不能互相赋值</div>
+<div class="opt" data-k="B">B. 编译通过：TS 是结构化类型（鸭子判断），p3 的形状满足 Point2D</div>
+<div class="opt" data-k="C">C. 编译报错：必须显式 as 断言</div>
+<div class="opt" data-k="D">D. 编译通过，但运行时 TypeError</div>
+<div class="exp" hidden><b>答案 B。</b>tsc 实跑通过：TS 只看形状不看名字（鸭子判断），Point3D 拥有 Point2D 的全部成员所以兼容。注意细节：把<b>对象字面量</b>直接赋给 Point2D 会触发多余属性检查，{x,y,z} 里的 z 反而报 TS2353——多成员变量赋值可以，多成员字面量直接赋值不行。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">报错定位</span><b>4.</b> 下面代码中哪几行<b>编译报错</b>？（&nbsp;&nbsp;）</p>
+<span class="lang">TypeScript</span>
+<pre><code>interface User { name: string; age: number }
+const p: Partial&lt;User&gt; = {};               // 行①
+p.name = 123;                              // 行②
+const r: Readonly&lt;User&gt; = { name: 'A', age: 1 };  // 行③
+r.name = 'B';                              // 行④
+type P = Parameters&lt;(a: string, b: number) =&gt; void&gt;;  // 行⑤
+const arr: P = [1, 'a'];                   // 行⑥</code></pre>
+<div class="opt" data-k="A">A. 仅行②④</div>
+<div class="opt" data-k="B">B. 行②④⑥</div>
+<div class="opt" data-k="C">C. 行①②④</div>
+<div class="opt" data-k="D">D. 仅行⑥</div>
+<div class="exp" hidden><b>答案 B。</b>tsc 5.5.4 strict 实跑核对：行② TS2322（name?: string，不能赋 number）；行④ TS2540（Cannot assign to 'name' because it is a read-only property）；行⑥ TS2322（Parameters 元组是 [string, number]，错位赋值类型不符）。行① Partial 全可选、赋空对象合法；行③ Readonly 赋完整对象合法；行⑤ 只是类型声明。来源：牛客经典题。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> unknown 为什么比 any 好？什么场景该用它？</p>
+<details><summary>参考回答</summary>any 是直接关闭类型检查：能随意访问任何成员、随意参与运算，错误会被"传染"到下游，IDE 补全也失效——等于把 TS 写回 JS。unknown 是"安全的 any"：什么值都能接收，但使用前<b>必须收窄</b>（typeof / in / 判等）或显式断言，把"这里的数据不可信"显式钉在类型上，编译器逼你先验后用，补全也正常。场景：JSON.parse 的返回、接口响应、第三方库没标类型的导出、catch 捕获的异常对象——凡是"来源不可信"的数据都该先接成 unknown，收窄后再用。加分点：unknown 赋值方向——任何值可赋给 unknown，但 unknown 赋给具体类型必须先收窄；never 是它的对偶（底类型，什么都不能赋）。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① Record 的键是字面量联合时，<b>每个键都必须出现</b>且类型一致；② Partial 与 Readonly 的实现靠映射类型 [K in keyof T]，面试能写出一行实现就是加分；③ 结构化类型只看形状——但对象<b>字面量</b>直接赋值会触发多余属性检查，多写的属性反而报错（tsc 实跑 TS2353）；④ 类型擦除后运行时没有类型，参数校验、类型守卫要手写；⑤ typeof 在类型空间取"值的类型"、keyof 取"类型的键"、T['a'] 取"属性的类型"，三者是工具类型的原料；⑥ 泛型约束 K extends keyof T 的意义：让 key 参数只能传真实存在的键。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

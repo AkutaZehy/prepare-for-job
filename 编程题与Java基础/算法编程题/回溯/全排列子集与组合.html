@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全排列、子集与组合（ACM 模式） · 编程题与Java基础/算法编程题/回溯</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 回溯</div>
+<h1>全排列、子集与组合（ACM 模式）</h1>
+<div class="meta">原型：LeetCode 46 / 78 / 77 / 39 ｜ 适用岗位：全部 ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：回溯 = 带撤销的 DFS 枚举，三要素是<b>路径</b>（已做的选择）、<b>选择列表</b>（当前还能选什么）、<b>结束条件</b>。模板永远一句话：<b>做选择 → 递归 → 撤销选择</b>。排列用 used[] 标记「谁在用」，组合与子集用 start 下标「只往后看」；先把候选排好序，输出天然字典序。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>主打题（LC46 全排列）</b>：n 个互不相同的整数，按<b>字典序</b>输出所有排列，每行一个、数字间空格分隔。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>3                       # n
+1 2 3                   # n 个互不相同的整数</code></pre>
+<b>输出格式</b>（6 行，此处列前两行）：
+<pre><code>1 2 3
+1 3 2
+...</code></pre></div>
+<p><b>第二题（LC78 子集）</b>：n 个互不相同的整数，输出全部 2ⁿ 个子集。约定：每个子集一行、数字间空格分隔，<b>空集输出一个空行</b>。</p>
+<div class="tip">变体提前看：① 有重复元素的全排列/子集（LC47/90）：排序后 <code>if (i &gt; start &amp;&amp; a[i] == a[i-1]) continue;</code> 剪重复分支；② 组合要指定长度 k（LC77）；③ 元素可重复选取的组合总和（LC39）：递归传 i 而不是 i+1。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<ul>
+<li><b>全排列</b>：每层从 0 号扫描，用 <code>used[i]</code> 跳过已在路径里的元素；递归返回后<b>必须撤销</b>（path 弹出 + used 复位），否则下个分支看不到完整选择列表。复杂度 O(n · n!)——叶子 n! 个，每个还要 O(n) 复制输出。</li>
+<li><b>子集</b>：与排列的区别是「每个节点都是答案」——进入递归先收录当前 path，再用 start 只往右选（保证组合不重不漏、内部有序）。复杂度 O(n · 2ⁿ)。</li>
+<li><b>组合（LC77）</b>：子集框架 + 长度 k 的结束条件。剪枝：<code>i &lt;= n − (k − path.size()) + 1</code>——剩下的元素不够凑满 k 个就别进了。</li>
+<li><b>输出字典序</b>：把候选数组先升序排序，回溯按序号从小到大选，输出自然按字典序。</li>
+<li><b>判断能不能过</b>：n ≤ 10 用排列枚举随便跑；n 到 20+ 只可能是 2ⁿ 状压/剪枝题，看到 n 的范围再定打法。</li>
+</ul>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>1.</b> 回溯算法效率的关键手段是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 把递归改成显式栈的迭代</div>
+<div class="opt" data-k="B">B. 用 StringBuilder 代替 String 拼路径</div>
+<div class="opt" data-k="C">C. 把输出缓冲起来一次性打印</div>
+<div class="opt" data-k="D">D. 剪枝：在搜索树上尽早砍掉不可能出解（或重复）的子树</div>
+<div class="exp" hidden><b>答案 D。</b>A/B/C 只优化常数。剪枝改变搜索树规模：可行性剪枝、最优性剪枝、排序后跳过重复分支都是。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于回溯模板，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 核心循环：做选择 → 递归 → 撤销选择，撤销必须与选择严格对称</div>
+<div class="opt" data-k="B">B. 全排列用 used 数组，组合/子集用 start 参数防回头重复</div>
+<div class="opt" data-k="C">C. 子集问题在每个节点都收录答案，不是只在叶子收录</div>
+<div class="opt" data-k="D">D. 全排列的答案数是 2ⁿ 个</div>
+<div class="exp" hidden><b>答案 ABC。</b>排列是 n! 个，2ⁿ 是子集个数，D 错。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<span class="lang">Java · 主打 LC46 全排列（字典序输出）</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    static int n;
+    static int[] a;
+    static boolean[] used;
+    static List&lt;Integer&gt; path = new ArrayList&lt;&gt;();
+    static StringBuilder out = new StringBuilder();
+
+    static void dfs() {
+        if (path.size() == n) {
+            for (int v : path) out.append(v).append(' ');
+            out.setCharAt(out.length() - 1, '\n');
+            return;
+        }
+        for (int i = 0; i &lt; n; i++) {
+            if (used[i]) continue;
+            used[i] = true; path.add(a[i]);        // 做选择
+            dfs();
+            path.remove(path.size() - 1); used[i] = false;   // 撤销选择
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); n = (int) in.nval;
+        a = new int[n]; used = new boolean[n];
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); a[i] = (int) in.nval; }
+        Arrays.sort(a);                            // 升序回溯 → 输出天然字典序
+        dfs();
+        System.out.print(out);
+    }
+}</code></pre>
+<span class="lang">Python · 主打 LC46</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    n = int(data[0])
+    a = sorted(map(int, data[1:1 + n]))
+    used = [False] * n
+    path, res = [], []
+
+    def dfs():
+        if len(path) == n:
+            res.append(' '.join(map(str, path)))
+            return
+        for i in range(n):
+            if used[i]:
+                continue
+            used[i] = True
+            path.append(a[i])
+            dfs()
+            path.pop()
+            used[i] = False
+
+    dfs()
+    sys.stdout.write('\n'.join(res) + '\n')
+
+main()</code></pre>
+<span class="lang">Java · 第二题 LC78 子集（空集输出空行）</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    static int n;
+    static int[] a;
+    static List&lt;Integer&gt; path = new ArrayList&lt;&gt;();
+    static StringBuilder out = new StringBuilder();
+
+    static void dfs(int start) {
+        if (path.isEmpty()) {
+            out.append('\n');                      // 空集
+        } else {
+            for (int v : path) out.append(v).append(' ');
+            out.setCharAt(out.length() - 1, '\n');
+        }
+        for (int i = start; i &lt; n; i++) {
+            path.add(a[i]);
+            dfs(i + 1);
+            path.remove(path.size() - 1);
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); n = (int) in.nval;
+        a = new int[n];
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); a[i] = (int) in.nval; }
+        Arrays.sort(a);
+        dfs(0);
+        System.out.print(out);
+    }
+}</code></pre>
+<span class="lang">Python · 第二题 LC78</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    n = int(data[0])
+    a = sorted(map(int, data[1:1 + n]))
+    path, res = [], []
+
+    def dfs(start):
+        res.append(' '.join(map(str, path)))       # 每个节点都收录
+        for j in range(start, n):
+            path.append(a[j])
+            dfs(j + 1)
+            path.pop()
+
+    dfs(0)
+    sys.stdout.write('\n'.join(res) + '\n')
+
+main()</code></pre>
+<span class="lang">Java · 核心函数：LC77 组合（带剪枝）与 LC39 组合总和一句</span>
+<pre><code>// 输出 1..n 中所有 k 个数的组合，剪枝：剩余元素不够凑满 k 个的分支直接不进
+static void combine(int start, int n, int k) {
+    if (path.size() == k) { record(path); return; }
+    for (int i = start; i &lt;= n - (k - path.size()) + 1; i++) {
+        path.add(i);
+        combine(i + 1, n, k);
+        path.remove(path.size() - 1);
+    }
+}
+
+// LC39 组合总和（元素可重复选）：递归传 i 而不是 i+1；
+// 先排序，循环里 if (a[i] &gt; target) break; 做最优性剪枝</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 忘撤销是第一大坑：path 弹出与 used 复位必须和选择严格配对；② 排列传 i 从 0 起 + used，组合/子集传 i+1 用 start，别混；③ 重复元素去重公式 <code>i &gt; start &amp;&amp; a[i] == a[i-1] → continue</code> 前提是先排序；④ 输出量 10⁵ 行以上必须 StringBuilder/统一 write，逐条 println 会拖慢；⑤ 报复杂度带输出代价：排列 O(n·n!)、子集 O(n·2ⁿ)。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

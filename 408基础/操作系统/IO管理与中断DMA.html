@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IO管理与中断DMA · 408基础/操作系统</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 操作系统</div>
+<h1>I/O 管理与中断、DMA</h1>
+<div class="meta">适用岗位：全部（缓冲计算与中断/DMA 对比是笔试常客） ｜ 形态：概念 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：三种 I/O 方式 CPU 介入程度递减——程序查询（忙等全程占 CPU）→ 中断驱动（<b>每字</b>一次中断）→ DMA（<b>每块</b>一次中断，数据<b>设备↔内存直传</b>不经过 CPU）；CPU 在指令周期末尾采样中断信号；单缓冲每块耗时 <b>max(C,T)+M</b>，双缓冲 <b>max(C+M, T)</b>（王道口径，做题先对题设）；SPOOLing 用磁盘当中转把独占设备（打印机）改造成共享。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>I/O 软件层次结构</b>（从上到下）：用户层 I/O 软件 → 设备独立性软件（命名、保护、缓冲、分配）→ 设备驱动程序（操作寄存器，每类设备一个）→ 中断处理程序 → 硬件。考"一次打印请求经过哪些层"的排序题。</p>
+<p><b>三种 I/O 控制方式</b>：</p>
+<table>
+<tr><th>方式</th><th>CPU 介入</th><th>数据通路</th><th>中断粒度</th><th>适用</th></tr>
+<tr><td>程序直接控制（轮询）</td><td class="l">全程忙等测试设备状态</td><td class="l">设备 → CPU 寄存器 → 内存</td><td class="l">无中断</td><td class="l">最早的简单系统</td></tr>
+<tr><td>中断驱动</td><td class="l">每传送一个字/字节中断一次，CPU 执行中断处理程序搬数据</td><td class="l">设备 → CPU → 内存</td><td class="l">每字一次</td><td class="l">低速设备（键盘）</td></tr>
+<tr><td>DMA 直接存储器存取</td><td class="l">CPU 只在<b>初始化和结束</b>时介入，传数据由 DMA 控制器（DRU）完成</td><td class="l"><b>设备 ↔ 内存直接</b>，不经过 CPU</td><td class="l">每块（一批数据）一次</td><td class="l">高速块设备（磁盘）</td></tr>
+</table>
+<ul>
+<li>CPU 在<b>每条指令执行周期末尾</b>采样中断请求线（中断响应时机），不是任意时刻。</li>
+<li>DMA 的三种方式：停止 CPU 访存（最霸道）、<b>周期挪用/窃取</b>（DMA 与 CPU 交替用内存总线，最常用）、交替访问。DMA 传输结束才发一次中断通知 CPU 处理。</li>
+<li>通道：更高级的"设备处理机"，能执行通道程序，进一步解放 CPU（概念级）。</li>
+</ul>
+<p><b>缓冲区（考试公式，先对题设口径）</b>：设 T=输入一块到缓冲的时间、M=缓冲→工作区传送时间、C=处理时间（王道口径）：</p>
+<pre><code>单缓冲：每块耗时  max(C, T) + M
+双缓冲：每块耗时  max(C + M, T)
+循环缓冲：多个缓冲区轮转，取最大者近似
+（若题面另给口径，按题面公式）</code></pre>
+<p>缓冲的作用：缓和 CPU 与设备速度矛盾、减少中断频率、提高二者并行度。</p>
+<p><b>SPOOLing（假脱机）</b>：用磁盘上的输入/输出井做中转，外围控制机模拟，把<b>独占设备改造成共享设备</b>（如共享打印机：任务先排队写入输出井）。需要磁盘与多道程序支持。</p>
+<p><b>设备分配</b>：独占设备、共享设备、虚拟设备（SPOOLing 实现的）；设备独立性软件用逻辑设备名，驱动层映射物理设备。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算题</span></p>
+<ul>
+<li>三种 I/O 方式的对比选择（CPU 介入/中断次数/数据通路/适用设备）。</li>
+<li>单/双缓冲每块耗时计算（必考公式题，注意审题给的符号含义）。</li>
+<li>中断响应时机、中断处理流程排序。</li>
+<li>SPOOLing 的本质（独占→共享）判断。</li>
+<li>I/O 软件层次排序题。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分 / 计算题先自算）</h2>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>1.</b> 关于中断驱动与 DMA，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 中断驱动下数据要经过 CPU（设备→CPU 寄存器→内存），DMA 不需要</div>
+<div class="opt" data-k="B">B. DMA 传输期间完全不需要 CPU 参与</div>
+<div class="opt" data-k="C">C. 中断驱动以字为单位传、DMA 以块为单位传</div>
+<div class="opt" data-k="D">D. DMA 更适合高速块设备，中断驱动适合低速设备</div>
+<div class="exp" hidden><b>答案 ACD。</b>B 错在"完全"——DMA 传输前 CPU 要初始化控制器（内存起始地址、块数），结束后 CPU 要处理中断，只是<b>传输过程中</b>不参与。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>2.</b> CPU 响应外部中断的时间点是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 一条指令执行的任何时刻</div>
+<div class="opt" data-k="B">B. 一个时钟周期结束时</div>
+<div class="opt" data-k="C">C. 一个总线周期结束时</div>
+<div class="opt" data-k="D">D. 一条指令执行周期结束时</div>
+<div class="exp" hidden><b>答案 D。</b>CPU 在每条指令执行完毕后的周期末采样中断请求——保证一条指令的原子完成，这也是"中断保护现场"能精确恢复的前提。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 某块设备把一块数据输入缓冲区需 T=100μs，缓冲区到工作区传送 M=10μs，CPU 处理一块需 C=50μs。分别求<b>单缓冲</b>与<b>双缓冲</b>下系统处理一块数据的耗时。</p>
+<details><summary>先自己算，再展开对答案</summary>单缓冲：max(C, T) + M = max(50, 100) + 10 = <b>110μs</b>（输入与处理可并行，但缓冲区要串行"腾空再装"）。双缓冲：max(C+M, T) = max(60, 100) = <b>100μs</b>（两个缓冲区轮换，传送与输入不互斥，瓶颈落在输入 T）。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>4.</b> SPOOLing 技术的主要作用是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 提高磁盘的读写速度</div>
+<div class="opt" data-k="B">B. 把共享设备改造成独占设备</div>
+<div class="opt" data-k="C">C. 把独占设备改造成共享设备</div>
+<div class="opt" data-k="D">D. 替代设备驱动程序</div>
+<div class="exp" hidden><b>答案 C。</b>以共享打印机为例：所有任务的打印内容先排队写入磁盘输出井，由打印进程逐一取出——物理上独占的打印机在用户视角变成"随到随用"。方向别背反（B 是反向陷阱）。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">排序</span><b>5.</b> 用户进程发出一次系统调用"读文件"，请求自上而下会经过哪些 I/O 软件层？</p>
+<details><summary>先自己排，再展开对答案</summary>用户层 I/O 接口 → <b>设备独立性软件</b>（把逻辑设备名映射物理设备、缓冲/分配）→ <b>设备驱动程序</b>（写设备寄存器、发命令）→ <b>中断处理程序</b>（完成后响应）→ 硬件。口诀"独驱中断硬"。易混点：缓冲管理在设备独立性软件层，不在驱动层。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① DMA 不是"零 CPU 成本"——初始化与结束仍需 CPU，传输中可能与 CPU 争抢内存总线（周期挪用）；② 中断驱动每字中断一次，高速设备用它会中断风暴，这正是 DMA 存在的理由；③ 缓冲公式各教材口径有差异（有的把 M 定义为工作区到用户的传送），先读题设符号表再套公式；④ 中断响应在指令周期末，"任何时刻都能响应"是经典错误选项；⑤ SPOOLing 方向是"独占→共享"，且必须有磁盘与多道程序支持。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

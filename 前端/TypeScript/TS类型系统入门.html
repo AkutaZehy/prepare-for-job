@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TS 类型系统入门 · 前端/TypeScript</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / TypeScript</div>
+<h1>TS 类型系统入门</h1>
+<div class="meta">适用岗位：前端（TS 笔试 + 面试必问） ｜ 形态：知识点 + 报错定位题（tsc 实跑核对） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：TS 是 JS 的超集，类型在<b>编译期</b>检查、编译后<b>擦除</b>；价值三连：编译期抓错 / 重构信心 / IDE 提示；<b>interface 可声明合并，type 能表达联合/映射等复合类型</b>——对象形状优先 interface、要组合就用 type；<b>unknown 是安全的 any</b>（用前必须收窄或断言），<b>never 是底类型</b>（任何值都赋不进去）；收窄三件套：<b>typeof / in / 判等</b>；枚举编译成双向映射对象，<b>const enum 内联无运行时开销</b>，新代码常用字面量联合替代。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>TS 的价值（面试口述三连）</b>：① <b>编译期抓错</b>——把"运行时才炸的 undefined"提前到写代码时标红；② <b>重构信心</b>——改一个接口字段名，所有引用处立即报错，改完编译通过就是改完；③ <b>IDE 提示</b>——补全、跳转、参数签名全部可用。注意 <b>类型擦除</b>：TS 编译成 JS 后类型注解全部消失，运行时不存在类型信息（这也是它零运行时开销的原因）。</p>
+<p><b>基础类型标注</b>：变量 <code>let n: number</code>、数组 <code>number[]</code>、元组 <code>[string, number]</code>、对象形状、函数参数与返回值 <code>(a: string): void</code>；不标注且无法推断时落入隐式 any（建议开启 noImplicitAny 挡住它）。</p>
+<span class="lang">TypeScript</span>
+<pre><code>let name: string = 'A';              // 基础标注
+let ids: number[] = [1, 2];
+let pair: [string, number] = ['age', 18];
+function greet(user: { name: string }): string { return `hi ${user.name}`; }</code></pre>
+<p><b>interface vs type（高频对比）</b>：</p>
+<table>
+<tr><th class="l">维度</th><th class="l">interface</th><th class="l">type</th></tr>
+<tr><td class="l">同名声明</td><td class="l"><b>可合并</b>（声明合并，自动拼接成员）</td><td class="l">不可，重名直接报错</td></tr>
+<tr><td class="l">复合类型</td><td class="l">只描述对象形状</td><td class="l"><b>联合 / 交叉 / 元组 / 映射</b>等都能写（联合原子性：联合类型只能用 type 声明）</td></tr>
+<tr><td class="l">扩展方式</td><td class="l">extends，可被类 implements</td><td class="l">交叉 &amp; 模拟继承</td></tr>
+<tr><td class="l">选择建议</td><td class="l">对象 / 类的形状优先用它</td><td class="l">需要联合、工具类型组合时用它</td></tr>
+</table>
+<p><b>联合类型与字面量类型</b>：<code>string | number</code> 表示二选一；字面量类型把取值域钉死——<code>type Mode = 'light' | 'dark'</code>，传 'blue' 直接编译报错，是替代枚举的轻量方案。</p>
+<p><b>类型收窄</b>：联合类型在使用处"缩小"到具体分支后才能访问对应成员。手段：<code>typeof x === 'string'</code>、<code>'meow' in x</code>（按成员存在性区分）、<code>x === 固定值</code> 判等、instanceof（TS 4.4+ 还可把 typeof 判断抽成变量复用，实现细节）。</p>
+<span class="lang">TypeScript</span>
+<pre><code>function speak(x: Cat | Dog) {
+  if ('meow' in x) { x.meow(); } else { x.bark(); }  // in 收窄，两分支都拿到具体类型
+}</code></pre>
+<p><b>any / unknown / never 三兄弟</b>：</p>
+<table>
+<tr><th class="l">类型</th><th class="l">含义</th><th class="l">使用限制</th></tr>
+<tr><td class="l"><b>any</b></td><td class="l">放弃类型检查</td><td class="l">可以随意赋值、随意调用成员，错误会被"传染"出去</td></tr>
+<tr><td class="l"><b>unknown</b></td><td class="l"><b>安全的 any</b></td><td class="l">什么值都能接，但<b>用前必须收窄或显式断言</b>，否则编译报错</td></tr>
+<tr><td class="l"><b>never</b></td><td class="l">底类型：没有任何值</td><td class="l">用于"永不返回"的函数（抛错 / 死循环）与穷尽性检查</td></tr>
+</table>
+<p><b>枚举一句与 const enum</b>：<code>enum</code> 编译成真实对象（数字枚举有反向映射 obj[key]）；<code>const enum</code> 在编译期内联、<b>不生成运行时对象</b>，零开销；新代码更常用字面量联合类型替代枚举。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试报错定位</span><span class="tag">面试必问</span></p>
+<ul>
+<li>笔试：给代码问哪几行编译报错（赋值类型不符 / unknown 未收窄 / never 赋值）。</li>
+<li>面试：any/unknown/never 区别、interface 与 type 怎么选、TS 比 JS 好在哪、类型擦除是什么。</li>
+<li>追问储备：unknown 适合接 JSON.parse、接口返回等"来源不可信"的数据；穷尽性检查——switch 把所有分支处理完后 default 里赋 never，新增联合成员时编译器自动报错提醒（实现细节）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 下面代码的编译结果是（&nbsp;&nbsp;）</p>
+<span class="lang">TypeScript</span>
+<pre><code>let box: unknown = 'gift';
+box.length;  // 行①</code></pre>
+<div class="opt" data-k="A">A. 编译通过，运行时输出 4</div>
+<div class="opt" data-k="B">B. 编译报错：unknown 类型的值必须收窄或断言后才能使用</div>
+<div class="opt" data-k="C">C. 编译通过，运行时 TypeError</div>
+<div class="opt" data-k="D">D. box 被自动推断为 string，无任何提示</div>
+<div class="exp" hidden><b>答案 B。</b>tsc 5.5.4 strict 实跑：error TS18046: 'box' is of type 'unknown'。unknown 是"安全的 any"——接收不受限，但<b>使用前必须收窄</b>（typeof/in/判等）或显式断言；先 typeof box === 'string' 再访问 .length 就能编译通过。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 关于 interface 与 type，说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. interface 不能被类 implements</div>
+<div class="opt" data-k="B">B. type 同名声明会自动合并</div>
+<div class="opt" data-k="C">C. interface 支持声明合并，type 能表达联合类型等复合类型</div>
+<div class="opt" data-k="D">D. 两者的类型信息都会保留到运行时</div>
+<div class="exp" hidden><b>答案 C。</b>interface 同名自动合并（第三方类型补丁就靠它），type 重名报错但能写联合/映射；interface 可被类 implements，A 错；TS 类型编译后擦除，D 错。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于类型收窄与 any/unknown/never，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. typeof x === 'number' 分支内，x 可安全调用 toFixed</div>
+<div class="opt" data-k="B">B. 'meow' in x 可按成员是否存在区分联合类型的分支</div>
+<div class="opt" data-k="C">C. never 可以接收任何类型的赋值</div>
+<div class="opt" data-k="D">D. unknown 赋值给具体类型前必须收窄或显式断言</div>
+<div class="exp" hidden><b>答案 ABD。</b>never 是<b>底类型</b>——没有任何值属于它，所以是"任何类型都不能赋给 never"，C 恰好说反。typeof 与 in 都是标准收窄手段，收窄后联合类型获得具体分支的成员与方法。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">报错定位</span><b>4.</b> 下面代码中哪几行<b>编译报错</b>？（&nbsp;&nbsp;）</p>
+<span class="lang">TypeScript</span>
+<pre><code>let price: number = 99;      // 行①
+price = 'free';              // 行②
+let box: unknown = 'gift';   // 行③
+box.length;                  // 行④
+let nothing: never;          // 行⑤
+nothing = 1;                 // 行⑥</code></pre>
+<div class="opt" data-k="A">A. 仅行②</div>
+<div class="opt" data-k="B">B. 行②④⑥</div>
+<div class="opt" data-k="C">C. 行②③</div>
+<div class="opt" data-k="D">D. 行④⑥</div>
+<div class="exp" hidden><b>答案 B。</b>tsc 5.5.4 strict 实跑核对：行② TS2322（string 不能赋给 number）；行④ TS18046（'box' is of type 'unknown'，未收窄不能访问属性）；行⑥ TS2322（number 不能赋给 never，任何类型都赋不进底类型）。行③ 和行⑤ 只是声明赋值，本身合法。来源：牛客经典题。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> TS 相比 JS 带来了什么？"类型擦除"是什么意思，它带来什么后果？</p>
+<details><summary>参考回答</summary>三件价值：编译期抓错——把运行时才暴露的类型错误提前到写代码时；重构信心——改接口字段，所有引用处立即报错，编译通过即改完；IDE 提示——补全、跳转、参数签名全覆盖。类型擦除：TS 只在编译期做静态检查，编译产物是纯 JS，类型注解全部消失，运行时不存在类型信息。后果：不能在运行时拿类型做判断（需要类型守卫手写判断），好处是零运行时开销、产物与手写 JS 一致。加分点：enum 例外——数字枚举会编译成真实的双向映射对象；unknown 接不可信数据、never 做穷尽性检查。来源：JavaGuide 收录题型。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① any 会"传染"：any 类型的表达式参与运算后结果也是 any，检查形同虚设——新代码用 unknown + 收窄；② never 方向别背反：任何类型都<b>不能</b>赋给 never，never 可以赋给一切；③ TDZ 不存在但"先声明后使用"依然是 TS 纪律，unknown 访问成员前必须收窄；④ 声明合并是 interface 独有，同名 type 直接冲突；⑤ 枚举反向映射仅数字枚举有，字符串枚举没有；const enum 与 isolatedModules 有兼容限制（实现细节）；⑥ 字面量联合 <code>type Mode = 'light' | 'dark'</code> 多数场景可替代枚举。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

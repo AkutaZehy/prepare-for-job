@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Java8新特性 · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>Java 8 新特性</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（笔试让手写 Stream 的越来越多） ｜ 形态：语法 + 手写 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：Lambda 只能用于<b>函数式接口</b>（单抽象方法，@FunctionalInterface）；捕获的局部变量必须 <b>effectively final</b>；Stream 流水线三段式：<b>创建→中间操作（惰性）→终止操作</b>，没有终止操作整条不执行；<code>orElse</code> 总会执行参数、<code>orElseGet</code> 惰性——高频输出陷阱；SimpleDateFormat 线程不安全，用 <b>DateTimeFormatter</b>。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>函数式接口与 Lambda</b>：只有一个抽象方法的接口即可用 Lambda；四大内置：Function&lt;T,R&gt;（T 进 R 出）、Consumer&lt;T&gt;（消费无返回）、Supplier&lt;T&gt;（无参生产）、Predicate&lt;T&gt;（断言布尔）。Lambda 与匿名内部类的三点区别：①this 指向外部类实例（匿名类指向自身）；②只能捕获 effectively final 的局部变量（匿名类同样要求，但可写非 final 声明）；③编译产物不同（invokedynamic）。方法引用四种：静态引用 <code>Integer::parseInt</code>、实例方法引用 <code>String::toUpperCase</code>、对象方法引用 <code>System.out::println</code>、构造引用 <code>ArrayList::new</code>。</p>
+<p><b>接口 default / static 方法</b>：接口可以有方法实现，解决"接口演化"（加方法不破坏旧实现类）；多实现冲突时必须重写并可用 <code>接口名.super.m()</code> 指定。</p>
+<p><b>Stream API（笔试手写重灾区）</b>：三段式——</p>
+<pre><code>list.stream()                    // 创建流
+    .filter(x -&gt; x &gt; 5)          // 中间操作（惰性，返回新流，可链多条）
+    .map(x -&gt; x * 2)
+    .sorted()
+    .distinct()
+    .collect(Collectors.toList()); // 终止操作（触发整条执行）
+
+// 面试高频：按部门分组统计 / 分组取值
+Map&lt;String, Long&gt; cnt = emps.stream()
+    .collect(Collectors.groupingBy(Emp::getDept, Collectors.counting()));
+Map&lt;String, List&lt;Emp&gt;&gt; byDept = emps.stream()
+    .collect(Collectors.groupingBy(Emp::getDept));
+String names = emps.stream().map(Emp::getName)
+    .collect(Collectors.joining(",", "[", "]"));
+int total = emps.stream().mapToInt(Emp::getSalary).sum();  // 数值流避免装箱</code></pre>
+<ul>
+<li>中间操作全部<b>惰性</b>：只有终止操作（forEach/collect/reduce/count/anyMatch…）出现才执行；无终止操作的流是"空跑"。</li>
+<li><b>parallelStream</b> 底层 ForkJoinPool 并行，数据小或操作有副作用时反而更慢（一句了解）。</li>
+</ul>
+<p><b>Optional</b>：容器对象防 NPE。<code>of</code>（null 直接抛异常）vs <code>ofNullable</code>（允许 null）；<code>orElse(T)</code> 的参数<b>无论是否有值都会执行</b>（适合常量），<code>orElseGet(Supplier)</code> 只在空时才调用（适合重计算）；<code>map</code> 链式取属性。笔试输出题常考 orElse 与 orElseGet 的副作用差异。</p>
+<p><b>新时间 API（java.time）</b>：LocalDate/LocalTime/LocalDateTime、Duration/Period、DateTimeFormatter。<b>不可变设计线程安全</b>——对比老 SimpleDateFormat 内部共享 Calendar，多线程并发 format 会错乱（老代码解法：ThreadLocal 包装或每次 new）。</p>
+<span class="lang">Java</span>
+<pre><code>// 经典输出陷阱：orElse 的参数照样执行
+Optional&lt;String&gt; opt = Optional.of("java");
+String r = opt.orElse(getName());      // getName() 会执行（打印1），但结果用不上
+String r2 = opt.orElseGet(() -&gt; getName()); // getName() 不执行（结果取 java）
+
+// SimpleDateFormat 并发错乱演示（老 API）
+SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd"); // 共享使用不安全
+// 新 API：DateTimeFormatter 是不可变对象，随便共享
+DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+String s = LocalDate.now().format(fmt);</code></pre>
+<div class="tip">Python 对照一句话：Lambda/函数式风格 Python 也有（lambda/map/filter），但 Java Stream 是强类型惰性流水线，Python 生成器是"拉"模型——两语言面试互问时用这句搭桥。</div>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试手写</span><span class="tag">输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>笔试手写题：用 Stream 完成过滤+映射+分组/求和（一行流），背熟 groupingBy 与 joining。</li>
+<li>输出判断：orElse vs orElseGet 副作用、Stream 无终止操作不执行。</li>
+<li>Lambda 变量捕获（effectively final）与 this 指向。</li>
+<li>SimpleDateFormat 并发问题与新时间 API（多选常客）。</li>
+<li>面试口述：Stream 惰性求值原理、并行流什么时候用。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 关于 Lambda 表达式，正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Lambda 可以替代任意接口的匿名实现</div>
+<div class="opt" data-k="B">B. Lambda 表达式内部 this 指向 Lambda 自身</div>
+<div class="opt" data-k="C">C. Lambda 只能用于只有一个抽象方法的函数式接口，且捕获的局部变量必须 effectively final</div>
+<div class="opt" data-k="D">D. Lambda 捕获的局部变量可以直接修改</div>
+<div class="exp" hidden><b>答案 C。</b>A 缺"单抽象方法"前提；B 错——Lambda 的 this 是外层类实例（匿名内部类的 this 才是实现对象本身）；D 反了，捕获变量禁止再赋值（编译报错）。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> <code>list.stream().filter(x -&gt; x &gt; 5).peek(x -&gt; System.out.print(x));</code> 执行后（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 打印所有大于 5 的元素</div>
+<div class="opt" data-k="B">B. 什么都不打印——没有终止操作，中间操作是惰性的</div>
+<div class="opt" data-k="C">C. 打印一个 5</div>
+<div class="opt" data-k="D">D. 编译错误</div>
+<div class="exp" hidden><b>答案 B。</b>流水线只有挂上终止操作（forEach/collect/count…）才触发整条执行；peek 属于中间操作，单独存在等于没跑。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>3.</b> <code>Optional.of("java").orElse(getName())</code> 与 <code>Optional.of("java").orElseGet(() -&gt; getName())</code> 中 getName() 的执行情况是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 前者执行、后者不执行（Optional 已有值）</div>
+<div class="opt" data-k="B">B. 都执行</div>
+<div class="opt" data-k="C">C. 都不执行</div>
+<div class="opt" data-k="D">D. 前者不执行、后者执行</div>
+<div class="exp" hidden><b>答案 A。</b>orElse 收的是"值"，实参在调用前就要算出来（永远执行）；orElseGet 收的是 Supplier，只在 Optional 为空时才调用——重计算场景必须用 orElseGet，这是笔试最爱的副作用陷阱。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="AC" data-multi>
+<p><span class="tg">多选</span><b>4.</b> 关于接口 default 方法与 Java 8 变化，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. default 方法让接口可以在不破坏既有实现类的前提下增加方法</div>
+<div class="opt" data-k="B">B. 一个类实现的两个接口含相同 default 方法时，编译器自动随机选一个</div>
+<div class="opt" data-k="C">C. 实现类必须重写冲突的 default 方法，可用 接口名.super.方法名() 指定</div>
+<div class="opt" data-k="D">D. 接口不能有 static 方法</div>
+<div class="exp" hidden><b>答案 AC。</b>冲突必须由实现类显式重写解决（B 错）；接口可以有 static 方法（D 错，Java 8 起支持）。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">手写</span><b>5.</b> 给定员工列表 List&lt;Emp&gt;（字段 dept、salary、name），用 Stream 一行完成：按部门分组，统计每组人数。</p>
+<details><summary>先自己写，再展开对答案</summary><code>Map&lt;String, Long&gt; r = emps.stream().collect(Collectors.groupingBy(Emp::getDept, Collectors.counting()));</code>。变体：分组取人 <code>groupingBy(Emp::getDept)</code> 得 Map&lt;String,List&lt;Emp&gt;&gt;；分组求和 <code>Collectors.summingInt(Emp::getSalary)</code> 或 <code>groupingBy(d, TreeMap::new, counting())</code> 排序版。来源：面试高频改编。</details>
+</div>
+
+<div class="quiz" data-answer="D">
+<p><span class="tg">单选</span><b>6.</b> 多线程共享同一个 SimpleDateFormat 实例并发 format，最可能出现的问题是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 没有任何问题，它线程安全</div>
+<div class="opt" data-k="B">B. 只是速度变慢</div>
+<div class="opt" data-k="C">C. 结果正确但顺序错乱</div>
+<div class="opt" data-k="D">D. 日期结果错乱或抛 NumberFormatException（内部共享 Calendar 被并发写）</div>
+<div class="exp" hidden><b>答案 D。</b>SimpleDateFormat 非线程安全是老代码经典事故；Java 8 的 DateTimeFormatter 不可变、天然线程安全。老代码解法：每次 new 或 ThreadLocal 包装。来源：牛客经典题。</div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① Stream 三段式缺终止操作全空跑，peek 探针题就考这个；② orElse 与 orElseGet 的执行时机差是输出题常客；③ Lambda 捕获局部变量 effectively final——想在 Lambda 里改外面变量，用数组或 Atomic 包装绕（但别在面试里这么写）；④ 并行 stream 不是银弹：小数据/有 IO 副作用时更慢；⑤ 老 SimpleDateFormat 不安全、新 DateTimeFormatter 安全——Java 8 新时间 API 出题都围绕这一点。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

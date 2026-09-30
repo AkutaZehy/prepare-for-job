@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAS、原子类与 AQS · 编程题与Java基础/集合并发JVM</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 集合并发JVM</div>
+<h1>CAS、原子类与 AQS</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开（并发原理层，追问链终点） ｜ 形态：原理 + 对比 + 模板代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：CAS = 内存值 V / 期望值 E / 新值 N，V==E 才写入，CPU 硬件原语保证原子；三大坑：<b>ABA</b>（AtomicStampedReference 版本号解决）、自旋空耗 CPU、只保一个变量（AtomicReference 打包）；LongAdder 分段 Cell 降热点，写多读少最快；<b>AQS = volatile int state + CLH 变体双向等待队列 + 模板方法</b>（tryAcquire 子类实现，失败入队 park 挂起）；公平锁不插队、非公平先 CAS 抢一次；ReentrantLock / CountDownLatch / Semaphore / 读写锁全是 AQS 的壳。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>CAS 原理</b>：compare-and-swap，三个操作数——<b>V（内存值）、E（期望值）、N（新值）</b>：仅当 V == E 才把 V 更新为 N，否则失败（自旋重试或放弃）。"比较+交换"由 <b>CPU 硬件原语保证原子</b>（x86 上是 cmpxchg 指令配合 lock 前缀锁缓存行），Java 经 Unsafe 类的 native 方法调用。整个过程线程不阻塞、不加锁。</p>
+<p><b>乐观锁 vs 悲观锁</b>：CAS 自旋 = 乐观锁思想——假设没冲突，失败了重来，适合读多写少、竞争低；synchronized = 悲观锁——先加锁再操作，冲突线程挂起，适合写多竞争高。开销对比：乐观赌赢零开销、赌输空转；悲观无论有无冲突都付出加锁/唤醒成本。</p>
+<p><b>CAS 三大问题</b>：①<b>ABA</b>：值 A→B→A 改回去了，CAS 只比较值相等、察觉不到中间过程（经典场景：无栈链表头指针复用）；解决：<b>AtomicStampedReference</b> 在值之外附加 int 版本戳，每改一次戳变一次，CAS 同时比对值+版本（AtomicMarkableReference 是布尔标记位的简化版）。②<b>自旋长时间失败空耗 CPU</b>：竞争激烈时反复失败白转，缓解：限制自旋次数、竞争高处退回锁。③<b>只能保证一个变量的原子性</b>：对多个变量分别 CAS 不构成整体原子；解决：<b>AtomicReference</b> 把多变量打包成对象引用，一次 CAS 整个对象，或改用锁。</p>
+<p><b>原子类谱系</b>：</p>
+<table>
+<tr><th>类别</th><th>代表</th><th>说明</th></tr>
+<tr><td class="l">基本类型</td><td class="l">AtomicInteger / AtomicLong / AtomicBoolean</td><td class="l">CAS 自旋实现 incrementAndGet 等</td></tr>
+<tr><td class="l">引用类型</td><td class="l">AtomicReference / AtomicStampedReference</td><td class="l">打包多变量；带版本戳解决 ABA</td></tr>
+<tr><td class="l">数组</td><td class="l">AtomicIntegerArray 等</td><td class="l">按元素粒度 CAS</td></tr>
+<tr><td class="l">字段更新器</td><td class="l">AtomicIntegerFieldUpdater 等</td><td class="l">反射 CAS 更新 volatile 字段，省包装对象</td></tr>
+<tr><td class="l">累加器</td><td class="l">LongAdder / LongAccumulator / DoubleAdder</td><td class="l">分段 Cell 计数，写多读少更快</td></tr>
+</table>
+<p><b>LongAdder 原理</b>：base + Cell[] 数组——无竞争时 CAS base；有竞争时各线程绑定自己的 Cell 累加，<b>把一个热点分散成一排冷点</b>；sum() 汇总 base+所有 Cell，但那是<b>非原子的近似快照</b>。定位：高并发计数（监控统计），不需要精确瞬时值时完胜 AtomicLong；需要"比较并换取结果"（如 ID 生成器）还得 AtomicLong。</p>
+<p><b>i++ 三种线程安全方案对比</b>（i++ = 读-加-写三步，非原子）：</p>
+<table>
+<tr><th>方案</th><th>原理</th><th>优点</th><th>缺点</th><th>适用</th></tr>
+<tr><td class="l">synchronized</td><td class="l">悲观阻塞</td><td class="l">最简单可靠</td><td class="l">加锁唤醒开销最大</td><td class="l">临界区复杂、竞争极高</td></tr>
+<tr><td class="l">AtomicInteger</td><td class="l">CAS 自旋</td><td class="l">无阻塞，中低竞争快</td><td class="l">高竞争重试成热点</td><td class="l">需要精确值的计数</td></tr>
+<tr><td class="l">LongAdder</td><td class="l">分段 Cell</td><td class="l">高并发写最快</td><td class="l">sum() 非原子快照</td><td class="l">监控类写多读少计数</td></tr>
+</table>
+<p><b>AQS（AbstractQueuedSynchronizer）三大件</b>——JUC 锁与同步器的公共骨架：①<b>volatile int state</b>：同步状态，语义由子类定义——ReentrantLock 里是重入次数、Semaphore 里是剩余许可数、CountDownLatch 里是剩余计数；②<b>CLH 变体的双向 FIFO 等待队列</b>：获取失败的线程 CAS 入队，然后 <code>LockSupport.park</code> 挂起自己；前驱释放时 unpark 唤醒后继；③<b>模板方法模式</b>：acquire/release 是固定骨架（CAS 失败→入队→park→醒来重试），<b>tryAcquire/tryRelease（独占）、tryAcquireShared/tryReleaseShared（共享）留给子类实现</b>——写一个同步器只需要决定"state 怎么算拿到/释放"。</p>
+<p><b>独占 vs 共享</b>：独占模式一次只有一个线程持有（ReentrantLock、写锁）；共享模式允许多个线程同时通过（Semaphore 的多个许可、CountDownLatch 放行所有 await、读锁）。</p>
+<p><b>公平 vs 非公平</b>（ReentrantLock 默认非公平）：公平锁——加锁前先检查队列里有没有前驱（hasQueuedPredecessors），有就不抢、乖乖排队，无饥饿但吞吐低；非公平——上来<b>先 CAS 抢一次</b> state，抢不到才入队，被唤醒后还要再抢一次，吞吐高但可能饥饿。</p>
+<p><b>基于 AQS 的家族</b>：ReentrantLock（独占可重入）、ReentrantReadWriteLock（读共享写独占）、CountDownLatch（共享倒计数）、Semaphore（共享许可）——连线程池的 Worker 内部也继承 AQS 做不可重入的小互斥（见 <a href="线程池全解.html">线程池全解</a>）；CountDownLatch / Semaphore 的使用示例见 <a href="ThreadLocal与并发工具类.html">ThreadLocal 与并发工具类</a>。ReentrantLock 相比 synchronized 的差异一句：可中断 lockInterruptibly、可超时 tryLock、公平可选、多个 Condition 精准唤醒。</p>
+<span class="lang">Java</span>
+<pre><code>// CAS 原子类计数：100 线程 × 1000 次自增
+AtomicInteger counter = new AtomicInteger(0);
+Runnable job = () -&gt; {
+    for (int j = 0; j &lt; 1000; j++) {
+        counter.incrementAndGet();   // CAS 自旋：失败就取最新值重试
+    }
+};
+// 100 个线程各自跑完 job、全部 join 后：counter.get() 恒为 100000
+
+// i++ 三方案对比（面试必背）
+synchronized (lock) { count++; }            // 悲观锁：正确但最重
+atomicCount.incrementAndGet();              // CAS 自旋：中低竞争性价比高
+longAdder.increment();                      // 分段 Cell：高并发写最快，sum() 是快照</code></pre>
+<span class="lang">Java</span>
+<pre><code>// AQS 视角的极简自定义互斥量（模板方法：只实现 tryAcquire/tryRelease）
+class MyMutex extends AbstractQueuedSynchronizer {
+    @Override
+    protected boolean tryAcquire(int acquires) {
+        if (compareAndSetState(0, 1)) {          // state 0→1：CAS 抢锁成功
+            setExclusiveOwnerThread(Thread.currentThread());
+            return true;
+        }
+        return false;      // 失败不用管：AQS 骨架负责入队 + park 挂起
+    }
+    @Override
+    protected boolean tryRelease(int releases) {
+        if (getState() == 0) throw new IllegalMonitorStateException();
+        setExclusiveOwnerThread(null);
+        setState(0);       // 释放后：AQS 骨架负责 unpark 唤醒后继节点
+        return true;
+    }
+    public void lock()   { acquire(1); }   // 骨架：tryAcquire 失败 → 入队 → park
+    public void unlock() { release(1); }   // 骨架：tryRelease 成功 → 唤醒后继
+}</code></pre>
+<span class="lang">Java</span>
+<pre><code>// ReentrantLock 标准模板：unlock 必须放 finally
+ReentrantLock lock = new ReentrantLock();   // 默认非公平；传 true = 公平锁
+lock.lock();
+try {
+    // 临界区
+} finally {
+    lock.unlock();
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code># 对照：Python 没有内建 CAS 原子类，共享计数用 threading.Lock（悲观锁思路）
+import threading
+lock = threading.Lock()
+count = 0
+def bump():
+    global count
+    with lock:
+        count += 1        # count += 1 同 i++ 是"读-加-写"三步，必须持锁</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试口述</span></p>
+<ul>
+<li>笔试：CAS 三操作数、ABA 与版本号、原子类归属（LongAdder/AtomicLong 选型）、哪些类基于 AQS。</li>
+<li>面试：i++ 三方案对比、AQS 三大件源码级追问（公平/非公平加锁全流程、独占/共享、park/unpark）、ReentrantLock vs synchronized。</li>
+<li>追问链：synchronized → CAS → 原子类 → LongAdder → AQS → ReentrantLock，一环接一环要接得住。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 线程 1 读到值 A 后被挂起；线程 2 把值 A→B 再改回 A；线程 1 恢复后执行 CAS(A→C) 成功。要让它发现"中途变过"，最直接的方案是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 换成 synchronized 包住这次 CAS</div>
+<div class="opt" data-k="B">B. 使用 AtomicStampedReference，每次修改递增版本号，CAS 同时比对值和版本</div>
+<div class="opt" data-k="C">C. 把变量改成 volatile</div>
+<div class="opt" data-k="D">D. 增加 CAS 的重试次数</div>
+<div class="exp" hidden><b>答案 B。</b>CAS 只比较值相等，A→B→A 会骗过它；AtomicStampedReference 附带 int 版本戳（stamp），改动一次戳变一次，值相同但版本不同照样 CAS 失败。C 的 volatile 只保可见性不保原子判断；D 无济于事——重试多少次值都对得上。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> 秒级监控系统要统计全局 QPS 计数器：写竞争极高，读只在展示层偶尔发生。最合适的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. AtomicLong，CAS 自旋更新</div>
+<div class="opt" data-k="B">B. LongAdder，展示时调用 sum()</div>
+<div class="opt" data-k="C">C. synchronized 保护的 long</div>
+<div class="opt" data-k="D">D. volatile long 直接自增</div>
+<div class="exp" hidden><b>答案 B。</b>写竞争极高正是 LongAdder 的主场：分散到 Cell[] 各写各的，消除 CAS 热点；sum() 是非原子快照，但展示场景完全可接受。A 在高竞争下 CAS 重试成热点；D 连原子性都没有，自增必丢更新；C 开销最大。需要精确值或"比较并换"语义时才轮到 AtomicLong。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 AQS 的组成，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 一个 volatile int state，语义由子类定义（重入次数/许可数/剩余计数）</div>
+<div class="opt" data-k="B">B. CLH 变体的双向 FIFO 等待队列，获取失败的线程入队后 park 挂起</div>
+<div class="opt" data-k="C">C. 模板方法模式：acquire/release 是骨架，tryAcquire/tryRelease 留给子类实现</div>
+<div class="opt" data-k="D">D. 内部用一把 synchronized 保护整个等待队列的出入</div>
+<div class="exp" hidden><b>答案 ABC。</b>三大件 = state + 队列 + 模板方法。D 错——队列的入队出队靠 CAS，挂起与唤醒靠 LockSupport.park/unpark，不是 synchronized 一把大锁。来源：JavaGuide 收录题型。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>4.</b> CAS 机制自身的问题包括（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. ABA 问题：值被改回原值后 CAS 无法察觉中间变化</div>
+<div class="opt" data-k="B">B. 自旋长期失败会空耗 CPU</div>
+<div class="opt" data-k="C">C. 一次只能保证一个变量的原子性，多变量需要 AtomicReference 打包或加锁</div>
+<div class="opt" data-k="D">D. CAS 失败会持有资源等待，导致死锁</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错——CAS 是非阻塞算法：失败不持有任何锁、不等待任何人，只重试或返回失败，<b>不存在死锁</b>（这是它对比锁的一大优点）。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>5.</b> 高并发计数器：写入竞争激烈，只需最终展示总数，读不频繁。最合适的方案是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. synchronized 包住 count++</div>
+<div class="opt" data-k="B">B. AtomicLong.incrementAndGet()</div>
+<div class="opt" data-k="C">C. LongAdder.increment()，展示时 sum()</div>
+<div class="opt" data-k="D">D. volatile int count++</div>
+<div class="exp" hidden><b>答案 C。</b>volatile 不保原子（count++ 三步照丢更新）；竞争激烈时 AtomicLong 的 CAS 重试聚成一个热点；LongAdder 分段写最快，sum() 的快照语义对"展示总数"足够。来源：牛客经典题。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>6.</b> 说说非公平锁（ReentrantLock 默认模式）加锁的完整流程。</p>
+<details><summary>参考回答</summary>①CAS 尝试把 state 从 0 改 1：抢到 → setExclusiveOwnerThread 记录持有者，直接返回（这一步就是"插队"——不管队列里排没排人）；②state ≠ 0 但持有者是自己 → 重入，state 加 1 返回；③都不是 → 加锁失败，addWaiter 把自己包装成节点 CAS 挂到 CLH 队尾，然后 acquireQueued：若前驱是队头哨兵就再试一次抢锁，否则 park 挂起自己；④前驱释放锁时 unpark 唤醒后继，醒来后再 CAS 抢一次（这里又可能被新来的线程抢先——非公平的第二处插队）。公平锁的唯一区别：每次抢之前先 hasQueuedPredecessors() 查队列，有前驱就不抢。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① CAS 三操作数背全：V 内存值 / E 期望值 / N 新值，少说一个都算没背；② ABA 的题眼是"值变回来了"，答案锁定版本号（AtomicStampedReference）；③ LongAdder 快的代价：sum() 是非原子快照，需要精确值/比较换语义用 AtomicLong；④ AQS 三大件 + park/unpark 一个都不能少，"state 语义由子类定义"是关键句；⑤ 非公平锁"插队"有两处：第一次 CAS 和被唤醒后的再 CAS。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

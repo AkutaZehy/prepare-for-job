@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>闭包与原型链 · 前端/JS与HTML</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 前端 / JS与HTML</div>
+<h1>闭包与原型链</h1>
+<div class="meta">适用岗位：前端（面试必问 + 笔试输出题） ｜ 形态：知识点 + 原型链输出题实跑核对 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：闭包 = <b>函数 + 定义时的词法环境</b>——内层函数引用外层变量、内层被返回，变量就活得比调用更久；应用：私有变量 / 柯里化 / 防抖节流；泄漏 = 闭包长期持有不再需要的大对象或 DOM。原型链：实例的 <b>__proto__ 指向构造函数的 prototype</b>，属性查找沿链到 Object.prototype 再到 null；<b>instanceof = 右侧 prototype 是否在左侧的原型链上</b>；class 是原型继承的语法糖（typeof 仍是 "function"）；<b>new 四步</b>：建空对象挂原型 → 绑 this 执行 → 按返回值决定结果。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>闭包的定义</b>：函数与其词法环境的组合（MDN 口径）；面试口径——内层函数访问了外层函数作用域的变量，且内层函数被返回或传出，导致外层变量在外层函数返回后依然存活。形成三要素：<b>函数嵌套 + 内层引用外层变量 + 内层被传出</b>。</p>
+<table>
+<tr><th class="l">应用</th><th class="l">说明</th></tr>
+<tr><td class="l"><b>私有变量</b></td><td class="l">计数器把 count 藏在闭包里，外部只能通过暴露的方法读写，无法直接改</td></tr>
+<tr><td class="l"><b>柯里化</b></td><td class="l">add(1)(2) 的第一层参数靠闭包记住，返回的新函数继续消费它</td></tr>
+<tr><td class="l"><b>防抖节流</b></td><td class="l">timer / last 时间戳存在闭包里，多次触发之间共享同一份计时状态</td></tr>
+</table>
+<p><b>内存泄漏场景</b>：闭包本身不是泄漏；泄漏是<b>闭包长期存活（如挂在全局的事件回调）且持有不再需要的大对象 / DOM 引用</b>，垃圾回收器无法回收它们。对策：不再使用时把引用置 null、及时解绑事件监听器。</p>
+<p><b>原型链三件套</b>：每个函数都有 <code>prototype</code>（显式原型）；每个对象都有 <code>__proto__</code>（隐式原型，标准取法 Object.getPrototypeOf）；关系恒成立：<code>实例.__proto__ === 构造函数.prototype</code>。构造函数的 prototype 上有 <code>constructor</code> 指回构造函数本身。</p>
+<pre class="ascii-fallback"><code>实例 a ──__proto__──→ A.prototype ──__proto__──→ Object.prototype ──__proto__──→ null
+                        │ constructor 指回 A          （toString/hasOwnProperty 在这里）
+属性查找：a 自身 → A.prototype → Object.prototype → null，找到即停，找不到 undefined</code></pre>
+<p><b>instanceof 原理</b>：<code>a instanceof B</code> 沿 <code>a.__proto__</code> 逐级向上，看 <code>B.prototype</code> 是否出现在 a 的原型链上。因此 constructor 可以被改写而 instanceof 不能被伪造——前者只是属性，后者查的是真实链条。</p>
+<p><b>new 做了什么（四步）</b>：① 创建一个空对象；② 把它的 <code>__proto__</code> 指向构造函数的 <code>prototype</code>；③ 以该对象为 this 执行构造函数；④ 若构造函数<b>显式返回一个对象</b>则用它，否则返回第 ① 步的对象（返回原始值会被忽略）。</p>
+<p><b>class 是语法糖</b>：class 本质仍是"构造函数 + prototype"那套原型继承，写法上封装了方法挂载、继承（extends/super）等样板。<b>typeof 类仍是 "function"</b>（本机 node 实跑：typeof C → "function"，C.prototype.constructor === C 为 true）。</p>
+<p><b>常考输出题：原型链查找（本机 node 实跑核对）</b>：</p>
+<span class="lang">JavaScript</span>
+<pre><code>const base = { a: 1 };
+const child = Object.create(base);  // child.__proto__ === base
+child.a = 2;                        // 写入的是 child 的自有属性
+console.log(child.a);               // 2（自身命中，查找停止）
+delete child.a;
+console.log(child.a);               // 1（自有属性没了，沿原型链找到 base.a）
+console.log(child.hasOwnProperty('a')); // false（hasOwnProperty 只查自身）</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试输出题</span><span class="tag">面试手写高频</span></p>
+<ul>
+<li>笔试：给对象链问属性值（自有 vs 原型）、delete 后的查找结果、new + 显式 return 的返回值。</li>
+<li>面试：闭包定义与应用、内存泄漏排查、__proto__ 与 prototype 关系、instanceof 手写原理、new 四步、class 与构造函数关系。</li>
+<li>追问储备：手写 instanceof（沿 __proto__ 循环比较）、Object.create 的本质（新建对象并把原型指向参数）、为什么箭头函数没有自己的 this（它继承定义处的 this，也和词法环境有关）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> <code>a instanceof B</code> 的判断依据是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. a 的 constructor 属性是否等于 B</div>
+<div class="opt" data-k="B">B. B.prototype 是否出现在 a 的原型链（__proto__ 链）上</div>
+<div class="opt" data-k="C">C. a.__proto__ 是否直接等于 B</div>
+<div class="opt" data-k="D">D. 两者 Object.prototype.toString 输出相同</div>
+<div class="exp" hidden><b>答案 B。</b>instanceof 沿 a.__proto__ 逐级向上与 B.prototype 比较，B 处于链条任意一层都算 true，不只比第一层。constructor 是普通属性可以被改写，判断不可靠；A 是干扰项。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于闭包，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 闭包 = 函数 + 定义时的词法环境，变量因此活过外层函数的返回</div>
+<div class="opt" data-k="B">B. 防抖函数把 timer 存在闭包里，多次触发共享同一份计时状态</div>
+<div class="opt" data-k="C">C. 只要使用了闭包就一定会造成内存泄漏</div>
+<div class="opt" data-k="D">D. 柯里化 add(1)(2) 依赖闭包记住第一层的参数</div>
+<div class="exp" hidden><b>答案 ABD。</b>泄漏的准确条件是"闭包长期存活且持有不再需要的大对象 / DOM 引用"——普通短生命周期闭包会被正常回收，C 过于绝对。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">输出判断</span><b>3.</b> 下面代码的输出是（&nbsp;&nbsp;）</p>
+<span class="lang">JavaScript</span>
+<pre><code>const base = { a: 1 };
+const child = Object.create(base);
+child.a = 2;
+console.log(child.a);
+delete child.a;
+console.log(child.a);
+console.log(child.hasOwnProperty('a'));</code></pre>
+<div class="opt" data-k="A">A. 2 / 1 / true</div>
+<div class="opt" data-k="B">B. 2 / 2 / true</div>
+<div class="opt" data-k="C">C. 2 / 1 / false</div>
+<div class="opt" data-k="D">D. 1 / 1 / false</div>
+<div class="exp" hidden><b>答案 C。</b>本机 node 实跑：2、1、false。child.a = 2 写入自有属性，读取时自身命中即停；delete 删掉自有属性后，查找沿 __proto__ 落到 base.a 输出 1；hasOwnProperty 只查自身不查原型链，返回 false。来源：JavaGuide 收录题型。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>4.</b> <code>function Fn() { this.x = 1; return { custom: 2 }; }</code>，执行 <code>const r = new Fn()</code> 后，r 是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. { custom: 2 }</div>
+<div class="opt" data-k="B">B. { x: 1 }（this 指向的新对象）</div>
+<div class="opt" data-k="C">C. undefined</div>
+<div class="opt" data-k="D">D. Fn 函数本身</div>
+<div class="exp" hidden><b>答案 A。</b>new 四步的最后一步：构造函数<b>显式返回一个对象</b>时，该对象覆盖默认的新建对象；若只返回原始值（return 1）则被忽略，仍返回新建对象。注意此时 { x: 1 } 白建了但没被返回。来源：面试高频改编。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 什么是闭包？举一个你用过的实际应用，并说明什么情况下会造成内存泄漏。</p>
+<details><summary>参考回答</summary>闭包是函数和它定义时词法环境的组合：内层函数引用外层函数的变量，且内层被返回/传出，这些变量就在外层函数返回后继续存活。应用：手写防抖——timer 存在闭包里，每次触发 clearTimeout 旧计时再 setTimeout 新计时，多次触发只保留最后一次；还有私有变量（外部只能通过暴露的方法读写）和柯里化。泄漏场景：把引用了大对象或 DOM 的回调长期挂在全局事件上，闭包链让这些对象始终可达、回收不掉——对策是用完置 null、及时 removeEventListener。加分点：闭包不是泄漏本身，"长期存活 + 持有无用大引用"才是；可补一句手写 new / instanceof。来源：牛客经典题。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 实例只有 __proto__，函数才有 prototype——标准取法用 Object.getPrototypeOf(inst)；② 属性查找"找到即停"：自有属性会遮蔽原型同名属性，delete 自有属性后会"掉回"原型值；③ hasOwnProperty 只查自身，in 运算符会查整条链；④ class 的 typeof 仍是 "function"，别答成 "class"；⑤ new 显式返回对象才覆盖，返回原始值被忽略；⑥ 原型链尽头是 Object.prototype.__proto__ === null，别答成 undefined。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

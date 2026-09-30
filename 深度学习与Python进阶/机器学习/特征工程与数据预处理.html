@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>特征工程与数据预处理 · 深度学习与Python进阶/机器学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 机器学习</div>
+<h1>特征工程与数据预处理</h1>
+<div class="meta">适用岗位：AI/算法、数据分析、风控建模 ｜ 关联页：<a href="经典模型补遗.html">经典模型补遗</a>、<a href="评价指标与样本不平衡.html">评价指标</a> ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：预处理流水线 = 缺失值 → 异常值 → 标准化 → 编码 → 特征构造/选择。<b>标准化给梯度和距离用，树模型不需要</b>。类别编码：低基数 one-hot、高基数 target encoding（K 折防泄漏）。<b>头号大坑是数据泄漏</b>：scaler/encoder/imputer 只能在训练集 fit，再 transform 到测试集；先切分后处理。目标是预测未来时，任何「用到未来信息」的特征都是泄漏。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>缺失值</b>：先看缺失机制与比例。列缺失率极高（&gt;80%）可删；行缺关键特征可删。填充：数值用中位数（抗离群，优于均值）、类别用众数或「缺失」当独立类别；进阶用模型预测填充（KNN/回归）或「是否缺失」做成指示特征（缺失本身常有信息，如拒绝回答收入）。树系模型（XGBoost/LightGBM）可原生处理缺失，自动学分裂方向。</p>
+<p><b>标准化 vs 归一化</b>：</p>
+<table>
+<tr><th class="l">方法</th><th class="l">公式</th><th class="l">结果范围</th><th class="l">什么时候用</th></tr>
+<tr><td class="l">z-score 标准化</td><td class="l">$(x-\mu)/\sigma$</td><td class="l">均值 0 方差 1，无界</td><td class="l">梯度下降（LR/NN）、距离模型（KNN/KMeans）、SVM；有离群时更稳</td></tr>
+<tr><td class="l">Min-Max 归一化</td><td class="l">$(x-\min)/(\max-\min)$</td><td class="l">[0,1]</td><td class="l">需要有界输入（图像像素）；对离群点敏感</td></tr>
+</table>
+<p><b>树模型不需要</b>：决策树按「特征值 &gt; 阈值」分裂，单调变换不改分裂次序。什么时候取对数：右偏长尾分布（收入、点击量）log 后近似正态，线性模型更稳。</p>
+<p><b>类别特征编码</b>：低基数 one-hot（LR/NN 友好）；有序类别用整数映射（衣服尺码）；高基数（城市/商品 ID）one-hot 会维度爆炸 → target encoding（用该类别的目标均值替换，<b>必须 K 折内做</b>防止标签泄漏）或哈希、低频归「其他」桶。树模型对 label encoding 的整数序不敏感（只找切点），LR 等线性模型敏感。</p>
+<p><b>特征构造与选择</b>：构造 = 领域知识造交叉特征（点击率 = 点击/曝光）、时间拆解（月/日/星期几/是否节假日）、聚合统计（用户近 7 天均值——注意时间边界防未来信息）。选择三路：<b>过滤</b>（方差阈值、卡方、互信息——便宜先筛）、<b>包裹</b>（RFE 递归特征消除——准但贵）、<b>嵌入</b>（L1 稀疏、树模型 feature importance）。</p>
+<p><b>数据泄漏</b>（数据科学面试第一坑）：① 预处理泄漏——scaler/imputer/encoder/target 统计在全量数据上 fit；② 时间泄漏——用 t 时刻之后的信息预测 t；③ 构造泄漏——特征里混进了目标的结果（如「是否流失」的下月账单）。检验直觉：线下 0.99、上线 0.6，十有八九是泄漏。</p>
+<span class="lang">Python · 正确的 fit/transform 顺序</span>
+<pre><code>from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+
+pipe = make_pipeline(StandardScaler(), LogisticRegression())
+pipe.fit(X_train, y_train)        # scaler 只在训练集 fit
+pipe.predict(X_test)              # 测试集只 transform，不 fit</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p>特征工程考的是<b>工程判断</b>而不是公式：① 树模型为什么不用标准化（高频）；② z-score vs Min-Max 选型（离群敏感）；③ 高基数类别怎么编码 + target encoding 为什么必须 K 折内做（泄漏）；④ 缺失值填均值还是中位数（有离群用中位数）以及「缺失指示特征」的意识；⑤ 泄漏场景判断（给一个线下虚高的案例问哪里漏了）；⑥ 流水线顺序题：切分 → fit(train) → transform(train/test) → 训练 → 评估。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 用 GBDT 训练表格数据，把特征做 z-score 标准化后再喂进去，效果大概率（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 明显提升，因为树对特征尺度敏感</div>
+<div class="opt" data-k="B">B. 基本不变：树按阈值分裂，z-score 是单调变换，不改变分裂候选与增益排序</div>
+<div class="opt" data-k="C">C. 明显下降，训练无法收敛</div>
+<div class="opt" data-k="D">D. 取决于学习率</div>
+<div class="exp" hidden><b>答案 B。</b>标准化给梯度和距离类模型用；树模型（RF/XGB/LGBM）对单调变换不敏感。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 城市字段有 3000 个取值，做点击率预测。最不合适的做法是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. target encoding 并在 K 折内计算目标均值</div>
+<div class="opt" data-k="B">B. 低频城市归并成「其他」后再编码</div>
+<div class="opt" data-k="C">C. 直接 one-hot 出 3000 维稀疏列，喂给线性模型</div>
+<div class="opt" data-k="D">D. 按业务层级上卷（省/市）降低基数</div>
+<div class="exp" hidden><b>答案 C。</b>高基数 one-hot 维度爆炸且绝大多数城市样本稀疏学不到权重；正确姿势是 target encoding（防泄漏）、归桶或层级上卷。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于数据泄漏，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. scaler/encoder/imputer 只能在训练集上 fit，再 transform 测试集</div>
+<div class="opt" data-k="B">B. 只要线下交叉验证分数高，就没有泄漏</div>
+<div class="opt" data-k="C">C. 预测「用户是否会流失」时，把用户下个月的缴费金额当特征是时间泄漏</div>
+<div class="opt" data-k="D">D. 线下指标异常虚高（如 0.99）而线上骤降，应优先排查泄漏</div>
+<div class="exp" hidden><b>答案 ACD。</b>K 折 CV 内部同样可能逐折泄漏（每折内再做 target 统计时要嵌套防漏），「线下高」恰恰可能是泄漏的信号，B 错。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、示例题目</h2>
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 特征取值 {2, 4, 6, 100}。分别用均值和中位数填充「缺失」时，哪个更稳？并写出 z-score 后 2 和 100 的值（均值 28，标准差约 43.3，两位小数）。</p>
+<details><summary>解答</summary>
+<p>均值 = 28 被离群值 100 严重拉偏，中位数 = 5 更稳，有离群用中位数。z-score：$(2-28)/43.3\approx -0.60$，$(100-28)/43.3\approx 1.66$。若改用 Min-Max，$(2-2)/(100-2)=0$、$(100-2)/98=1$，极差被离群值独占，其余全挤在 0 附近——这就是 Min-Max 怕离群的原因。来源：AI 岗笔试高频。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">口述</span><b>2.</b> 拿到一张带缺失、含日期和城市字段的脏表，说一遍你的特征工程流水线（顺序讲清楚）。</p>
+<details><summary>解答</summary>
+<p>① 先切出时间上靠后的测试集（时间任务不能随机切）；② EDA：看缺失率、分布、异常值；③ 缺失处理（删/中位数众数填充/缺失指示列）；④ 异常与长尾（截断或 log）；⑤ 编码（城市 target encoding，K 折内算；日期拆月/日/星期/节假日）；⑥ 构造聚合特征（近 7/30 天统计，时间边界只向后看）；⑦ 标准化（给线性/NN 用）；⑧ 全流程装进 Pipeline，防 fit 泄漏；⑨ 特征筛选（过滤法粗筛 + 树重要性复核）。来源：面试高频改编。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">口述</span><b>3.</b> 线下 AUC 0.97，上线后 0.62。说出至少三个可能原因与排查动作。</p>
+<details><summary>解答</summary>
+<p>① 泄漏：特征里混入了目标相关的时间后置字段、target encoding 全量计算、scaler 全量 fit——逐特征做「信息获取时点」审计，重跑留出集；② 训练/线上分布漂移：数据口径变了、特征定义不一致（离线表 vs 实时日志对不上）——对齐口径做 PSI 监控；③ 时间切分错误：随机切分让未来样本混进训练——改按时间切分重训。来源：面试高频改编。</p>
+</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 切分永远在一切 fit 之前（Pipeline 就是为了把这件事交给机制而不是记性）；② target encoding 的 K 折要在「外层交叉验证的每一折内部」再做，双层防漏；③ 缺失填均值前先想「缺失是不是信息」；④ one-hot 后维度爆炸不是小事，会拖死线性模型与 KNN；⑤ log 变换处理右偏，不适合有负数的特征（先 shift）；⑥ 线下虚高 + 线上拉胯，第一反应查泄漏和分布漂移，而不是换模型。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

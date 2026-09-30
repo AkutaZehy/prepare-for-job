@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>归一化：BN/LN/GN · 深度学习与Python进阶/深度学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习</div>
+<h1>归一化：BN / LN / GN</h1>
+<div class="meta">适用岗位：CV/NLP 通用（面试必问 BN 三连） ｜ 形态：公式 + 图示 + 对比表 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：四种归一化只差"沿哪些维度求 μ、σ²"——BN 跨（N, H×W）逐通道、LN 跨（C, H×W）逐样本、GN 组内（C/G, H×W）、IN 只跨空间（H×W）；<b>BN 训练用 batch 统计量、推理用滑动平均</b>（训练/推理不一致的根源）；batch 小换 GN/SyncBN；Transformer 用 LN 因为变长序列 padding + batch=1 推理，BN 无从统计。γ、β 是可学习仿射参数，μ、σ² 是统计量，两套别混。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+
+<p><b>1. 为什么归一化</b>：控制每层输入的均值/方差，让训练对初始化和学习率不那么敏感。BN 论文（Ioffe &amp; Szegedy 2015）的动机是 internal covariate shift，后来的研究（Santurkar 等 2018）更多把收益归因于"平滑了损失曲面"。所有归一化都是同一个骨架，只是统计维度不同：</p>
+<p style="text-align:center">$$\hat x=\frac{x-\mu}{\sqrt{\sigma^2+\epsilon}},\qquad y=\gamma\,\hat x+\beta$$</p>
+<p>γ、β 是<b>可学习的仿射参数</b>；μ、σ² 是<b>统计量</b>（BN 来自 batch/滑动平均，LN/GN/IN 来自当前样本自身）——两套参数别混。</p>
+
+<p><b>2. 四种归一化：方向示意</b>（输入特征图 N×C×H×W）</p>
+<pre class="ascii-fallback"><code>输入特征 (N, C, H, W)    N=批大小  C=通道  H×W=空间分辨率
+ ├─ BN：每个通道跨 N 与 H×W 求统计 → 逐通道一条 μ/σ²
+ ├─ LN：每个样本跨 C 与 H×W 求统计 → 逐样本一条，与 batch 无关
+ ├─ GN：每个样本分 G 组，组内跨 C/G 与 H×W → 小 batch 折中
+ └─ IN：每个样本每通道仅跨 H×W 求统计 → 风格迁移常用</code></pre>
+<pre class="mermaid">
+flowchart LR
+    X["输入特征图 (N, C, H, W)"] --> BN["BN：逐通道，跨 N 与 H×W 求统计量"]
+    X --> LN["LN：逐样本，跨 C 与 H×W 求统计量"]
+    X --> GN["GN：逐样本分组，组内跨 C/G 与 H×W"]
+    X --> IN["IN：逐样本逐通道，仅跨 H×W"]
+</pre>
+<table>
+<tr><th>方法</th><th>统计量沿哪些维度</th><th>依赖 batch</th><th>典型场景</th></tr>
+<tr><td>BN</td><td>每个通道：N 与 H×W</td><td>是（训练时）</td><td>CV 大 batch（ResNet 系）</td></tr>
+<tr><td>LN</td><td>每个样本：C 与 H×W</td><td>否</td><td>Transformer / 序列模型</td></tr>
+<tr><td>GN</td><td>每个样本分 G 组：组内 C/G 与 H×W</td><td>否</td><td>检测/分割小 batch（每卡 1~2 张图）</td></tr>
+<tr><td>IN</td><td>每个样本每个通道：仅 H×W</td><td>否</td><td>风格迁移</td></tr>
+</table>
+<p>记忆抓手：把四个维度 (N,C,H,W) 摊开看——<b>跨 N</b> 求统计的只有 BN；<b>跨全部 C</b> 的是 LN；<b>跨部分 C</b>（分组）的是 GN；<b>不跨 C 只跨空间</b>的是 IN。</p>
+
+<p><b>3. BN 的训练/推理差异</b>：训练时用当前 batch 的 $\mu_{\mathcal B},\sigma^2_{\mathcal B}$ 归一化，同时用滑动平均维护 running_mean / running_var（PyTorch 默认 momentum=0.1，即新批统计量占 0.1 权重）；推理时 μ、σ² 固定为滑动平均值，不再看输入 batch。推理必须这样：线上可能 batch=1，且要求同样输入得到确定输出。</p>
+
+<p><b>4. BN 放激活前还是后</b>：主流写法是 卷积/线性层 → BN → 激活（BN 论文的原始顺序），让进入激活函数的值分布稳定；也有放激活后的变体，面试答"主流在激活前"即可。</p>
+
+<p><b>5. batch 小时 BN 为什么失效、怎么办</b>：BN 的 μ、σ² 是 batch 内估计，batch=1~2 时噪声巨大——训练抖动、滑动平均也估不准。对策：换 <b>GN</b>（组内统计，Wu &amp; He 2018）、<b>SyncBN</b>（跨卡汇总统计量，等效大 batch）、LN，或干脆加大 batch。</p>
+
+<p><b>6. 为什么 Transformer 用 LN 不用 BN</b>：① 变长序列 + padding，batch 维统计被 pad 污染；② 自回归推理一次只有一个样本（batch=1），BN 的 batch 统计无从谈起；③ LN 逐样本自足，与 batch 组成无关。另外现代架构多用 pre-LN（归一化放进残差分支），梯度更稳——见 <a href="Self-Attention与Transformer.html">Self-Attention与Transformer</a> 页。</p>
+
+<p><b>7. BN 与 dropout 叠加的坑</b>：dropout 随机置零会改变训练时激活的方差，BN 的滑动平均学到的是"带 dropout"的分布，推理时没有 dropout → 统计错配（variance shift）。常见处理：顺序上先 BN 后 dropout、主干里少用 dropout（Transformer 只在 attention/FFN 内部保留小比例）、或二选一。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">面试必问</span><span class="tag">笔试选择</span><span class="tag">工程调参</span></p>
+<ul>
+<li>BN 三连问：训练/推理为什么不一致、推理用什么统计量、为什么放激活前——CV 岗出现率极高。</li>
+<li>维度题：给 (N,C,H,W) 问 BN/LN/GN/IN 各沿哪些维求统计，笔试常考。</li>
+<li>场景题：小 batch（检测/分割）BN 失效怎么办；Transformer 为什么用 LN。</li>
+<li>工程题：BN 与 dropout 叠加的方差偏移、微调时 freeze BN 的取舍。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 训练好的 CNN 带 BN 层，部署时每次只输入 1 张图（batch=1），BN 层的行为是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 用当前这 1 张图估计均值方差再归一化</div>
+<div class="opt" data-k="B">B. 使用训练期间维护的滑动平均 μ、σ²，输出与 batch 大小无关</div>
+<div class="opt" data-k="C">C. 跳过归一化，直接输出 γ、β</div>
+<div class="opt" data-k="D">D. 必须凑满与训练同样大小的 batch，否则报错</div>
+<div class="exp" hidden><b>答案 B。</b>推理阶段 μ、σ² 固定为滑动平均，与 batch 大小无关——这正是 BN"训练/推理不一致"的根源。单样本估统计量（A）方差无意义；归一化照做（C 错）；batch=1 完全合法（D 错）。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> Transformer/序列模型普遍用 LayerNorm 而不是 BatchNorm，最核心的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. LN 的可学习参数更少，显著省显存</div>
+<div class="opt" data-k="B">B. LN 能消除梯度消失</div>
+<div class="opt" data-k="C">C. LN 逐样本沿特征维归一化，不依赖 batch 统计，变长序列 padding 与 batch=1 推理下统计仍然稳定</div>
+<div class="opt" data-k="D">D. BN 在推理阶段无法使用</div>
+<div class="exp" hidden><b>答案 C。</b>三个理由：变长序列 + padding 污染 batch 统计、自回归推理 batch=1、LN 逐样本自足。D 错——BN 推理用滑动平均，能用，只是不适合序列场景；A 参数量差异微乎其微，不是主因；B 归一化不背"消除梯度消失"的锅。CV 大 batch 下 BN 通常更好且带轻微正则效果。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 输入特征图为 (N, C, H, W)，关于各归一化方法统计量的计算维度，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. BN 对每个通道，沿 N 与 H×W 求均值方差</div>
+<div class="opt" data-k="B">B. LN 对每个样本，沿 C 与 H×W 求均值方差</div>
+<div class="opt" data-k="C">C. IN 对每个样本，沿 C、H、W 全部维度求均值方差</div>
+<div class="opt" data-k="D">D. GN 对每个样本的每个分组，沿组内通道 C/G 与 H×W 求均值方差</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 描述的其实是 LN；IN 是逐样本逐通道、只沿空间 H×W，风格迁移常用。记忆抓手：跨 N 的只有 BN，跨全部 C 的是 LN，跨部分 C 的是 GN，不跨 C 的是 IN。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>4.</b> BN 为什么训练和推理行为不一致？这种不一致带来过什么实际问题？</p>
+<details><summary>参考回答</summary>训练时 μ、σ² 来自当前 batch（同时以滑动平均维护 running 统计量）；推理时固定用 running 统计量。为什么必须：推理 batch 可能是 1、要求输出确定、且线上数据分布与训练 batch 组成不同。实际问题：① train/val 表现差距异常时，除了真实过拟合还要怀疑统计错配；② 与 dropout 叠加产生方差偏移——dropout 改变训练时激活方差，BN 滑动平均学到的不是推理分布；③ 微调检测/分割模型时 BN 统计要不要跟着更新（freeze BN）是个真实取舍。加分点：SyncBN/GN 的动机、PyTorch momentum=0.1 的含义。来源：面试高频改编。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① γ、β 是可学习仿射参数，μ、σ² 是统计量；BN 的统计量训练（batch）与推理（滑动平均）是两套；② "LN 没有参数"是错的——LN 也有 γ、β（逐特征），只是没有滑动统计；③ BN 主流放激活前（conv → BN → ReLU）；④ batch 小别硬扛 BN——GN/SyncBN/LN；⑤ 优化器与 warmup 见 <a href="训练三件套激活函数优化器与初始化.html">训练三件套页</a>，pre-LN/post-LN 见 <a href="Self-Attention与Transformer.html">Self-Attention 页</a>。</div>
+</section>
+
+</div>
+<script type="module">
+try {
+  const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+  mermaid.initialize({ startOnLoad: false, theme: "default" });
+  await mermaid.run({ querySelector: "pre.mermaid" });
+  document.querySelectorAll(".ascii-fallback").forEach(el => el.remove());
+} catch (e) {
+  document.querySelectorAll("pre.mermaid").forEach(el => el.remove());
+}
+</script>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>进程同步与死锁 · 408基础/操作系统</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 操作系统</div>
+<h1>进程同步与死锁</h1>
+<div class="meta">适用岗位：全部（PV 手算是笔试计算重灾区，死锁是面试常客） ｜ 形态：概念 + PV 计算 + 双语言代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：临界区四原则（空闲让进、忙则等待、有限等待、<b>让权等待</b>）；P(S) 减 1，减完 S&lt;0 则阻塞，此时 |S| = 等待进程数，V(S) 加 1 后唤醒一个；死锁四个必要条件<b>缺一不可</b>，但"互斥"一般不可破坏；保证不死锁的最少资源数 <b>m ≥ n(k−1)+1</b>；死锁预防=破坏条件（保守），避免=银行家算法（动态判断安全状态），检测+解除=允许发生再撤销。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>同步 vs 互斥</b>：互斥是"一次只许一个进程进临界区"（竞争关系），同步是"执行顺序有依赖，A 没做完 B 必须等"（协作关系）。信号量两种都能表达。</p>
+<p><b>临界区访问四原则</b>：空闲让进、忙则等待、有限等待（不能饿死）、让权等待（进不去就阻塞让出 CPU，而不是忙等）。</p>
+<p><b>信号量与 PV</b>：S 表示可用资源数。P(S)（wait）：S−=1，若 S&lt;0 进程阻塞入等待队列；V(S)（signal）：S+=1，若 S≤0 唤醒一个等待者。<b>整型信号量不满足让权等待，记录型（含阻塞队列）才满足</b>。物理含义记法：S&lt;0 时 |S| = 正在等待的进程数；S&gt;0 时 S = 还可用资源数。</p>
+<p><b>生产者—消费者（必背模板）</b>：缓冲区容量 n，互斥信号量 mutex=1，同步信号量 empty=n（空槽数）、full=0（产品数）：</p>
+<pre><code>生产者:  P(empty); P(mutex); 放产品; V(mutex); V(full)
+消费者:  P(full);  P(mutex); 取产品; V(mutex); V(empty)</code></pre>
+<p>两个 P 的顺序<b>不能换</b>：先 P(mutex) 再 P(empty)，缓冲区满时生产者会拿着锁去等空槽，消费者又拿不到锁，<b>死锁</b>；两个 V 的顺序随便换（不影响正确性）。</p>
+<p><b>死锁四个必要条件</b>：①互斥（资源一次一个用）；②请求并保持（抱着碗看着锅）；③不可剥夺（不能抢）；④循环等待（P0 等 P1 的、P1 等 P0 的……成环）。四个同时成立才可能死锁，破坏任意一个即可预防。</p>
+<p><b>处理策略对比</b>：</p>
+<table>
+<tr><th>策略</th><th>思路</th><th>代价</th></tr>
+<tr><td>预防</td><td class="l">静态破坏四条件之一（如一次性申请全部资源破坏"请求保持"，资源排序破坏"循环等待"）</td><td class="l">资源利用率低、吞吐低，但简单</td></tr>
+<tr><td>避免</td><td class="l">动态判断，只在"安全状态"下分配——<b>银行家算法</b></td><td class="l">每次分配都要算，需预知最大需求</td></tr>
+<tr><td>检测+解除</td><td class="l">先放任，用资源分配图周期性检测，发现环再解除（剥夺/撤销进程）</td><td class="l">检测开销与解除损失</td></tr>
+</table>
+<p>银行家算法思想一句话：假想满足某进程的最大需求并让它跑完归还资源，若所有进程都能按某个顺序依次跑完（找到<b>安全序列</b>），这次分配才安全；找不到安全序列就不分配。</p>
+<p><b>死锁 vs 饥饿</b>：死锁是互相等待成环、谁也动不了；饥饿是优先级低一直轮不到（可以独立存在，不构成环）。</p>
+<p><b>代码模板</b>（Java 用 Semaphore / Python 用 threading.Semaphore，同一套逻辑）：</p>
+<span class="lang">Java</span>
+<pre><code>import java.util.concurrent.*;
+
+Semaphore mutex = new Semaphore(1);   // 互斥锁
+Semaphore empty = new Semaphore(n);   // 空槽数，初值 n
+Semaphore full  = new Semaphore(0);   // 产品数，初值 0
+
+// 生产者线程
+empty.acquire();  mutex.acquire();
+queue.put(item);                      // 放产品
+mutex.release();  full.release();
+
+// 消费者线程
+full.acquire();   mutex.acquire();
+item = queue.take();                  // 取产品
+mutex.release();  empty.release();</code></pre>
+<span class="lang">Python</span>
+<pre><code>import threading
+
+mutex = threading.Semaphore(1)
+empty = threading.Semaphore(n)
+full  = threading.Semaphore(0)
+
+def producer():
+    empty.acquire(); mutex.acquire()
+    buffer.append(item)               # 放产品
+    mutex.release(); full.release()
+
+def consumer():
+    full.acquire();  mutex.acquire()
+    item = buffer.pop(0)              # 取产品
+    mutex.release(); empty.release()</code></pre>
+<div class="tip">实际工程里 Java 直接用 <code>BlockingQueue</code>（内部已做好同步），Python 用 <code>queue.Queue</code>——手写 PV 是为了考试与理解，面试提一句工程封装是加分。</div>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">PV 计算</span><span class="tag">面试口述</span></p>
+<ul>
+<li>PV 计算：给信号量初值和一串 P/V 操作，问终值与阻塞/唤醒次数——核心口诀"P 减 V 加，S&lt;0 的绝对值是等待人数"。</li>
+<li>给场景设信号量及初值（几把互斥锁、几个同步信号量、初值各是多少），并判断 P 操作顺序能否交换。</li>
+<li>死锁四条件识别与"破坏哪条可行/不可行"判断。</li>
+<li>最少资源数公式 m ≥ n(k−1)+1 的代入计算。</li>
+<li>面试：死锁三策略对比、银行家算法思想、工程上如何避免死锁（按序加锁、tryLock 超时、缩小锁粒度）。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">计算</span><b>1.</b> 信号量 S 初值为 3，进程对其执行了 4 次 P 操作和 2 次 V 操作。最终 S 的值与处于阻塞态的进程数是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. S = 2，阻塞 0 个</div>
+<div class="opt" data-k="B">B. S = 1，阻塞 0 个</div>
+<div class="opt" data-k="C">C. S = −1，阻塞 1 个</div>
+<div class="opt" data-k="D">D. S = 5，阻塞 0 个</div>
+<div class="exp" hidden><b>答案 B。</b>S = 3 − 4 + 2 = 1 &gt; 0，表示还有 1 个可用资源，没有任何进程等待。只有 P 之后 S 变负才会阻塞，S = −1 时 |−1| = 1 个等待者。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 生产者—消费者问题中，生产者把两个 P 操作写成 <code>P(mutex); P(empty);</code>（先申请互斥锁再申请空槽）。当缓冲区已满时会发生（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 什么也不发生，等 empty 出现即可</div>
+<div class="opt" data-k="B">B. 生产者被饿死</div>
+<div class="opt" data-k="C">C. 死锁：生产者持有 mutex 等空槽，消费者因拿不到 mutex 无法消费</div>
+<div class="opt" data-k="D">D. 缓冲区被覆盖写</div>
+<div class="exp" hidden><b>答案 C。</b>持有互斥锁再去等资源，是对"请求并保持"条件的经典制造——同步信号量的 P 必须在互斥 P <b>之前</b>。V 操作顺序交换不影响正确性。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="ACD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 下列属于死锁<b>必要</b>条件的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 互斥：资源同一时刻最多被一个进程占有</div>
+<div class="opt" data-k="B">B. 可剥夺：资源可以被系统强行收回</div>
+<div class="opt" data-k="C">C. 请求并保持：占有资源的同时又提出新的资源请求</div>
+<div class="opt" data-k="D">D. 循环等待：等待关系构成环形链</div>
+<div class="exp" hidden><b>答案 ACD。</b>四条件是互斥、请求并保持、<b>不可</b>剥夺、循环等待；B 把"不可剥夺"说反了。破坏其中任意一条即可预防死锁，但互斥是资源本性（如打印机），通常破坏后三条。来源：408 统考高频题型（公开真题常考形式）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 系统有 5 个进程，每个进程最多同时需要 2 台打印机。系统至少要配置多少台打印机才能<b>保证不发生死锁</b>？若每个进程最多需要 3 台呢？</p>
+<details><summary>先自己算，再展开对答案</summary>公式 m ≥ n(k−1)+1：最坏情况每个进程都拿到 k−1=1 台、还差最后 1 台，此时再有一台就能让某个进程凑齐跑完释放。<b>5×(2−1)+1 = 6 台</b>；每进程 3 台时 <b>5×(3−1)+1 = 11 台</b>。来源：408 统考高频题型（公开真题常考形式）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 死锁的预防、避免、检测+解除三种策略怎么选？银行家算法的核心思想是什么？工程上你怎么避免死锁？</p>
+<details><summary>参考回答</summary>预防=静态破坏四条件之一（一次性申请全部资源、资源编号按序申请），安全但利用率低；避免=动态判断每次分配后是否仍是安全状态，代表是银行家算法——假想满足请求后能否找到一个"所有进程都能依次跑完并归还资源"的安全序列，找不到就不分配；检测+解除=放任发生，周期性用资源分配图找环，发现死锁再剥夺资源或撤销进程，利用率最高但有解除代价。工程实践：所有线程按<b>固定顺序</b>加锁（破坏循环等待）、用 tryLock 带超时失败重试、减小锁粒度和持锁时间、用无锁数据结构或消息队列化。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① S&lt;0 时 |S| 才是等待进程数，S≥0 时没有等待者——别把正的 S 当"等待人数"；② 记录型信号量的 P 里阻塞才满足"让权等待"，整型信号量是忙等；③ 生产者消费者 P(empty)/P(full) 与 P(mutex) 顺序不能换，V 顺序无所谓；④ 死锁四条件是"必要"不是"充分充足"，成环不一定死锁（同类资源多实例时可能互相错开）；⑤ 死锁与饥饿：饥饿可以单进程发生，死锁至少两个且成环。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>线性/逻辑回归与正则化 · 深度学习与Python进阶/机器学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 机器学习</div>
+<h1>线性/逻辑回归与正则化</h1>
+<div class="meta">适用岗位：AI/算法、数据分析、后端笔试 ｜ 关联页：<a href="评价指标与样本不平衡.html">评价指标</a> ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：线性回归拟合连续值（MSE 损失，闭式解或梯度下降）；逻辑回归 = 线性模型 + sigmoid 做二分类，损失是<b>交叉熵</b>不是 MSE，梯度统一为 $X^\top(p-y)/m$。正则化：L2（Ridge，平滑、有闭式解）压权重，L1（Lasso，稀疏）做特征选择。面试钉子户：<b>LR 为什么不用 MSE</b>——非凸 + 饱和区梯度消失。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>线性回归</b>：模型 $\hat{y} = w^\top x + b$，损失用均方误差 $L=\frac{1}{m}\sum(\hat{y}_i-y_i)^2$。两条求解路：</p>
+<ul>
+<li>闭式解（正规方程）$w=(X^\top X)^{-1}X^\top y$——$X^\top X$ 不可逆时（特征共线、n&lt;d）要加 $\lambda I$ 变成岭回归；O(d³)，特征多时算不动。</li>
+<li>梯度下降——特征要标准化，否则不同量纲导致等高线椭圆极扁，收敛慢。</li>
+</ul>
+<p><b>逻辑回归</b>：在线性输出上加 sigmoid $p=\sigma(z)=\dfrac{1}{1+e^{-z}}$，把任意实数压到 (0,1) 当概率。从伯努利似然出发，最大化对数似然等价于最小化交叉熵：</p>
+$$L=-\frac{1}{m}\sum_{i=1}^{m}\Big[y_i\log p_i+(1-y_i)\log(1-p_i)\Big]$$
+<p>其对 w 的梯度出奇地简洁：</p>
+$$\frac{\partial L}{\partial w}=\frac{1}{m}X^\top(p-y)$$
+<p>（与线性回归 + MSE 的梯度形式一致，记忆点）。决策边界 $w^\top x+b=0$ 仍是线性的——<b>LR 是线性分类器</b>，非线性要靠特征变换。它输出的是概率、损失处处可导且凸，这是相对 MSE 的关键优势。</p>
+<p><b>正则化</b>：</p>
+<table>
+<tr><th class="l">方法</th><th>惩罚项</th><th class="l">效果</th><th class="l">一句话记忆</th></tr>
+<tr><td class="l">L2 / Ridge</td><td>$+\lambda\|w\|_2^2$</td><td class="l">权重整体缩小、解平滑稳定</td><td class="l">圆约束，权重衰减；$X^\top X+\lambda I$ 恒可逆</td></tr>
+<tr><td class="l">L1 / Lasso</td><td>$+\lambda\|w\|_1$</td><td class="l">部分权重精确为 0</td><td class="l">菱形约束顶点在轴上 → 稀疏，可做特征选择</td></tr>
+<tr><td class="l">弹性网</td><td>两者加权</td><td class="l">兼顾</td><td class="l">特征多且相关时用</td></tr>
+</table>
+<p>$\lambda$ 越大惩罚越重 → 权重越小、模型越简单；过头就是欠拟合。LR 实现里（如 sklearn）正则系数常写成倒数 <code>C=1/λ</code>。</p>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p>这是 ML 笔试/面试的<b>第一梯队高频</b>：① 为什么 LR 用交叉熵不用 MSE（非凸 + $\sigma'$ 饱和让梯度消失）；② L1 为什么稀疏（几何顶点 / 次梯度在 0 处不归零）；③ LR 要不要特征标准化（梯度下降要，共线特征配合 L2）；④ 手推交叉熵梯度（$X^\top(p-y)/m$，写得出来直接过）；⑤ 生成式 vs 判别式的对比里 LR 是判别式代表（朴素贝叶斯是生成式）。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> 逻辑回归不用 MSE 而用交叉熵做损失，主要原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. MSE 计算量更大</div>
+<div class="opt" data-k="B">B. MSE 无法对 w 求导</div>
+<div class="opt" data-k="C">C. MSE + sigmoid 是非凸函数（有局部极小），且 p 接近 0/1 时 σ′≈0 导致梯度消失；交叉熵是凸的且梯度含 1/p 因子抵消饱和</div>
+<div class="opt" data-k="D">D. MSE 只能用于回归问题，语法上不允许</div>
+<div class="exp" hidden><b>答案 C。</b>交叉熵梯度 $p-y$ 不含 σ′，sigmoid 饱和时仍能正常更新；MSE 梯度多乘 σ′，错分严重（饱和区）时反而几乎不更新。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>2.</b> L1 正则化能得到稀疏解（部分权重恰为 0），从几何上看是因为（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. L1 的惩罚值比 L2 小</div>
+<div class="opt" data-k="B">B. L1 约束域是菱形（有棱角），最优解倾向落在坐标轴的顶点上，对应某些权重为 0；L2 约束域是圆，最优解一般不在轴上</div>
+<div class="opt" data-k="C">C. L1 只能用于线性回归，L2 只能用于逻辑回归</div>
+<div class="opt" data-k="D">D. L1 使损失函数变成凸函数而原来不是</div>
+<div class="exp" hidden><b>答案 B。</b>棱角顶点是 L1 稀疏性的经典几何解释；等高线最先碰到约束域的位置多在顶点。来源：面试高频改编。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于正则化，说法正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 特征共线导致 $X^\top X$ 不可逆时，加 L2 后 $X^\top X+\lambda I$ 可逆，闭式解稳定</div>
+<div class="opt" data-k="B">B. L1 可顺带做特征选择</div>
+<div class="opt" data-k="C">C. $\lambda$ 越大，训练误差一定越小</div>
+<div class="opt" data-k="D">D. 正则化是在经验风险上加模型复杂度惩罚，对应结构风险最小化</div>
+<div class="exp" hidden><b>答案 ABD。</b>$\lambda$ 大 → 模型被压简单 → <b>训练误差通常上升</b>，验证误差先降后升，C 错。来源：牛客经典题。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、示例题目</h2>
+<div class="q">
+<p><span class="tg">计算</span><b>1.</b> 单个样本：特征 $x=1$、标签 $y=1$，参数 $w=0,\ b=0$，学习率 $\eta=0.1$。求一步梯度下降后 w 更新为多少？</p>
+<details><summary>解答</summary>
+<p>$p=\sigma(0)=0.5$；梯度 $\partial L/\partial w=(p-y)\cdot x=(0.5-1)\times 1=-0.5$；更新 $w \leftarrow 0-0.1\times(-0.5)=0.5$。来源：AI 岗笔试高频。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">计算</span><b>2.</b> 样本标签 y=1，模型输出 p=0.3。求交叉熵损失 $-\log p$ 的值与梯度方向（p 应变大还是变小）。</p>
+<details><summary>解答</summary>
+<p>$L=-\ln 0.3\approx 1.204$。对正样本梯度 $p-y=0.3-1=-0.7$，参数沿负梯度更新使 $w^\top x$ 增大、p 变大、损失下降。p 越接近 0 错得越狠，$-\ln p\to\infty$ 惩罚陡增。来源：AI 岗笔试高频。</p>
+</details>
+</div>
+<div class="q">
+<p><span class="tg">口述</span><b>3.</b> 手推 LR 交叉熵对 w 的梯度，并说出为什么这个形式「好」。</p>
+<details><summary>解答</summary>
+<p>$L=-[y\log p+(1-y)\log(1-p)]$，$\partial L/\partial z = -y/p + (1-y)/(1-p)$，而 $\partial z/\partial w = x$；代入 $\sigma'(z)=p(1-p)$ 链式化简后 $\partial L/\partial w=(p-y)x$。m 个样本取平均即 $X^\top(p-y)/m$。好处：① 形式与线性回归一致好记；② 不含 $\sigma'$，sigmoid 饱和时梯度不消失。来源：面试高频改编。</p>
+</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 「LR 是线性模型」指决策边界线性，不指输出线性；② L1 稀疏 ≠ L1 惩罚小，是几何顶点效应；③ 正则化惩罚的是 w 不含 b（sklearn 同款约定）；④ λ 越大越欠拟合，sklearn 的 C=1/λ 越大越不惩罚，两个方向别背反；⑤ 标准化只在用梯度下降/距离/正则的模型前做，纯闭式解不影响结果（只影响数值稳定）。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手撕TopK堆与洗牌（ACM 模式） · 深度学习与Python进阶/深度学习手撕编程题</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习手撕编程题</div>
+<h1>手撕 TopK 堆与洗牌（ACM 模式）</h1>
+<div class="meta">适用岗位：全部后端/AI 岗（堆与采样通吃） ｜ 形态：ACM 判题题×2 + 概念自测 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：TopK 用 <b>size-k 最小堆</b> $O(n\log k)$，堆顶是"守门员"；Fisher-Yates 洗牌第 i 步在 $[0,i]$ 均匀取 j 才无偏。判题去随机：<b>swap 序列由输入给定</b>，程序只负责执行；蓄水池采样思想见思路节（口述不判题）。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题 A（TopK）</b>：第一行 n k；第二行 n 个整数。输出一行：前 k 大的数，<b>升序</b>，空格分隔（按名次计数，不去重）。</p>
+<div class="io"><b>样例 1 输入</b>：
+<pre><code>6 2
+3 2 1 5 6 4</code></pre>
+<b>输出</b>：
+<pre><code>5 6</code></pre>
+<b>样例 2 输入（含重复与负数）</b>：
+<pre><code>5 3
+10 -5 3 3 0</code></pre>
+<b>输出</b>：
+<pre><code>3 3 10</code></pre></div>
+<p>核算：堆里始终只留当前最大的 k 个。样例 1 扫描中 1 进不了堆（≤守门员 2）、5 挤掉 2、6 挤掉 3，末态堆 {5,6} 升序输出。样例 2 前 k 大为 3 3 10——两个 3 都算名次（第 2 大与第 3 大），TopK 不去重。以上均经本机实跑核对，另与全排序对拍 6 组（含全等值 [7,7,7,7]、单元素、全负数）全部一致。</p>
+<p><b>题 B（确定性洗牌）</b>：第一行 n；第二行 n 个整数；第三行 m；随后 m 行每行两个下标 i j（0 起始）。按输入顺序依次执行 <code>swap(a[i], a[j])</code>，输出最终数组一行。（Fisher-Yates 的每一步本质就是一次交换；把"随机数"作为输入喂进来，判题即完全确定。题目保证 0 ≤ i, j &lt; n。）</p>
+<div class="io"><b>样例 1 输入</b>：
+<pre><code>5
+1 2 3 4 5
+2
+4 2
+1 3</code></pre>
+<b>输出</b>：
+<pre><code>1 4 5 2 3</code></pre></div>
+<p>核算：swap(a[4],a[2]) → `1 2 5 4 3`；swap(a[1],a[3]) → `1 4 5 2 3`。手算与实跑一致。</p>
+</section>
+
+<section class="card p">
+<h2>二、思路与伪代码</h2>
+<pre><code># 题 A: size-k 最小堆, 堆顶 = 当前第 k 大(守门员)
+h = 前 k 个元素建最小堆
+for x in 剩余元素:
+    若 x &gt; 堆顶: heapreplace(弹堆顶, 压 x)
+输出 sorted(h)          # 升序恰为前 k 大
+
+# 题 B: 执行输入给定的 swap 序列
+for 每步 (i, j): swap(a[i], a[j])
+输出 a</code></pre>
+<p><b>思路（蓄水池采样口述，不判题）</b>：数据流长度未知、只许单遍时，维护大小 k 的"蓄水池"：前 k 个元素直接入库；第 i 个元素（i 从 1 数起）以 $k/i$ 的概率随机替换库中一个位置。归纳可证每个元素最终在库中的概率都是 $k/n$。面试追问"为什么是 k/i"：新元素入库后，原有某元素被保留的概率 $= \frac{k}{i}\cdot(1-\frac1k) + (1-\frac{k}{i}) = \frac{i-1}{i}$，从初始 1 连乘到 n 恰为 $k/n$——与 TopK 的"守门员"同源：用固定空间对抗未知总量。</p>
+<p><b>Fisher-Yates 无偏性</b>：第 1 步 i=n−1 在 n 个位置等概率选 j，第 2 步在剩下 n−1 个位置……每个排列出现概率都是 $1/n!$。经典错误写法是"每步在 [0, n−1] 全范围选 j"，路径数 $n^n$ 无法均匀映射到 $n!$ 个排列，结果系统性有偏。本题把随机性交给输入、程序只做确定性执行。</p>
+<div class="q">
+<p><b>概念自测（点击选项判分）</b></p>
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> n 很大、k 很小时取前 k 大，时间复杂度最优的主流做法是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 全体排序，O(n log n)</div>
+<div class="opt" data-k="B">B. 维护 size-k 最小堆扫一遍，O(n log k)</div>
+<div class="opt" data-k="C">C. 维护 size-k 最大堆扫一遍，O(n log k)</div>
+<div class="opt" data-k="D">D. 冒泡选 k 轮，O(nk)</div>
+<div class="exp" hidden><b>答案 B。</b>最小堆堆顶是 k 个里的最小值（守门员），新元素与它比较后决定进出，n 次 O(log k) 操作；C 错在最大堆堆顶是最大值，当不了守门员；k ≪ n 时 O(n log k) 显著优于 O(n log n)。来源：LeetCode 经典题（ACM 改编）。</div>
+</div>
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于堆与洗牌/采样，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. Python 的 heapq 是最小堆，heappush/heappop 均 O(log n)</div>
+<div class="opt" data-k="B">B. Fisher-Yates 洗牌无偏的前提是第 i 步在下标 [0, i] 内均匀取 j</div>
+<div class="opt" data-k="C">C. 蓄水池采样单遍扫描即可保证每个元素以 k/n 的概率入选</div>
+<div class="opt" data-k="D">D. "每个元素与全范围随机一个位置交换一次"的洗牌写法同样均匀无偏</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 是经典偏差写法：在 [0, n−1] 全范围随机交换，n^n 条路径无法均匀对应 n! 个排列，部分排列概率系统性偏高。另外 heapreplace 一次完成"弹堆顶+压新值"，比 heappop 再 heappush 少一次 O(log k)。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit" type="button">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码</h2>
+<span class="lang">题 A · Python（ACM 完整程序）</span>
+<pre><code>import sys
+import heapq
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n, k = int(next(it)), int(next(it))
+    a = [int(next(it)) for _ in range(n)]
+    h = a[:k]                    # size-k 最小堆, 堆顶是 k 个里最小的(守门员)
+    heapq.heapify(h)
+    for x in a[k:]:
+        if x &gt; h[0]:             # 打败守门员才进堆
+            heapq.heapreplace(h, x)   # 弹堆顶+压新值, 一次完成
+    print(" ".join(map(str, sorted(h))))   # 别忘了: 堆内乱序, 输出前排序
+
+main()</code></pre>
+<span class="lang">题 B · Python（ACM 完整程序）</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n = int(next(it))
+    a = [int(next(it)) for _ in range(n)]
+    m = int(next(it))
+    for _ in range(m):
+        i, j = int(next(it)), int(next(it))
+        a[i], a[j] = a[j], a[i]      # Fisher-Yates 每步的本质: 一次交换
+    print(" ".join(map(str, a)))
+
+main()</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 输出是<b>升序</b>的前 k 大，堆里是乱序的，最后必须 sorted；② "前 k 大"按名次含重复值，别写去重；③ heapreplace（先弹后压）与 heappushpop（先压后弹）方向相反，用错会丢元素；④ 洗牌题下标 0 起始还是 1 起始看题面，执行顺序严格按输入、不可并行化简；⑤ k 可以等于 n（堆=全量，等价全排序），边界也要能跑。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手撕KMeans（ACM 模式） · 深度学习与Python进阶/深度学习手撕编程题</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习手撕编程题</div>
+<h1>手撕 KMeans（ACM 模式）</h1>
+<div class="meta">适用岗位：AI/Agent 开发（机器学习岗笔试常客） ｜ 形态：ACM 判题题 + 概念自测 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：Lloyd 两步循环——<b>分配</b>（每点找最近质心）→ <b>更新</b>（质心 = 簇内均值），目标 $\sum_i \lVert x_i-\mu_{c_i}\rVert^2$ 每轮不增 → 必收敛（但只是局部最优）。判题去随机：<b>初始质心约定 = 前 k 个输入点</b>。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题面</b>：给定 n 个二维点与簇数 k，约定<b>初始质心为前 k 个输入点</b>（编号 0..k−1 按输入顺序），执行 Lloyd 迭代至质心不再变化（或达 100 轮上限），输出最终 k 个质心，各 4 位小数、按质心编号每行一个。</p>
+<p><b>约定（边界特判写明）</b>：① 距离用<b>平方</b>欧氏距离比较（不开方，大小关系不变）；② 并列最近时归编号小的簇；③ 某簇为空时该簇质心保持上一轮不变；④ 收敛判定 = 更新后质心与上一轮完全相等。</p>
+<div class="io"><b>输入格式</b>：第一行 n k；随后 n 行每行 x y。
+<b>样例 1（两团明显的点）</b>：
+<pre><code>6 2
+0 0
+1 0
+0 1
+10 10
+11 10
+10 11</code></pre>
+<b>输出</b>：
+<pre><code>0.3333 0.3333
+10.3333 10.3333</code></pre>
+<b>样例 2（质心被拉走，多迭代一轮）</b>：
+<pre><code>4 2
+0 0
+1 1
+5 5
+6 6</code></pre>
+<b>输出</b>：
+<pre><code>0.5000 0.5000
+5.5000 5.5000</code></pre></div>
+<p>样例核算：样例 1 初始质心 (0,0)/(1,0)，第 1 轮前 3 点归簇 0、后 3 点归簇 1，更新得 $(\tfrac13,\tfrac13)$、$(\tfrac{31}{3},\tfrac{31}{3})$；第 2 轮分配不变 → 质心不变 → 收敛。样例 2 初始 (0,0)/(1,1) 时 (5,5)、(6,6) 离 (1,1) 更近（32&lt;50），第 1 轮更新后 c1=(4,4)；第 2 轮 (1,1) 改投 c0（2&lt;18），再更新得 (0.5,0.5)、(5.5,5.5)；第 3 轮分配不变收敛。两组均为本机实跑输出。</p>
+</section>
+
+<section class="card p">
+<h2>二、思路与伪代码</h2>
+<pre><code>质心 = 前 k 个点
+重复至多 100 轮:
+    分配: 每点 -> 最近质心(平方距离, 并列取编号小者)
+    更新: 每簇新质心 = 簇内点均值; 空簇沿用旧质心
+    若 新质心 == 旧质心: 收敛, 退出
+输出 k 个质心(4位小数, 按编号一行一个)</code></pre>
+<p><b>思路</b>：KMeans 优化簇内平方误差和（SSE/inertia）$\sum_i \lVert x_i-\mu_{c_i}\rVert^2$。Lloyd 两步各自单调不增地压低它：固定质心时"就近分配"是每个点独立的最优；固定分配时"均值"是簇内平方和的最小解（对 μ 求导置零恰为均值）。SSE 有下界、单调不增 → 必收敛，但只保证<b>局部</b>最优，初始质心影响极大 → 工程上用 <b>k-means++</b>：下一个初始质心按"到已有质心的平方距离"加权采样，让初始质心尽量互相远离。</p>
+<div class="q">
+<p><b>概念自测（点击选项判分）</b></p>
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>1.</b> KMeans（Lloyd 迭代）直接优化的目标函数是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 样本到所属质心的欧氏距离平方和（SSE）</div>
+<div class="opt" data-k="B">B. 样本间平均成对距离</div>
+<div class="opt" data-k="C">C. 各簇质心之间的距离和最大化</div>
+<div class="opt" data-k="D">D. 轮廓系数</div>
+<div class="exp" hidden><b>答案 A。</b>"就近分配 + 均值更新"两步各自单调不增地压低簇内平方误差和（inertia）；C 只是聚类的间接效果，D 是评估指标而非训练目标。来源：面试高频改编。</div>
+</div>
+<div class="quiz" data-answer="ABC" data-multi>
+<p><span class="tg">多选</span><b>2.</b> 关于 KMeans 的性质与工程实践，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 只能保证收敛到局部最优，结果依赖初始质心</div>
+<div class="opt" data-k="B">B. k-means++ 按"到已有质心的平方距离"加权选初始质心，改善聚类质量</div>
+<div class="opt" data-k="C">C. 特征量纲差异大时先标准化，否则距离被大尺度特征主导</div>
+<div class="opt" data-k="D">D. 簇数 k 不需要预设，KMeans 会自动学出来</div>
+<div class="exp" hidden><b>答案 ABC。</b>D 错：k 是超参数，需手动设定（肘部法/轮廓系数辅助选择）。另两个常考边界：空簇要特殊处理（沿用旧质心或拆分最分散的簇）、KMeans 假设球形等方差簇，条形/非凸簇看 DBSCAN 或高斯混合。来源：AI 岗笔试高频。</div>
+<div class="opt-submit"><button class="submit" type="button">提交多选</button></div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码</h2>
+<span class="lang">Python（ACM 完整程序）</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n, k = int(next(it)), int(next(it))
+    pts = [(float(next(it)), float(next(it))) for _ in range(n)]
+    cents = pts[:k]                          # 约定: 前 k 个点作初始质心
+    for _ in range(100):                     # 轮数上限
+        labels = []
+        for (x, y) in pts:                   # 分配: 最近质心(平方距离)
+            best, bd = 0, float('inf')
+            for j, (cx, cy) in enumerate(cents):
+                d = (x - cx) ** 2 + (y - cy) ** 2
+                if d &lt; bd:                   # 严格小于 => 并列取编号小者
+                    best, bd = j, d
+            labels.append(best)
+        new = []
+        for j in range(k):                   # 更新: 簇内均值, 空簇沿用旧质心
+            mem = [pts[i] for i in range(n) if labels[i] == j]
+            if mem:
+                new.append((sum(a for a, _ in mem) / len(mem),
+                            sum(b for _, b in mem) / len(mem)))
+            else:
+                new.append(cents[j])
+        if new == cents:                     # 质心不再变化 => 收敛
+            break
+        cents = new
+    for cx, cy in cents:
+        print(f"{cx:.4f} {cy:.4f}")
+
+main()</code></pre>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 初始质心必须严格按题目约定取（本题=前 k 个点），自己随机初始化在对拍平台上必错；② 距离比较用平方距离省 sqrt，输出质心时也别手滑开方；③ 空簇不处理会除零——<code>len(mem)</code> 前先判空；④ 收敛判定直接比"新质心 == 旧质心"最稳；⑤ 输出按初始质心编号顺序，一行一个、4 位小数。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

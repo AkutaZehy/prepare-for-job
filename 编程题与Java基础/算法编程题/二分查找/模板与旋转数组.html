@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二分查找模板与旋转数组（ACM 模式） · 编程题与Java基础/算法编程题/二分查找</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+pre.mermaid{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0;text-align:center}
+pre.ascii-fallback{white-space:pre}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 二分查找</div>
+<h1>二分查找模板与旋转数组（ACM 模式）</h1>
+<div class="meta">适用岗位：全部（小中厂 Java/Python 笔试高频） ｜ 形态：ACM 判题题 + 思路 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：二分死记三件套——<b>左闭右闭 while l&lt;=r、命中排除后 r=mid-1、mid=l+(r-l)/2 防溢出</b>；先想清楚要"找到就返回"还是"找左边界"（第一个 &gt;= target）；旋转数组：mid 切两半<b>必有一半有序</b>，先判有序半再看 target 在不在其中。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题 1（主打）有序数组中查找 target（多组输入）</b>：每组数据第一行 n 与 target，第二行 n 个互不相同的升序整数；输出 target 所在下标（0 起始），不存在输出 -1。来源：牛客经典题。</p>
+<div class="io"><b>输入格式</b>（两组，读到 EOF）：
+<pre><code>5 7                     # n target
+1 3 5 7 9               # n 个升序整数
+3 2
+1 4 6</code></pre>
+<b>输出格式</b>（每组一行）：
+<pre><code>3
+-1</code></pre></div>
+<p><b>题 2 搜索插入位置（LC35）</b>：升序无重复数组，target 存在输出其下标，不存在输出按序插入的位置（保持有序）。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="io"><b>输入格式</b>（2 行）：
+<pre><code>4 2                     # n target
+1 3 5 6</code></pre>
+<b>输出格式</b>：
+<pre><code>1</code></pre></div>
+<p><b>题 3 搜索旋转排序数组（LC33，核心函数）</b>：升序数组在未知下标处旋转（如 0 1 2 4 5 6 7 → 4 5 6 7 0 1 2），找 target 返回下标否则 -1，要求 O(log n)。来源：LeetCode 经典题（ACM 改编）。</p>
+<p><b>题 4 x 的平方根（LC69，核心函数）</b>：非负整数 x，返回 √x 的整数部分（截断小数）。来源：LeetCode 经典题（ACM 改编）。</p>
+<div class="tip">二分题动笔前确认三件事：① 区间下标从 0 还是 1 起；② 元素"互不相同"还是"可重复"（可重复要找左/右边界）；③ 无解时输出什么（-1？n？）。本页统一 0 起始、左闭右闭。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<p><b>1. 标准二分（统一口径：左闭右闭）</b>：循环不变量——target 若存在必在 [l, r] 内。<code>while (l &lt;= r)</code> 配套：a[mid] &gt; target 时 <code>r = mid - 1</code>（mid 已确认不是答案，闭区间连它一起排除）、a[mid] &lt; target 时 <code>l = mid + 1</code>。时间 O(log n)。<b>口径一旦选定全篇统一</b>：左闭右开则是 while (l &lt; r)、r = mid；开闭混用是死循环与漏解之源。</p>
+<p><b>2. 搜索插入位置（LC35）</b>：本质是<b>找左边界</b>——第一个满足 a[i] &gt;= target 的下标（lower_bound）。写法：a[mid] &gt;= target（可行）时 r = mid - 1 继续往左压，不可行 l = mid + 1；循环结束 <b>l 即答案，天然可能是 n</b>（插到末尾）。"找到就返回"与"找左边界"要分清：有重复元素时前者可能命中任意一个，后者才是确定位置。时间 O(log n)。</p>
+<p><b>3. 搜索旋转排序数组（LC33）</b>：mid 把 [l, r] 切成两半，<b>必有一半完全有序</b>：a[l] &lt;= a[mid] ⇒ 左半有序（等号处理 l==mid 的单元素情形），否则右半有序。先判哪半有序，再看 target 是否落在有序半的值域内：在则收缩进有序半，否则去另一半。每轮规模减半，时间 O(log n)。</p>
+<p><b>4. x 的平方根（LC69）</b>：在 [1, x/2]（x ≥ 2）上二分"最大的 mid 使 mid² &lt;= x"。防溢出两处：mid = l + (r - l) / 2；mid * mid 先转 long 再比——x 接近 2³¹−1 时 mid 可达 46341，而 46341² = 2147488281 已超 int 上限 2147483647。循环退出时 r &lt; l，<b>r 就是答案</b>（最后一个平方 ≤ x 的值）。时间 O(log x)。</p>
+
+<div class="q">
+<p><span class="tg">概念自测</span>点击选项即时判分。</p>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 左闭右闭区间 [l, r] 上二分，当 a[mid] &gt; target 时应如何收缩（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. r = mid</div>
+<div class="opt" data-k="B">B. r = mid - 1</div>
+<div class="opt" data-k="C">C. r = mid + 1</div>
+<div class="opt" data-k="D">D. l = mid + 1</div>
+<div class="exp" hidden><b>答案 B。</b>a[mid] 已确认不是 target，闭区间把 mid 一并排除；若写 r = mid 又配 while l&lt;=r，区间不缩会死循环。来源：牛客经典题。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> LC33 中判断"左半 [l..mid] 有序"用 a[l] &lt;= a[mid]，这个等号为什么不能丢（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. l==mid（区间只剩一两个元素）时 a[l]==a[mid]，单元素也算有序半，漏等号会走错分支甚至死循环</div>
+<div class="opt" data-k="B">B. 等号是为了处理 target 恰好等于 a[mid] 的情况</div>
+<div class="opt" data-k="C">C. 没有等号会数组越界</div>
+<div class="opt" data-k="D">D. 等号可有可无，只是习惯写法</div>
+<div class="exp" hidden><b>答案 A。</b>mid=(l+r)/2 向下取整，l==mid 会出现；此时必须按"左半有序"处理。来源：LeetCode 经典题（ACM 改编）。</div>
+</div>
+</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<p><b>题 1 标准二分（完整程序，含多组输入写法）</b>：Java StreamTokenizer 读到 EOF（<b>Scanner 在 10⁵+ 数据量会被卡 TLE</b>）；Python 游标分块读。</p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        // 多组输入：循环读到 EOF
+        while (in.nextToken() != StreamTokenizer.TT_EOF) {
+            int n = (int) in.nval;
+            in.nextToken(); int target = (int) in.nval;
+            int[] a = new int[n];
+            for (int i = 0; i &lt; n; i++) { in.nextToken(); a[i] = (int) in.nval; }
+
+            int l = 0, r = n - 1, ans = -1;   // 左闭右闭
+            while (l &lt;= r) {
+                int mid = l + (r - l) / 2;    // 防 (l+r) 溢出
+                if (a[mid] == target) { ans = mid; break; }
+                else if (a[mid] &lt; target) l = mid + 1;
+                else r = mid - 1;
+            }
+            System.out.println(ans);
+        }
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def solve(n, target, a):
+    l, r = 0, n - 1                     # 左闭右闭
+    while l &lt;= r:
+        mid = l + (r - l) // 2
+        if a[mid] == target:
+            return mid
+        elif a[mid] &lt; target:
+            l = mid + 1
+        else:
+            r = mid - 1
+    return -1
+
+def main():
+    data = sys.stdin.read().split()
+    i, out = 0, []
+    while i &lt; len(data):                # 多组：游标一块一块读
+        n, target = int(data[i]), int(data[i + 1])
+        a = list(map(int, data[i + 2:i + 2 + n]))
+        out.append(str(solve(n, target, a)))
+        i += 2 + n
+    print('\n'.join(out))
+
+main()</code></pre>
+
+<p><b>题 2 搜索插入位置（完整程序）</b>：找左边界模板，命中也继续左压。</p>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        in.nextToken(); int target = (int) in.nval;
+        int[] a = new int[n];
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); a[i] = (int) in.nval; }
+
+        int l = 0, r = n - 1;                 // 左闭右闭，统一口径
+        while (l &lt;= r) {                      // 找左边界：第一个 &gt;= target 的下标
+            int mid = l + (r - l) / 2;
+            if (a[mid] &gt;= target) r = mid - 1;    // mid 可行，往左压找更左的
+            else l = mid + 1;
+        }
+        System.out.println(l);                // l 即答案，可能是 n（插到末尾）
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def lower_bound(a, target):
+    l, r = 0, len(a) - 1                  # 左闭右闭，统一口径
+    while l &lt;= r:
+        mid = l + (r - l) // 2
+        if a[mid] &gt;= target:
+            r = mid - 1                   # mid 可行，往左压
+        else:
+            l = mid + 1
+    return l                              # 第一个 &gt;= target 的下标，可能是 len(a)
+
+def main():
+    data = sys.stdin.read().split()
+    n, target = int(data[0]), int(data[1])
+    a = list(map(int, data[2:2 + n]))
+    print(lower_bound(a, target))
+
+main()</code></pre>
+
+<p><b>题 3 搜索旋转排序数组 / 题 4 x 的平方根（核心函数）</b></p>
+<span class="lang">Java</span>
+<pre><code>// LC33：mid 切两半必有一半有序，先判有序半再看 target 在不在其中
+int search(int[] a, int target) {
+    int l = 0, r = a.length - 1;
+    while (l &lt;= r) {
+        int mid = l + (r - l) / 2;
+        if (a[mid] == target) return mid;
+        if (a[l] &lt;= a[mid]) {                  // 左半 [l..mid] 有序（等号管 l==mid）
+            if (a[l] &lt;= target &amp;&amp; target &lt; a[mid]) r = mid - 1;  // target 在有序左半
+            else l = mid + 1;
+        } else {                               // 右半 [mid..r] 有序
+            if (a[mid] &lt; target &amp;&amp; target &lt;= a[r]) l = mid + 1;
+            else r = mid - 1;
+        }
+    }
+    return -1;
+}
+
+// LC69：返回 sqrt(x) 的整数部分；mid*mid 必须用 long 防溢出
+int mySqrt(int x) {
+    if (x &lt; 2) return x;
+    int l = 1, r = x / 2;                // x&gt;=2 时答案不超过 x/2
+    while (l &lt;= r) {
+        int mid = l + (r - l) / 2;       // 防 l+r 溢出
+        if ((long) mid * mid == x) return mid;
+        else if ((long) mid * mid &lt; x) l = mid + 1;
+        else r = mid - 1;
+    }
+    return r;                            // 退出时 r &lt; l，r 是最后一个平方 &lt;= x 的
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>def search(a, target):
+    l, r = 0, len(a) - 1
+    while l &lt;= r:
+        mid = l + (r - l) // 2
+        if a[mid] == target:
+            return mid
+        if a[l] &lt;= a[mid]:                    # 左半有序
+            if a[l] &lt;= target &lt; a[mid]:       # target 落在有序左半
+                r = mid - 1
+            else:
+                l = mid + 1
+        else:                                 # 右半有序
+            if a[mid] &lt; target &lt;= a[r]:
+                l = mid + 1
+            else:
+                r = mid - 1
+    return -1
+
+def my_sqrt(x):
+    if x &lt; 2:
+        return x
+    l, r = 1, x // 2
+    while l &lt;= r:
+        mid = l + (r - l) // 2
+        sq = mid * mid                # Python 无溢出，Java 要转 long
+        if sq == x:
+            return mid
+        elif sq &lt; x:
+            l = mid + 1
+        else:
+            r = mid - 1
+    return r</code></pre>
+<div class="tip"><b>多组输入</b>已在题 1 演示：Java 套 <code>while (in.nextToken() != StreamTokenizer.TT_EOF)</code>，Python 在 <code>data</code> 上移动游标；单组题把外层循环去掉即可。</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① <b>口径统一</b>：左闭右闭 ↔ while l&lt;=r ↔ r=mid-1，三件套必须配套；写成 l=mid 却不换口径必死循环；② mid 一律 l+(r-l)/2，(l+r)/2 在 l、r 都接近 2³¹ 时溢出；③ 分清"找到就返回"（命中即出）与"找左边界"（命中也继续左压，返回 l 可为 n）；④ 旋转数组判有序半的等号 a[l]&lt;=a[mid] 不能丢；⑤ mid*mid 用 long 接（46341² 已超 int）；⑥ 二分的前提是单调性，数组无序先排序或换思路；⑦ 可重复元素的数组要"第一个/最后一个 target"得用左右边界模板，"找到就返回"会拿到任意一个。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>
