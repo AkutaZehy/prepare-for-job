@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Self-Attention与Transformer · 深度学习与Python进阶/深度学习</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习</div>
+<h1>Self-Attention 与 Transformer</h1>
+<div class="meta">适用岗位：AI/Agent 开发（你课题主线，面试深挖区） ｜ 形态：公式 + 面试问法 + 手撕衔接 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：$\text{Attention}(Q,K,V)=\text{softmax}(QK^\top/\sqrt{d_k})V$；除 $\sqrt{d_k}$ 防点积方差过大致 softmax 饱和；multi-head=多个子空间并行投影；自回归解码用 causal mask；复杂度 $O(n^2 d)$；KV Cache 让每步只算新 token 的 K/V。手撕完整 ACM 版见「深度学习手撕编程题/手撕多头注意力」。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>整体架构</b>：Encoder 与 Decoder 各由 N 层堆叠；每层 = 注意力子层 + 前馈子层（FFN：两层全夹激活），每个子层外套<b>残差连接 + LayerNorm</b>。Encoder 自注意力双向可见；Decoder 的自注意力带 causal mask，交叉注意力（cross-attention）的 Q 来自 Decoder、K/V 来自 Encoder 输出。</p>
+<p><b>Q、K、V 的直觉</b>：输入 $X$ 经三个投影矩阵得到 $Q=XW_Q,\ K=XW_K,\ V=XW_V$。Q=当前词的"查询"，K=每个词的"索引标签"，V=每个词的"内容"；查询与所有键做点积衡量相关度，相关度加权内容求和，得到融合上下文的新表示。</p>
+<p><b>缩放公式</b>：</p>
+<p style="text-align:center">$$\text{Attention}(Q,K,V)=\text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$</p>
+<ul>
+<li><b>为什么除 $\sqrt{d_k}$</b>：$q,k$ 各分量独立同分布、均值 0 方差 1 时，点积 $q\cdot k=\sum_{i=1}^{d_k}q_ik_i$ 的方差为 $d_k$——维度越大点积绝对值越大，softmax 落到两端饱和、梯度趋零。除以 $\sqrt{d_k}$ 把方差拉回 1。</li>
+<li><b>Multi-Head</b>：把 $d_{model}$ 切成 $h$ 份（每头 $d_k=d_{model}/h$），各头独立做注意力再拼接线性变换。意义：<b>不同的头在不同表示子空间学不同关系模式</b>（语法/指代/位置等），总算力近似不变（每头维度变小），还能并行。总参数 = 4 个 $d_{model}\times d_{model}$ 投影（WQ/WK/WV/WO）。</li>
+<li><b>三种 mask</b>：① <b>padding mask</b>——把补齐位（pad）的注意力得分设成 $-\infty$，batch 评估/训练都要；② <b>causal mask</b>（下三角）——Decoder 自注意力禁止看见未来 token；③ 编码中给某些位置置 $-\infty$ 的自定义 mask。实现上都是"softmax 前加 $-\infty$"。</li>
+<li><b>位置编码</b>：注意力本身对顺序不敏感（置换等变），必须注入位置信息。正弦/余弦（原论文，支持相对位置外推）、可学习（BERT/GPT-2）、<b>RoPE 旋转位置编码</b>（LLaMA 系主流，对相对位置友好、外推性好）。BERT 用可学习，GPT-2 用可学习，LLaMA/Qwen 用 RoPE。</li>
+<li><b>复杂度</b>：注意力矩阵 $n\times n$，总复杂度 $O(n^2 d)$、显存 $O(n^2)$——长文本的瓶颈；FFN 部分 $O(nd^2)$。由此衍生 FlashAttention（IO 感知精确计算）、线性注意力等优化方向。</li>
+<li><b>KV Cache</b>：自回归推理时历史 token 的 K、V 不会变，缓存起来，每步只算新 token 的 Q/K/V 并与缓存拼接做注意力——把每步从"重算全部前缀"降为"只算增量"，代价是显存随上下文线性增长。衍生 GQA（分组查询，少缓存 K/V 头）、MQA。</li>
+<li><b>pre-LN vs post-LN</b>：原论文 post-LN（先子层后归一）训练不稳需 warmup；现代大模型几乎都用 pre-LN（归一放进残差分支），梯度更稳。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">面试必问</span><span class="tag">手撕衔接</span></p>
+<ul>
+<li>公式三连问：写出 attention 公式 / 为什么除 $\sqrt{d_k}$ / 为什么要 multi-head——AI 岗面试出现率近乎 100%。</li>
+<li>复杂度对比：self-attention vs RNN/CNN 处理序列的复杂度与并行性（attention 并行、RNN 串行）。</li>
+<li>mask 三兄弟区分、位置编码谱系（哪家用什么）、KV Cache 原理与显存账。</li>
+<li>结合你的课题准备一句话版："我的课题里 attention 用在 X，我调过的量是 Y、涨点 Z"——面试官必从你的项目切入。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 缩放点积注意力中对 $QK^\top$ 除以 $\sqrt{d_k}$ 的原因是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 防止参数过多导致过拟合</div>
+<div class="opt" data-k="B">B. 维度大时点积方差随 $d_k$ 线性增大，softmax 进入饱和区、梯度变小</div>
+<div class="opt" data-k="C">C. 使注意力矩阵变成单位矩阵</div>
+<div class="opt" data-k="D">D. 为了与位置编码的量纲对齐</div>
+<div class="exp" hidden><b>答案 B。</b>$q\cdot k=\sum q_ik_i$，各分量独立同分布时方差为 $d_k$；除以 $\sqrt{d_k}$ 归一回方差 1，softmax 远离饱和。来源：经典面试题（Attention Is All You Need 论文 3.2.1 节）。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>2.</b> 序列长度 n、表示维度 d，单层 self-attention 的时间复杂度是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. O(n d)</div>
+<div class="opt" data-k="B">B. O(n log n · d)</div>
+<div class="opt" data-k="C">C. O(n² d)</div>
+<div class="opt" data-k="D">D. O(n d²)</div>
+<div class="exp" hidden><b>答案 C。</b>注意力得分矩阵计算 $QK^\top$ 是 $(n\times d)\times(d\times n)$，即 $O(n^2 d)$；再加 $\times V$ 同阶。D 的 $O(nd^2)$ 是 FFN 的量级——面试常追问"长文本瓶颈在哪个矩阵"，答 $n\times n$ 注意力矩阵。来源：笔试高频（AI 岗）。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>3.</b> 关于 multi-head attention，正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 每个头在独立的低维子空间学习不同的关系模式</div>
+<div class="opt" data-k="B">B. 各头可完全并行，总计算量与单头大体相当</div>
+<div class="opt" data-k="C">C. 头数 h 必须等于 d_model，否则无法拼接</div>
+<div class="opt" data-k="D">D. 各头输出拼接后还要经过输出投影矩阵 W<sub>O</sub></div>
+<div class="exp" hidden><b>答案 ABD。</b>每头 $d_k=d_{model}/h$，拼接回 $d_{model}$ 后过 WO；C 错，h 整除 d_model 即可（常见 h×d_k=512×8、768×12）。来源：面试高频改编。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>4.</b> GPT 类自回归模型在 Decoder 自注意力中使用 causal mask，其作用是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 把位置 i 对位置 j&gt;i 的注意力得分置为 $-\infty$，训练时防止"偷看未来"，与推理逐步生成保持一致</div>
+<div class="opt" data-k="B">B. 把填充 padding 位置的得分置零，防止无效 token 参与计算</div>
+<div class="opt" data-k="C">C. 让注意力只关注当前 token 自身</div>
+<div class="opt" data-k="D">D. 用于稳定 LayerNorm 的统计量</div>
+<div class="exp" hidden><b>答案 A。</b>causal（下三角）mask 服务自回归一致性；B 描述的是 padding mask——两种 mask 是不同目的，面试常故意混着问。来源：AI 岗笔试高频。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> KV Cache 为什么能加速自回归推理？代价是什么？</p>
+<details><summary>参考回答</summary>自回归生成第 t 个 token 时，只有新 token 的 Q/K/V 需要新算，而前 t−1 个 token 的 K/V 永远不变——把它们缓存下来与增量拼接做注意力，避免每步对全部前缀重算 K/V 与注意力，单步复杂度从对整段重算降为只算增量。代价：显存随上下文长度线性增长（n_tokens × n_kv_heads × d_head × 层数 × 2 × 精度字节数），所以长上下文衍生出 GQA/MQA（减少 K/V 头数）、PagedAttention（vLLM 显存分页管理）。加分：能报出 GQA 是"多个 Q 头共享一组 K/V 头"。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、手撕衔接：单头 Attention（numpy 最小版）</h2>
+<span class="lang">Python/numpy</span>
+<pre><code>import numpy as np
+
+def softmax(x, axis=-1):                    # 数值稳定：减最大值
+    x = x - x.max(axis=axis, keepdims=True)
+    e = np.exp(x)
+    return e / e.sum(axis=axis, keepdims=True)
+
+def attention(Q, K, V, mask=None):          # Q,K,V: (n, d_k)
+    scores = Q @ K.T / np.sqrt(Q.shape[-1]) # (n, n)
+    if mask is not None:
+        scores = np.where(mask, scores, -1e9)
+    return softmax(scores) @ V              # (n, d_v)</code></pre>
+<div class="tip">多头版（split heads → 各头算 → 拼接 → WO 投影）与可判题的 ACM 完整程序见「深度学习手撕编程题/手撕多头注意力」，两页配对着重复习。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

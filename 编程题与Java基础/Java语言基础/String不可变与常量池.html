@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>String不可变与常量池 · 编程题与Java基础/Java语言基础</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 编程题与Java基础 / Java语言基础</div>
+<h1>String 不可变与常量池</h1>
+<div class="meta">适用岗位：测开(Java)、通用软开 ｜ 形态：概念 + 输出判断题（笔试选择重灾区） ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：String 不可变（8 里是 final byte[]）；常量池里的字面量在<b>编译期折叠</b>，<code>"a"+"b"</code> 直接成 <code>"ab"</code>；引用变量拼接发生在运行期产生新对象；<code>intern()</code> 把串放入并返回池中引用（JDK7 起池在堆里，可存堆中引用）。所有 <code>==</code> 输出题先问一句：两边是不是同一个池里的引用。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<ul>
+<li><b>不可变（immutable）</b>：String 类 final（不可继承），内部数组 private final 且不提供修改方法，任何"修改"（concat/replace/substring…）都返回新对象。JDK8 内部是 <code>final char[]</code>，JDK9 起改为 <code>byte[]</code>+编码标记省内存。</li>
+<li><b>为什么设计成不可变</b>（面试四连）：① 字符串常量池共享同一实例成为可能；② hashCode 可以缓存（String 的 hash 惰性计算并缓存，适合做 HashMap 的 key）；③ 安全性（网络地址/文件路径/类名等若可变会被篡改）；④ 天然线程安全。</li>
+<li><b>三级池概念</b>：class 文件常量池 → 运行时常量池（方法区/元空间）→ <b>字符串常量池（JDK7 起移到堆中）</b>。<code>"字面量"</code> 与 <code>intern()</code> 都指向池。</li>
+<li><b>intern()</b>：JDK6 池在永久代，拷贝字面量入池；<b>JDK7 起池在堆，池中已存在等值串就返回它，不存在则把堆中该引用存入池</b>（不再拷贝）——所以 <code>new String("ab").intern()</code> 与 <code>"ab"</code> 恒等值同引用。</li>
+<li><b>拼接三规则</b>：① 两个都是编译期常量（字面量、final 常量）→ 编译期折叠进池；② 任一含运行期变量 → <code>StringBuilder.append</code>，新对象在堆，不在池；③ <code>new String("ab")</code> 造 1~2 个对象（池里没有"ab"时先在池造一个，堆里再 new 一个）。</li>
+<li><b>三兄弟对比</b>：String 不可变；StringBuilder 可变不安全（单线程首选）；StringBuffer 可变、方法 synchronized（安全但慢）。循环拼接务必用 StringBuilder，否则每轮产生新对象 O(n²)。</li>
+<li><b>Python 对照</b>：str 同样不可变；小字符串/标识符有驻留（intern）机制，<code>id()</code> 可观察；拼接产生新对象；没有显式常量池 API，面试 Python 岗讲"不可变+驻留"即可。</li>
+</ul>
+<span class="lang">Java</span>
+<pre><code>String a = "ab";                 // 指向池中 "ab"
+String b = "a" + "b";            // 编译期折叠 → 池中 "ab"，同一引用
+String x = "a";
+String c = x + "b";              // 运行期 StringBuilder → 堆上新对象
+final String fx = "a";
+String d = fx + "b";             // fx 是常量 → 折叠 → 池中 "ab"
+String e = new String("ab");     // 堆上新对象
+
+System.out.println(a == b);      // true  （池内同引用）
+System.out.println(a == c);      // false （堆 vs 池）
+System.out.println(a == d);      // true  （final 折叠）
+System.out.println(a == e);      // false
+System.out.println(a == e.intern()); // true （intern 返回池引用）</code></pre>
+<span class="lang">Python</span>
+<pre><code>a = "ab"
+b = "a" + "b"          # CPython 常量折叠，同一对象
+c = "".join(["a", "b"])  # 运行期构造，不保证驻留
+
+print(a == b)          # True（值相等）
+print(a is b)          # True（字面量折叠，同一对象）
+print(a is c)          # 通常 False（join 产生新对象）
+# 结论：Python 同样"值比较用 ==，身份比较 is"，笔试陷阱与 Java 同构</code></pre>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择/输出判断</span><span class="tag">面试口述</span></p>
+<ul>
+<li>输出判断题是绝对主力：给 3~6 行拼接代码问 <code>==</code> 结果，考的全是"编译期折叠 vs 运行期拼接 vs new/intern"。</li>
+<li>概念选择：不可变的原因、三兄弟线程安全与性能、常量池位置（JDK7 前后变化）。</li>
+<li>面试追问：为什么把字符串设计成不可变、HashMap 的 key 为什么常用 String、循环拼接有什么问题。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">输出判断</span><b>1.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>String a = "hello";
+String b = "hel" + "lo";
+System.out.println(a == b);</code></pre>
+<div class="opt" data-k="A">A. true，"hel"+"lo" 在编译期折叠为池中 "hello"</div>
+<div class="opt" data-k="B">B. false，拼接会产生新对象</div>
+<div class="opt" data-k="C">C. true，因为 String 是不可变的</div>
+<div class="opt" data-k="D">D. false，两个 "hello" 存在不同位置</div>
+<div class="exp" hidden><b>答案 A。</b>两个操作数都是编译期常量，<code>"hel"+"lo"</code> 编译期折叠成 "hello" 入池，a、b 同引用。注意"不可变"只是让池共享可行，这里直接原因是常量折叠。来源：牛客 Java 专项经典题。</div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">输出判断</span><b>2.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>String s1 = "ab";
+String s2 = new String("ab");
+String s3 = s2.intern();
+System.out.println(s1 == s2);
+System.out.println(s1 == s3);</code></pre>
+<div class="opt" data-k="A">A. true / true</div>
+<div class="opt" data-k="B">B. false / false</div>
+<div class="opt" data-k="C">C. false / true</div>
+<div class="opt" data-k="D">D. true / false</div>
+<div class="exp" hidden><b>答案 C。</b><code>new String("ab")</code> 在堆上新造对象，与池中 s1 不同引用 → false；<code>intern()</code> 返回池中 "ab" 的引用 → 与 s1 同引用 → true。JDK7+ 行为（池中已有等值串时直接返回）。来源：牛客/面经高频经典题。</div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">输出判断</span><b>3.</b> 以下代码输出（&nbsp;&nbsp;）</p>
+<pre><code>String base = "a";
+final String f = "a";
+String r1 = base + "b";
+String r2 = f + "b";
+System.out.println(r1 == "ab");
+System.out.println(r2 == "ab");</code></pre>
+<div class="opt" data-k="A">A. true / true</div>
+<div class="opt" data-k="B">B. false / true</div>
+<div class="opt" data-k="C">C. true / false</div>
+<div class="opt" data-k="D">D. false / false</div>
+<div class="exp" hidden><b>答案 B。</b><code>base</code> 是运行期变量 → StringBuilder 拼接 → 堆上新对象 → false；<code>f</code> 被 final 修饰是编译期常量 → 折叠进池 → true。"变量是否有 final"是这类题唯一要盯的点。来源：408 外 Java 笔试常考（改编经典题）。</div>
+</div>
+
+<div class="quiz" data-answer="ABD" data-multi>
+<p><span class="tg">多选</span><b>4.</b> String 被设计为不可变的好处包括（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 可以安全地共享字符串常量池中的同一实例</div>
+<div class="opt" data-k="B">B. hashCode 可以缓存，适合做 HashMap 的 key</div>
+<div class="opt" data-k="C">C. 频繁拼接字符串效率更高</div>
+<div class="opt" data-k="D">D. 天然线程安全，且网络地址、文件路径等关键值不会被篡改</div>
+<div class="exp" hidden><b>答案 ABD。</b>C 反了——不可变导致每次"修改"都产生新对象，频繁拼接应用 StringBuilder。不可变四好处：池共享、hash 缓存、安全、线程安全。来源：面试高频（JavaGuide 收录题型）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>5.</b> 关于 String、StringBuilder、StringBuffer，说法正确的是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. StringBuffer 性能最高，推荐单线程使用</div>
+<div class="opt" data-k="B">B. StringBuilder 是线程安全的</div>
+<div class="opt" data-k="C">C. StringBuffer 的方法带 synchronized，线程安全但开销大；单线程拼接用 StringBuilder</div>
+<div class="opt" data-k="D">D. 三者都可以被继承扩展</div>
+<div class="exp" hidden><b>答案 C。</b>单线程 StringBuilder 最快，多线程才 StringBuffer；String 是 final 类不可继承，StringBuilder/StringBuffer 也是 final 的，D 错。来源：牛客 Java 专项高频题。</div>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① <code>==</code> 判引用、<code>equals</code> 判内容，笔试先分清问的是哪个；② 判 <code>==</code> 三步走：有没有 new？有没有运行期变量拼接？有没有 intern？；③ "new String("ab") 创建几个对象"标准答案：池里没有 "ab" 时 2 个（池 1+堆 1），已有则 1 个；④ JDK7 起字符串常量池在<b>堆</b>，不在永久代/元空间——老八股答案要更新。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手撕多头注意力（ACM 模式） · 深度学习与Python进阶/深度学习手撕编程题</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],displayMath:[['$$','$$']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 深度学习与Python进阶 / 深度学习手撕编程题</div>
+<h1>手撕多头注意力（ACM 模式）</h1>
+<div class="meta">适用岗位：AI/Agent 开发（面试手撕最高频） ｜ 形态：ACM 判题题 + 完整代码 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：拆头 $(n,h,d_k)$，$d_k=d_{model}/h$ → 每头 $\text{softmax}(QK^\top/\sqrt{d_k})V$ → 拼接。三个必踩坑：<b>缩放用每头的 $d_k$ 不是 $d_{model}$</b>、softmax 沿最后一维且减 max、reshape 顺序是 (n, h, d_k) 不是 (h, n, d_k)。理论页见「深度学习/Self-Attention与Transformer」。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题面</b>：给定序列长度 n、模型维度 d_model、头数 h，以及查询/键/值矩阵 Q、K、V（均为 n×d_model 的实数矩阵），计算多头注意力的输出（<b>各头独立缩放点积注意力后拼接</b>；为聚焦主干，本题不含输出投影 W<sub>O</sub> 与偏置）。结果每个元素保留 2 位小数，同一行内以空格分隔。</p>
+<p style="text-align:center">$$\text{head}_i=\text{softmax}\!\left(\frac{Q_iK_i^\top}{\sqrt{d_k}}\right)V_i,\quad d_k=\frac{d_{model}}{h},\quad \text{out}=\text{concat}(\text{head}_1,\dots,\text{head}_h)$$</p>
+<div class="io"><b>输入格式</b>：第一行 n d_model h；随后 3n 行依次为 Q、K、V 每行 d_model 个实数。
+<pre><code>2 2 1
+1 0
+0 1
+1 0
+0 1
+1 2
+3 4</code></pre>
+<b>输出格式</b>：
+<pre><code>1.66 2.66
+2.34 3.34</code></pre></div>
+<p>样例核算（h=1 即单头，$d_k=2$）：$QK^\top=I$，除 $\sqrt2$ 得对角 0.707；行内 softmax → [[0.670,0.330],[0.330,0.670]]；乘 V 得第一行 0.670·[1,2]+0.330·[3,4]=[1.66,2.66]，第二行对称 [2.34,3.34]。</p>
+</section>
+
+<section class="card p">
+<h2>二、伪代码（先背结构再背实现）</h2>
+<pre><code>读 n, d_model, h, 矩阵 Q, K, V
+d_k = d_model / h
+把 Q,K,V 按最后一维切成 h 份: (n, h, d_k)
+for 每个头 i:
+    scores[i] = Q_i @ K_i.T / sqrt(d_k)        # (n, n)
+    P[i]      = softmax(scores[i], 沿最后一维)  # 减 max 保数值稳定
+    out[i]    = P[i] @ V_i                      # (n, d_k)
+把 h 个头的输出沿最后一维拼接回 (n, d_model)
+每个元素保留两位小数输出</code></pre>
+<div class="tip">面试白板版常省 W<sub>O</sub>，但要<b>主动说一句</b>"工程实现里拼接后还有输出投影 W<sub>O</sub> 和残差"，这句加分。</div>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码</h2>
+<span class="lang">Python（numpy，ACM 完整程序）</span>
+<pre><code>import sys
+import numpy as np
+
+def softmax(x, axis=-1):                     # 数值稳定版
+    x = x - x.max(axis=axis, keepdims=True)
+    e = np.exp(x)
+    return e / e.sum(axis=axis, keepdims=True)
+
+def multi_head_attention(Q, K, V, h):
+    n, d_model = Q.shape
+    d_k = d_model // h
+    # 拆头: (n, d_model) -> (n, h, d_k)
+    Qh = Q.reshape(n, h, d_k)
+    Kh = K.reshape(n, h, d_k)
+    Vh = V.reshape(n, h, d_k)
+    # 批量头运算: (h, n, d_k) 广播出 (h, n, n)
+    scores = Qh.transpose(1, 0, 2) @ Kh.transpose(1, 2, 0) / np.sqrt(d_k)
+    P = softmax(scores, axis=-1)
+    out = P @ Vh.transpose(1, 0, 2)          # (h, n, d_k)
+    return out.transpose(1, 0, 2).reshape(n, d_model)  # 拼回头
+
+def main():
+    data = sys.stdin.read().split()
+    it = iter(data)
+    n, d_model, h = int(next(it)), int(next(it)), int(next(it))
+    def read_mat():
+        return np.array([[float(next(it)) for _ in range(d_model)] for _ in range(n)])
+    Q, K, V = read_mat(), read_mat(), read_mat()
+    out = multi_head_attention(Q, K, V, h)
+    for row in out:
+        print(" ".join(f"{v:.2f}" for v in row))
+
+main()</code></pre>
+<span class="lang">PyTorch（面试白板版，无 IO）</span>
+<pre><code>import torch, torch.nn.functional as F
+
+def mha(Q, K, V, h, mask=None):              # Q,K,V: (n, d_model)
+    n, d_model = Q.shape
+    d_k = d_model // h
+    q = Q.view(n, h, d_k).transpose(0, 1)    # (h, n, d_k)
+    k = K.view(n, h, d_k).transpose(0, 1)
+    v = V.view(n, h, d_k).transpose(0, 1)
+    scores = q @ k.transpose(-2, -1) / d_k ** 0.5
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, float("-inf"))
+    return (F.softmax(scores, dim=-1) @ v).transpose(0, 1).reshape(n, d_model)</code></pre>
+<div class="tip">本题为纯数值计算，Java 无 DL 生态故按约定只给 Python 与伪代码。Java 岗面试被要求手撕时，用 ArrayList&lt;double[]&gt; 手写矩阵乘法也能过——思路与伪代码完全一致。</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① <b>缩放因子</b>：除的是每头 $d_k=d_{model}/h$，写成 $d_{model}$ 是最高频错误；② softmax 的 axis 沿最后一维（每行归一），且先减行最大值防溢出；③ reshape 拆头是 (n, h, d_k)——维度顺序写错结果全错且不报错；④ $-\infty$ 的 mask 要在 softmax <b>之前</b>加；⑤ 输出格式：两位小数 <code>f"{v:.2f}"</code> / Java <code>String.format("%.2f")</code>，行内空格分隔、行末别带空格。</div>
+</section>
+
+</div>
+<script></script>
+</body>
+</html>

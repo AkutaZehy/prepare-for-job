@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP三次握手与四次挥手 · 408基础/计算机网络</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.opt.miss{border-color:#e3b341;background:#fff8e1}
+.opt.picked{border-color:var(--acc);background:#eaf3fb}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.submit{margin-top:6px;border:1px solid var(--acc);background:#eaf3fb;color:var(--acc);border-radius:8px;padding:6px 16px;cursor:pointer;font-size:14px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 计算机网络</div>
+<h1>TCP 三次握手与四次挥手</h1>
+<div class="meta">适用岗位：全部（笔试选择 + 计算题；面试八股必问） ｜ 形态：知识点 + 状态机 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：握手三次=同步双方初始序号+防失效连接请求；挥手四次因为 TCP 全双工、两个方向分别关闭；<b>TIME_WAIT 等 2MSL</b>：①保证最后的 ACK 可达可重传 ②让本连接旧报文在网络中消亡；<b>大量 CLOSE_WAIT = 服务端代码没调 close</b>（面试工程高频）。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>报文关键标志位</b>：SYN（请求建立/同步序号）、ACK（确认位，置 1 后 ack 字段有效）、FIN（请求关闭）、RST（重置）、PSH（尽快交付）。确认号 ack = 期望收到的下一个字节序号。</p>
+<pre><code>三次握手（SYN 泛洪发生在半连接队列）          四次挥手（主动方 TIME_WAIT 等 2MSL）
+客户端                    服务端              主动方                     被动方
+  │ ① SYN=1, seq=x            │               │ ① FIN=1, seq=u           │
+  │ ————————————————————————→ │               │ ————————————————————————→│
+  │ SYN_SENT            SYN_RCVD               │ FIN_WAIT_1        CLOSE_WAIT
+  │ ② SYN=1,ACK=1, seq=y,ack=x+1│              │ ② ACK=1, ack=u+1         │
+  │ ←———————————————————————— │               │ ←————————————————————————│
+  │ ESTABLISHED                │               │ FIN_WAIT_2               │
+  │ ③ ACK=1, seq=x+1, ack=y+1  │               │ ③ FIN=1, ACK=1, seq=w,ack=u+1│
+  │ ————————————————————————→ │               │ ←————————————————————————│
+  │                     ESTABLISHED            │ ④ ACK=1, ack=w+1         │
+  │                            │               │ ————————————————————————→│
+  │                            │               │ TIME_WAIT ──2MSL──→ CLOSE │
+  │                            │               │                 LAST_ACK→CLOSE</code></pre>
+<ul>
+<li><b>为什么不是两次握手</b>：① 无法确认"客户端能收"（A 的确认没送到 B，B 不知 A 收到自己的 SYN+ACK）；② 已失效的旧连接请求（网络中滞留的 SYN）突然到达服务端，两次握手会直接建立无效连接浪费资源。三次=双方各确认一次"我发你收"与"你发我收"。</li>
+<li><b>为什么挥手四次</b>：TCP 全双工，两个方向的数据流分别关闭。收到 FIN 后被动方可能还有数据要发（半关闭），所以 ACK 与自己的 FIN 分开发送。</li>
+<li><b>TIME_WAIT 为什么 2MSL（主动关闭方）</b>：MSL=报文最大生存时间。① 若最后 ACK 丢失，被动方重传 FIN，主动方还在 TIME_WAIT 就能重发 ACK——一个 MSL 保证 ACK 可达、再一个 MSL 保证重传的 FIN 消亡；② 保证本连接的所有报文在网络中消亡，避免污染复用同四元组的新连接。</li>
+<li><b>工程信号（面试爱问）</b>：服务端大量 <code>CLOSE_WAIT</code> = 收到对端 FIN 后自己的代码没有调用 close（连接泄漏）；大量 <code>SYN_RCVD</code> = 疑似 SYN Flood 攻击（半连接队列被打满，应对：syncookie、调大半连接队列、减小 SYN+ACK 重传次数）。</li>
+<li><b>TCP vs UDP 一句话</b>：面向连接/可靠/字节流/拥塞控制 vs 无连接/尽最大努力交付/报文保留边界/支持一对多与广播，首部 20+ vs 8 字节。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算题</span><span class="tag">面试八股必问</span></p>
+<ul>
+<li>选择：状态迁移（给报文场景问状态；给状态问场景）、各标志位、2MSL 原因、"为什么三次/四次"。</li>
+<li>计算：SYN/SYN+ACK/ACK 的 seq 与 ack 推算；握手/挥手过程报文序号；结合流量控制窗口的综合计算。</li>
+<li>面试：三次握手各阶段丢包会怎样、CLOSE_WAIT 堆积排查、TIME_WAIT 过多怎么办（复用端口、长连接）、SYN Flood 原理与防御。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="C">
+<p><span class="tg">单选</span><b>1.</b> TCP 连接建立时，第二次握手报文的正确字段组合是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. SYN=1，seq=y，ack=x</div>
+<div class="opt" data-k="B">B. SYN=0，ACK=1，seq=y，ack=x+1</div>
+<div class="opt" data-k="C">C. SYN=1，ACK=1，seq=y，ack=x+1</div>
+<div class="opt" data-k="D">D. SYN=1，ACK=1，seq=y+1，ack=x</div>
+<div class="exp" hidden><b>答案 C。</b>客户端 SYN 消耗一个序号 x，服务端确认号 ack=x+1（期望的下一个字节），自己的初始序号 seq=y 也消耗一个序号。记住规则：<b>SYN 和 FIN 各消耗一个序号，纯 ACK 不消耗</b>。来源：408 统考高频题型。</div>
+</div>
+
+<div class="quiz" data-answer="ABC">
+<p><span class="tg">多选</span><b>2.</b> 关于 TIME_WAIT 状态（等待 2MSL），正确的有（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 出现在主动关闭连接的一方</div>
+<div class="opt" data-k="B">B. 保证最后一个 ACK 若丢失可响应对方重传的 FIN</div>
+<div class="opt" data-k="C">C. 使本连接的报文在网络中自然消亡，避免影响复用相同四元组的新连接</div>
+<div class="opt" data-k="D">D. 出现在被动关闭一方，等待对方最后一个 ACK</div>
+<div class="exp" hidden><b>答案 ABC。</b>被动方发完最后一个 ACK 前处于 LAST_ACK，收到 ACK 直接 CLOSE，不存在 TIME_WAIT；D 错。2MSL 两大原因即 B、C。来源：408 统考 + 面试高频（经典题）。</div>
+<div class="opt-submit"><button class="submit">提交多选</button></div>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>3.</b> TCP 连接释放过程中，主机收到 FIN 报文段并发回 ACK 后进入的状态是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. FIN_WAIT_2</div>
+<div class="opt" data-k="B">B. CLOSE_WAIT</div>
+<div class="opt" data-k="C">C. LAST_ACK</div>
+<div class="opt" data-k="D">D. TIME_WAIT</div>
+<div class="exp" hidden><b>答案 B。</b>被动方收到 FIN → 回 ACK，进入 CLOSE_WAIT（此时还能继续发数据=半关闭），数据发完才发自己的 FIN 转 LAST_ACK。FIN_WAIT_1/2 是主动方的状态。延伸（面试）：服务端大量 CLOSE_WAIT 说明应用层收到 FIN 后一直没调 close。来源：408 统考经典题型。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>4.</b> 主机 A 向 B 发送 TCP 连接建立请求，SYN 报文 seq=100；B 回 SYN+ACK seq=300。写出 A 第三次握手报文的 seq 与 ack；若建立后 A 发送第一个数据报文携带 200 字节，B 正确收到后回的 ack 是多少？</p>
+<details><summary>先自己算，再展开对答案</summary>第三次握手：seq=101（A 的序号已消耗到 100+1），ack=301（B 的 SYN 消耗序号 300，期望下一个 301）。数据报文占 101~300，B 回 <b>ack=301</b>（确认收到 200 字节，期望 301）。注意 SYN 消耗一个序号、数据不占 ack 消耗而是按字节数推进。来源：408 统考计算题常考形式（改编）。</details>
+</div>
+
+<div class="q">
+<p><span class="tg">面试口述</span><b>5.</b> 为什么握手是三次、挥手却是四次？两句话分别说清。</p>
+<details><summary>参考回答</summary>握手三次：TCP 是全双工，双方都要确认"我发你收、你发我收"两条信道，两次无法让服务端确认客户端能收，也挡不住失效的旧 SYN 直连建链。挥手四次：关闭是对两个方向数据流分别收尾，被动方收到 FIN 后可能还有数据没发完，所以 ACK 和自己的 FIN 分两步发，多出一报。加分点：提到 TIME_WAIT/2MSL、CLOSE_WAIT 工程含义。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① "SYN=1 的报文不携带数据但消耗一个序号"，纯 ACK 不消耗——所有 seq/ack 计算题的钥匙；② 三次握手的 ACK=1 是"确认位"，别和确认号 ack 混写；③ TIME_WAIT 在主动方、LAST_ACK 在被动方，别背反；④ 半连接队列（SYN_RCVD）vs 全连接队列（ESTABLISHED 未被 accept），accept 取的是全连接队列。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){o.classList.toggle('picked');return;}
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>两数之和（ACM 模式） · 编程题与Java基础/算法编程题/数组与双指针</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.io{background:#fff;border:1px dashed var(--acc);border-radius:8px;padding:10px 16px;font-size:14px;margin:8px 0}
+.io pre{margin:6px 0;padding:10px 12px}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../../index.html">← 返回进度清单</a> / 编程题与Java基础 / 算法编程题 / 数组与双指针</div>
+<h1>两数之和（ACM 模式）</h1>
+<div class="meta">原型：LeetCode 1（简单） ｜ 适用岗位：全部 ｜ 本页同时是「算法编程题」ACM 模板样板 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：哈希一次遍历 O(n)：边查 <code>target - a[i]</code> 是否已出现、边把 <code>a[i]→i</code> 存入 map，一个循环搞定；<b>笔试与力扣最大的差异是 IO</b>——本题输入输出约定见下，Java 用 StreamTokenizer 快读，Python 用 sys.stdin，两者都按可粘贴进牛客判题的完整程序写。</div>
+
+<section class="card k">
+<h2>一、题目与 IO 约定</h2>
+<p><b>题面</b>：给定 n 个整数和一个目标值 target，找出数组中<b>和为 target 的两个整数</b>，输出它们的下标（约定 0 起始、按下标从小到大），数据保证恰好存在一组解。</p>
+<div class="io"><b>输入格式</b>（3 行）：
+<pre><code>4                       # n
+2 7 11 15               # n 个整数
+9                       # target</code></pre>
+<b>输出格式</b>（1 行）：
+<pre><code>0 1</code></pre></div>
+<div class="tip">笔试常见的 IO 变体提前看一眼，别死背一种：① 多组输入（循环读到 EOF）；② 下标要 1 起始；③ 无解输出 <code>-1 -1</code> 或 <code>-1</code>；④ 数字间逗号分隔（记得 <code>split(",")</code>）。拿到题先读样例再写代码。</div>
+</section>
+
+<section class="card p">
+<h2>二、思路</h2>
+<ul>
+<li><b>暴力</b>：双重循环枚举所有数对，O(n²)——n≤10⁴ 能过，10⁵ 以上超时，笔试默认按 10⁵~10⁶ 估算。</li>
+<li><b>哈希一次遍历</b>：遍历时先查 <code>target - a[i]</code> 是否已在 map（在即得解），再把 <code>a[i]→i</code> 存入 map。O(n) 时间 O(n) 空间。先查后存天然处理了"自己配自己"的问题（如 target=8、元素 4 不会匹配到自己）。</li>
+<li>变体：三数之和 → 排序 + 固定一个数后双指针；两数之和 II（有序数组）→ 首尾双指针 O(1) 空间。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、ACM 完整代码（可直接粘贴牛客）</h2>
+<span class="lang">Java</span>
+<pre><code>import java.io.*;
+import java.util.*;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        StreamTokenizer in = new StreamTokenizer(
+                new BufferedReader(new InputStreamReader(System.in)));
+        in.nextToken(); int n = (int) in.nval;
+        int[] a = new int[n];
+        for (int i = 0; i &lt; n; i++) { in.nextToken(); a[i] = (int) in.nval; }
+        in.nextToken(); int target = (int) in.nval;
+
+        Map&lt;Integer, Integer&gt; seen = new HashMap&lt;&gt;();
+        for (int i = 0; i &lt; n; i++) {
+            Integer j = seen.get(target - a[i]);
+            if (j != null) { System.out.println(j + " " + i); return; }
+            seen.put(a[i], i);
+        }
+        System.out.println("-1 -1");
+    }
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>import sys
+
+def main():
+    data = sys.stdin.read().split()      # 全读进来按空白切，最省心
+    n = int(data[0])
+    a = list(map(int, data[1:1 + n]))
+    target = int(data[1 + n])
+
+    seen = {}
+    for i, v in enumerate(a):
+        if target - v in seen:
+            print(seen[target - v], i)
+            return
+        seen[v] = i
+    print(-1, -1)
+
+main()</code></pre>
+<div class="tip"><b>多组输入改法</b>（很多笔试是"循环到 EOF"）：Java 把主逻辑套进 <code>while (in.nextToken() != StreamTokenizer.TT_EOF)</code>；Python 用 <code>for line in sys.stdin:</code> 或分块从 <code>data</code> 游标读。Java 大数据量（10⁵+）务必用 StreamTokenizer/BufferedReader，<b>Scanner 会被卡 TLE</b>。</div>
+</section>
+
+<section class="card s">
+<h2>四、易错点小结</h2>
+<div class="tip">① 下标基（0 还是 1）看题面约定，输出前确认；② 先查后存，避免元素与自己配对；③ Java 输出 <code>println</code> 每组一行，行末别多空格（有的判题机严格）；④ Python 读入用 <code>sys.stdin.read().split()</code> 一把梭，比逐行 readline 快且不怕换行分布怪异；⑤ 估算复杂度习惯：10⁸ 次运算是 1s 上限，n log n 稳过，n² 看数据范围。</div>
+</section>
+
+</div>
+</body>
+</html>

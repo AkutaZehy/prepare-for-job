@@ -1,0 +1,88 @@
+{
+  "generatedAt": "2026-09-30",
+  "categories": [
+    {
+      "name": "408基础",
+      "subs": [
+        {
+          "name": "数据结构",
+          "items": [
+            {
+              "t": "排序算法全对比",
+              "p": "408基础/数据结构/排序算法全对比.html"
+            }
+          ]
+        },
+        {
+          "name": "计算机网络",
+          "items": [
+            {
+              "t": "TCP三次握手与四次挥手",
+              "p": "408基础/计算机网络/TCP三次握手与四次挥手.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "编程题与Java基础",
+      "subs": [
+        {
+          "name": "Java语言基础",
+          "items": [
+            {
+              "t": "String不可变与常量池",
+              "p": "编程题与Java基础/Java语言基础/String不可变与常量池.html"
+            }
+          ]
+        },
+        {
+          "name": "算法编程题/数组与双指针",
+          "items": [
+            {
+              "t": "两数之和（ACM 模式）",
+              "p": "编程题与Java基础/算法编程题/数组与双指针/两数之和.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "深度学习与Python进阶",
+      "subs": [
+        {
+          "name": "深度学习",
+          "items": [
+            {
+              "t": "Self-Attention与Transformer",
+              "p": "深度学习与Python进阶/深度学习/Self-Attention与Transformer.html"
+            }
+          ]
+        },
+        {
+          "name": "深度学习手撕编程题",
+          "items": [
+            {
+              "t": "手撕多头注意力（ACM 模式）",
+              "p": "深度学习与Python进阶/深度学习手撕编程题/手撕多头注意力.html"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "前端",
+      "subs": [
+        {
+          "name": "Vue",
+          "items": [
+            {
+              "t": "Vue响应式原理",
+              "p": "前端/Vue/响应式原理.html"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

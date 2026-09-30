@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>排序算法全对比 · 408基础/数据结构</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#24292f;--mut:#6a737d;--acc:#0969da;--ok:#1a7f37;--bad:#c93c37;--line:#e1e4e8;--code:#0d1117}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.8;font-size:15.5px}
+.wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+.crumbs{font-size:13px;color:var(--mut);margin-bottom:8px}
+.crumbs a{color:var(--acc);text-decoration:none}
+h1{font-size:25px;margin:6px 0 4px}
+.meta{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 24px;margin:16px 0}
+.card>h2{font-size:18px;margin:2px 0 12px;padding-left:10px}
+.card.k>h2{border-left:4px solid #0969da}.card.p>h2{border-left:4px solid #9a6700}.card.q>h2{border-left:4px solid #8250df}.card.s>h2{border-left:4px solid #1a7f37}
+.recap{background:#eaf3fb;border:1px solid #bcd9f3;border-radius:10px;padding:12px 16px;font-size:14.5px;margin:14px 0}
+.recap b{color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:center}
+th{background:#f2f4f7}
+td.l,th.l{text-align:left}
+code{background:#eff1f3;border-radius:4px;padding:1px 6px;font-family:Consolas,Menlo,monospace;font-size:13.5px;color:#cf222e}
+pre{background:var(--code);color:#e6edf3;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:13.5px;line-height:1.6}
+pre code{background:none;color:inherit;padding:0}
+blockquote{border-left:4px solid var(--line);margin:10px 0;padding:2px 14px;color:var(--mut)}
+.q{border-top:1px dashed var(--line);padding-top:14px;margin-top:16px}
+.q .tg{color:#8250df;font-size:12.5px;background:#f6edff;border-radius:10px;padding:1px 8px;margin-right:6px}
+.opt{border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:6px 0;cursor:pointer;font-size:14.5px}
+.opt:hover{border-color:var(--acc);background:#f3f8fe}
+.opt.right{border-color:var(--ok);background:#e6f6ec}
+.opt.wrong{border-color:var(--bad);background:#fdecec}
+.exp{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin-top:8px}
+.exp b:first-child{color:var(--ok)}
+details{margin-top:8px}
+summary{cursor:pointer;color:var(--acc);font-size:14px;user-select:none}
+.tip{background:#f6f8fa;border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:14px;margin:10px 0}
+.tag{display:inline-block;background:#ddf4ff;color:var(--acc);border-radius:10px;font-size:12.5px;padding:1px 10px;margin:0 6px 6px 0}
+.lang{display:inline-block;background:#30363d;color:#adbac7;border-radius:6px 6px 0 0;font-size:12px;padding:2px 10px;margin-left:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="crumbs"><a href="../../index.html">← 返回进度清单</a> / 408基础 / 数据结构</div>
+<h1>排序算法全对比</h1>
+<div class="meta">适用岗位：全部（笔试选择题必考 + 机试手写） ｜ 形态：知识点 + 计算 ｜ 更新：2026-09-30</div>
+
+<div class="recap"><b>要点速记</b>：不稳定口诀"快些选堆"（快速/希尔/选择/堆排）；快排一趟只保证<b>枢轴归位</b>；建堆 O(n)、调整一次 O(log n)；Top-K 用大小为 k 的堆 O(n log k)；m 段 k 路归并趟数 ⌈log<sub>k</sub>m⌉。</div>
+
+<section class="card k">
+<h2>一、知识点梳理</h2>
+<p><b>稳定性</b>：排序后相等元素的相对次序与排序前相同则称稳定。稳定有什么用？多关键字排序——先按低关键字稳定排，再按高关键字排，低关键字次序得以保留（基数排序的原理）。</p>
+<table>
+<tr><th>算法</th><th>平均时间</th><th>最坏</th><th>最好</th><th>空间</th><th>稳定</th><th>一句话要点</th></tr>
+<tr><td>直接插入</td><td>O(n²)</td><td>O(n²)</td><td>O(n)（基本有序）</td><td>O(1)</td><td>稳</td><td class="l">基本有序或规模小时最快之一</td></tr>
+<tr><td>冒泡</td><td>O(n²)</td><td>O(n²)</td><td>O(n)（可提前终止）</td><td>O(1)</td><td>稳</td><td class="l">每趟冒出一个极值</td></tr>
+<tr><td>简单选择</td><td>O(n²)</td><td>O(n²)</td><td>O(n²)</td><td>O(1)</td><td>不稳</td><td class="l">比较次数固定 n(n-1)/2，与初始状态无关</td></tr>
+<tr><td>希尔</td><td>≈O(n<sup>1.3</sup>)</td><td>O(n²)</td><td>—</td><td>O(1)</td><td>不稳</td><td class="l">分组插入，步长序列影响复杂度</td></tr>
+<tr><td>快速</td><td>O(n log n)</td><td>O(n²)（基本有序时退化）</td><td>O(n log n)</td><td>O(log n) 递归栈</td><td>不稳</td><td class="l">平均性能之王；枢轴每趟归位一个</td></tr>
+<tr><td>堆排</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td><td>O(1)</td><td>不稳</td><td class="l">建堆 O(n)，每次调整 O(log n)</td></tr>
+<tr><td>归并</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n)</td><td>稳</td><td class="l">m 个有序段归并趟数 = ⌈log₂m⌉</td></tr>
+<tr><td>基数</td><td>O(d(n+r))</td><td>O(d(n+r))</td><td>O(d(n+r))</td><td>O(r)</td><td>稳</td><td class="l">d 位数、r 基数；不比较关键字</td></tr>
+</table>
+<ul>
+<li><b>堆</b>：n 个元素建大根堆从 ⌊n/2⌋ 号结点开始向下调整，建堆总代价 O(n)；删除堆顶后"末尾换顶再下调"一次 O(log n)。</li>
+<li><b>快排</b>：每趟至少一个元素（枢轴）放到最终位置；基本有序时取首元素为枢轴退化为 O(n²)——改进：三者取中、随机枢轴。</li>
+<li><b>归并</b>：对 m 个初始有序段做 k 路归并，趟数 s=⌈log<sub>k</sub>m⌉；外部排序多路归并考点同源。</li>
+<li><b>Top-K 选型</b>：n 个数里取最大 k 个，维护 k 大小的（小根）堆，O(n log k)，优于全排序。</li>
+<li>工程提醒：Java <code>Arrays.sort</code> 基本类型用双枢轴快排（不稳），对象用 TimSort（归并+插入，稳定）；Python <code>sorted</code> 是 TimSort，稳定。</li>
+</ul>
+</section>
+
+<section class="card p">
+<h2>二、考点说明</h2>
+<p><span class="tag">笔试选择</span><span class="tag">计算题</span><span class="tag">机试手写</span><span class="tag">面试口述</span></p>
+<ul>
+<li>给一串初始序列，问<b>一趟排序后</b>的结果（快排/冒泡/选择/插入各来一遍；反过来"看一趟结果辨认排序"也是经典出题法）。</li>
+<li>复杂度与初始序列是否相关：插入/冒泡与初始有关，选择/归并/堆排的比较次数与初始无关。</li>
+<li>计算类：建堆过程写堆、第一次交换、比较次数、归并趟数、基数排序"分配-收集"趟数。</li>
+<li>机试：快排/归并/堆排要求独立手写（完整 ACM 模板见「算法编程题」各专题）。</li>
+<li>面试："快排为什么快""稳定有什么用""Top-K 为什么用堆不用全排序"。</li>
+</ul>
+</section>
+
+<section class="card q">
+<h2>三、示例题目（点击选项即时判分）</h2>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>1.</b> 下列排序方法中，<b>不稳定</b>的一组是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 直接插入排序、冒泡排序</div>
+<div class="opt" data-k="B">B. 快速排序、堆排序</div>
+<div class="opt" data-k="C">C. 归并排序、基数排序</div>
+<div class="opt" data-k="D">D. 直接插入排序、希尔排序</div>
+<div class="exp" hidden><b>答案 B。</b>口诀"快些选堆"：快（快速）、些（希尔）、选（简单选择）、堆（堆排）不稳定；其余插入/冒泡/归并/基数均稳定。来源：408 统考高频题型（公开真题常考形式）。</div>
+</div>
+
+<div class="quiz" data-answer="A">
+<p><span class="tg">单选</span><b>2.</b> 对初始序列 {49, 38, 65, 97, 76, 13, 27, 49} 做一趟<b>快速排序</b>（以第一个元素 49 为枢轴），一趟结束后序列为（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. {27, 38, 13, 49, 76, 97, 65, 49}</div>
+<div class="opt" data-k="B">B. {13, 27, 38, 49, 65, 76, 97, 49}</div>
+<div class="opt" data-k="C">C. {49, 38, 13, 27, 76, 97, 65, 49}</div>
+<div class="opt" data-k="D">D. {27, 38, 65, 13, 49, 97, 76, 49}</div>
+<div class="exp" hidden><b>答案 A。</b>经典教材例题（408 高频改编）。挖坑法：high 从右找比 49 小的 27 填坑，low 从左找比 49 大的 65 填坑……最终枢轴落在下标 3，左边 {27,38,13} 全小于 49，右边 {76,97,65,49} 全不小于 49。注意快排<b>一趟只保证枢轴归位</b>，B 是最终有序结果，属典型干扰项。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>3.</b> 将序列 {4, 9, 3, 7, 1, 6} 调整为<b>大根堆</b>（写出数组形态），并写出删除堆顶 9 后（末尾元素补顶、再下调）一次调整后的数组。</p>
+<details><summary>先自己算，再展开对答案</summary>建堆：从 ⌊6/2⌋=3 号（值 7）开始下调，再处理 2 号（3）、1 号（4）。结果（1 起始下标）：<b>{9, 7, 6, 4, 1, 3}</b>。删 9：末尾 3 换到顶 → {3,7,6,4,1}，与较大孩子 7 交换 → {7,3,6,4,1}，3 再与 4 交换 → <b>{7, 4, 6, 3, 1}</b>。来源：408 统考计算题常考形式（改编）。</details>
+</div>
+
+<div class="quiz" data-answer="B">
+<p><span class="tg">单选</span><b>4.</b> 从 10000 个数中选出<b>最大的 10 个</b>，最合适的算法是（&nbsp;&nbsp;）</p>
+<div class="opt" data-k="A">A. 全部快速排序后取前 10</div>
+<div class="opt" data-k="B">B. 维护一个 10 大小的最小堆，扫描一遍</div>
+<div class="opt" data-k="C">C. 简单选择排序跑 10 趟</div>
+<div class="opt" data-k="D">D. 归并排序后取前 10</div>
+<div class="exp" hidden><b>答案 B。</b>k 大小的最小堆：新元素比堆顶大就替换并下调，总代价 O(n log k) ≈ 10⁴ 量级，空间 O(k)。A/D 是 O(n log n) 全排序，C 是 O(kn)，都更慢。来源：笔试经典题型（牛客高频）。</div>
+</div>
+
+<div class="q">
+<p><span class="tg">计算</span><b>5.</b> 对 1000 个彼此无序的元素做<b>二路归并排序</b>需要多少趟？若是 8 个长度为 25 的有序段做四路归并呢？</p>
+<details><summary>先自己算，再展开对答案</summary>趟数 = ⌈log<sub>k</sub>m⌉。二路归并 1000 段：⌈log₂1000⌉ = <b>10 趟</b>。8 段四路归并：⌈log₄8⌉ = <b>2 趟</b>（8→2→1）。来源：408 统考计算题常考形式。</details>
+</div>
+</section>
+
+<section class="card s">
+<h2>四、手撕模板：快速排序（Java / Python）</h2>
+<span class="lang">Java</span>
+<pre><code>// 挖坑法，平均 O(n log n)，原地
+public static void quickSort(int[] a, int lo, int hi) {
+    if (lo &gt;= hi) return;
+    int pivot = a[lo], i = lo, j = hi;
+    while (i &lt; j) {
+        while (i &lt; j &amp;&amp; a[j] &gt;= pivot) j--;   // 从右找小的
+        a[i] = a[j];
+        while (i &lt; j &amp;&amp; a[i] &lt;= pivot) i++;   // 从左找大的
+        a[j] = a[i];
+    }
+    a[i] = pivot;                              // 枢轴归位
+    quickSort(a, lo, i - 1);
+    quickSort(a, i + 1, hi);
+}</code></pre>
+<span class="lang">Python</span>
+<pre><code>def quick_sort(a, lo, hi):
+    if lo &gt;= hi:
+        return
+    pivot, i, j = a[lo], lo, hi
+    while i &lt; j:
+        while i &lt; j and a[j] &gt;= pivot: j -= 1
+        a[i] = a[j]
+        while i &lt; j and a[i] &lt;= pivot: i += 1
+        a[j] = a[i]
+    a[i] = pivot
+    quick_sort(a, lo, i - 1)
+    quick_sort(a, i + 1, hi)</code></pre>
+<div class="tip">易错点：① 循环条件里 <code>&gt;=</code>/<code>&lt;=</code> 少写等号，大量重复元素时死循环；② ACM 场景用内置排序不丢分，手撕多出现在面试白板；③ Python 递归深时注意 <code>sys.setrecursionlimit</code>。</div>
+</section>
+
+</div>
+<script>
+document.querySelectorAll('.quiz').forEach(function(q){
+  var ans=(q.dataset.answer||'').split('').sort().join('');
+  q.querySelectorAll('.opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      if(q.classList.contains('done'))return;
+      if(q.dataset.multi!==undefined){
+        o.classList.toggle('picked');
+        return;
+      }
+      q.classList.add('done');
+      var hit=o.dataset.k===ans;
+      o.classList.add(hit?'right':'wrong');
+      if(!hit)q.querySelector('.opt[data-k="'+q.dataset.answer+'"]').classList.add('right');
+      var e=q.querySelector('.exp');if(e)e.hidden=false;
+    });
+  });
+  var btn=q.querySelector('.submit');
+  if(btn)btn.addEventListener('click',function(){
+    if(q.classList.contains('done'))return;
+    q.classList.add('done');
+    var picked=[].map.call(q.querySelectorAll('.opt.picked'),function(x){return x.dataset.k;}).sort().join('');
+    q.querySelectorAll('.opt').forEach(function(o){
+      var inAns=q.dataset.answer.indexOf(o.dataset.k)>=0;
+      var pickedNow=o.classList.contains('picked');
+      if(pickedNow&&inAns)o.classList.add('right');
+      if(pickedNow&&!inAns)o.classList.add('wrong');
+      if(!pickedNow&&inAns)o.classList.add('miss');
+    });
+    var e=q.querySelector('.exp');if(e)e.hidden=false;
+  });
+});
+</script>
+</body>
+</html>
